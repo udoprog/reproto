@@ -64,25 +64,11 @@ impl Environment {
     }
 
     /// Lookup the package declaration a used alias refers to.
-    pub fn lookup_used(&self,
-                       pos: &Pos,
-                       package: &Package,
-                       used: &str,
-                       custom: &Vec<String>)
-                       -> Result<&Package> {
+    pub fn lookup_used(&self, pos: &Pos, package: &Package, used: &str) -> Result<&Package> {
         // resolve alias
-        let package =
-            self.used
-                .get(&(package.clone(), used.to_owned()))
-                .ok_or_else(|| {
-                    Error::pos(format!("Missing import alias for ({})", used), pos.clone())
-                })?;
-
-        // check that type actually exists?
-        let key = (package.clone(), custom.clone());
-        let _ = self.types.get(&key);
-
-        Ok(package)
+        self.used
+            .get(&(package.clone(), used.to_owned()))
+            .ok_or_else(|| Error::pos(format!("Missing import alias for ({})", used), pos.clone()))
     }
 
     pub fn import_file(&mut self, path: &Path, package: Option<&Package>) -> Result<()> {

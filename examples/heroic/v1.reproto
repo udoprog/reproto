@@ -16,10 +16,11 @@ enum SI {
   serialized_as_name true;
 }
 
-enum TestComplex {
-  FIRST(Sampling(unit: TimeUnit));
+enum ComplexEnum {
+  FIRST(SI.NANO);
+  SECOND(SI.MILLI);
 
-  sampling: Sampling;
+  si: SI;
 }
 
 enum TimeUnit {
@@ -67,7 +68,7 @@ interface Samples {
 type Query {
   query?: string;
   aggregation?: Aggregation;
-  date?: c.Date;
+  date?: c::Date;
   parameters?: {string: string};
 }
 

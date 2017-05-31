@@ -18,6 +18,12 @@ pub struct Instance {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub struct Constant {
+    pub prefix: Option<String>,
+    pub parts: Vec<String>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum Value {
     String(String),
     Number(f64),
@@ -25,6 +31,7 @@ pub enum Value {
     Identifier(String),
     Type(Type),
     Instance(Token<Instance>),
+    Constant(Token<Constant>),
 }
 
 #[derive(Debug)]

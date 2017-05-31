@@ -409,6 +409,7 @@ impl IntoModel for ast::Value {
             ast::Value::Identifier(identifier) => Value::Identifier(identifier),
             ast::Value::Type(ty) => Value::Type(ty),
             ast::Value::Instance(instance) => Value::Instance(instance.into_model(pos)?),
+            ast::Value::Constant(constant) => Value::Constant(constant.into_model(pos)?),
         };
 
         Ok(value)
@@ -438,6 +439,19 @@ impl IntoModel for ast::Instance {
         };
 
         Ok(instance)
+    }
+}
+
+impl IntoModel for ast::Constant {
+    type Output = Constant;
+
+    fn into_model(self, _pos: &Pos) -> Result<Constant> {
+        let constant = Constant {
+            prefix: self.prefix,
+            parts: self.parts,
+        };
+
+        Ok(constant)
     }
 }
 

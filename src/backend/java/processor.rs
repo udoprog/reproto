@@ -167,11 +167,13 @@ impl Processor {
                 let argument = self.convert_type(pos, package, ty)?;
                 self.list.with_arguments(vec![argument]).into()
             }
-            m::Type::Custom(ref parts) => {
-                return self.convert_custom(pos, package, parts);
-            }
-            m::Type::UsedType(ref used, ref parts) => {
-                let package = self.env.lookup_used(pos, package, used, parts)?;
+            m::Type::Custom(ref prefix, ref parts) => {
+                let package = if let Some(ref prefix) = *prefix {
+                    self.env.lookup_used(pos, package, prefix)?
+                } else {
+                    package
+                };
+
                 return self.convert_custom(pos, package, parts);
             }
             m::Type::Map(ref key, ref value) => {
@@ -936,6 +938,7 @@ impl ::std::fmt::Display for m::Value {
             m::Value::Identifier(_) => "<identifier>",
             m::Value::Type(_) => "<type>",
             m::Value::Instance(_) => "<instance>",
+            m::Value::Constant(_) => "<constant>",
         };
 
         write!(f, "{}", out)

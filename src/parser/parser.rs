@@ -170,7 +170,6 @@ impl_rdp! {
             any_type |
             map_type |
             array_type |
-            used_type |
             custom_type
         }
 
@@ -185,8 +184,9 @@ impl_rdp! {
         any_type = @{ ["any"] }
         map_type = { left_curly ~ type_spec ~ colon ~ type_spec ~ right_curly }
         array_type = { ["["] ~ type_spec ~ ["]"] }
-        used_type = @{ identifier ~ dot ~ custom_type }
-        custom_type = @{ type_identifier ~ (dot ~ type_identifier)* }
+        custom_type = @{ used_prefix? ~ type_identifier ~ (dot ~ type_identifier)* }
+
+        used_prefix = @{ identifier ~ scope }
 
         // Keywords and tokens
         enum_keyword = @{ ["enum"] }
@@ -200,6 +200,7 @@ impl_rdp! {
         hash_rocket = @{ ["=>"] }
         comma = @{ [","] }
         colon = @{ [":"] }
+        scope = @{ ["::"] }
         semi_colon = @{ [";"] }
         left_curly = @{ ["{"] }
         right_curly = @{ ["}"] }
@@ -214,9 +215,11 @@ impl_rdp! {
 
         type_bits = _{ (forward_slash ~ unsigned) }
 
-        value = { instance | boolean | identifier | string | number }
+        value = { instance | constant | boolean | identifier | string | number }
 
-        instance = { type_spec ~ (left_paren ~ (field_init ~ (comma ~ field_init)*)? ~ right_paren)? }
+        instance = { type_spec ~ (left_paren ~ (field_init ~ (comma ~ field_init)*)? ~ right_paren) }
+        constant = { custom_type }
+
         field_init = { identifier ~ colon ~ value }
 
         identifier = @{ ['a'..'z'] ~ (['0'..'9'] | ['a'..'z'] | ["_"])* }
@@ -450,7 +453,9 @@ impl_rdp! {
             (
                 token: instance,
                 ty: _type_spec(),
-                arguments: _instance_arguments(),
+                _: left_paren,
+                arguments: _field_init_list(),
+                _: right_paren,
             ) => {
                 let pos = (token.start, token.end);
                 let arguments = arguments?.into_iter().collect();
@@ -461,6 +466,23 @@ impl_rdp! {
                 };
 
                 Ok(ast::Value::Instance(ast::Token::new(instance, pos)))
+            },
+
+            (
+                token: constant,
+                _: custom_type,
+                prefix: _used_prefix(),
+                parts: _type_identifier_list(),
+            ) => {
+                let pos = (token.start, token.end);
+                let parts = parts.into_iter().collect();
+
+                let instance = ast::Constant {
+                    prefix: prefix,
+                    parts: parts,
+                };
+
+                Ok(ast::Value::Constant(ast::Token::new(instance, pos)))
             },
 
             (&value: string) => {
@@ -488,16 +510,9 @@ impl_rdp! {
             },
         }
 
-        _instance_arguments(&self) -> Result<LinkedList<ast::Token<ast::FieldInit>>> {
-            (
-                _: left_paren,
-                arguments: _field_init_list(),
-                _: right_paren,
-            ) => {
-                arguments
-            },
-
-            () => Ok(LinkedList::new()),
+        _used_prefix(&self) -> Option<String> {
+            (_: used_prefix, &prefix: identifier, _: scope) => Some(prefix.to_owned()),
+            () => None,
         }
 
         _field_init_list(&self) -> Result<LinkedList<ast::Token<ast::FieldInit>>> {
@@ -759,17 +774,6 @@ impl_rdp! {
                 Ok(m::Type::Any)
             },
 
-            (
-                _: used_type,
-                &used: identifier,
-                _: dot,
-                _: custom_type,
-                parts: _type_identifier_list(),
-            ) => {
-                let parts = parts.into_iter().collect();
-                Ok(m::Type::UsedType(used.to_owned(), parts))
-            },
-
             (_: array_type, argument: _type_spec()) => {
                 let argument = argument?;
                 Ok(m::Type::Array(Box::new(argument)))
@@ -788,9 +792,9 @@ impl_rdp! {
                 Ok(m::Type::Map(Box::new(key), Box::new(value)))
             },
 
-            (_: custom_type, parts: _type_identifier_list()) => {
+            (_: custom_type, prefix: _used_prefix(), parts: _type_identifier_list()) => {
                 let parts = parts.into_iter().collect();
-                Ok(m::Type::Custom(parts))
+                Ok(m::Type::Custom(prefix, parts))
             },
         }
 
@@ -987,7 +991,7 @@ mod tests {
         let field = ast::Token::new(field, (8, 17));
 
         let instance = ast::Instance {
-            ty: m::Type::Custom(vec!["Foo".to_owned(), "Bar".to_owned()]),
+            ty: m::Type::Custom(None, vec!["Foo".to_owned(), "Bar".to_owned()]),
             arguments: vec![field],
         };
 
@@ -1000,7 +1004,7 @@ mod tests {
     #[test]
     fn test_type_spec() {
         assert_type_spec_eq!(m::Type::String, "string");
-        assert_type_spec_eq!(m::Type::Custom(vec!["Hello".to_owned(), "World".to_owned()]),
+        assert_type_spec_eq!(m::Type::Custom(None, vec!["Hello".to_owned(), "World".to_owned()]),
                              "Hello.World");
     }
 

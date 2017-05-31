@@ -333,23 +333,23 @@ impl Processor {
         }
     }
 
-    fn custom_name(&self, package: &m::Package, custom: &Vec<String>) -> Name {
-        let package = self.package(package);
-        let key = &(package.clone(), custom.to_owned());
-        let _ = self.env.types.get(key);
-        Name::local(&custom.join(".")).into()
-    }
-
     fn used_name(&self,
                  pos: &m::Pos,
                  package: &m::Package,
-                 used: &str,
+                 used: &Option<String>,
                  custom: &Vec<String>)
                  -> Result<Name> {
-        let package = self.env.lookup_used(pos, package, used, custom)?;
-        let package = self.package(package);
-        let package = package.parts.join(".");
-        Ok(Name::imported_alias(&package, &custom.join("."), used).into())
+        if let Some(ref used) = *used {
+            let package = self.env.lookup_used(pos, package, used)?;
+            let package = self.package(package);
+            let package = package.parts.join(".");
+            Ok(Name::imported_alias(&package, &custom.join("."), used).into())
+        } else {
+            let package = self.package(package);
+            let key = &(package.clone(), custom.to_owned());
+            let _ = self.env.types.get(key);
+            Ok(Name::local(&custom.join(".")).into())
+        }
     }
 
     fn encode<S>(&self, package: &m::Package, ty: &m::Type, value_stmt: S) -> Result<Statement>
@@ -369,8 +369,7 @@ impl Processor {
             m::Type::String => value_stmt,
             m::Type::Any => value_stmt,
             m::Type::Boolean => value_stmt,
-            m::Type::Custom(ref _custom) => stmt![value_stmt, ".encode()"],
-            m::Type::UsedType(ref _used, ref _custom) => stmt![value_stmt, ".encode()"],
+            m::Type::Custom(ref _used, ref _custom) => stmt![value_stmt, ".encode()"],
             m::Type::Array(ref inner) => {
                 let v = stmt!["v"];
                 let inner = self.encode(package, inner, v)?;
@@ -404,11 +403,7 @@ impl Processor {
             m::Type::String => value_stmt,
             m::Type::Any => value_stmt,
             m::Type::Boolean => value_stmt,
-            m::Type::Custom(ref custom) => {
-                let name = self.custom_name(package, custom);
-                stmt![name, ".decode(", value_stmt, ")"]
-            }
-            m::Type::UsedType(ref used, ref custom) => {
+            m::Type::Custom(ref used, ref custom) => {
                 let name = self.used_name(pos, package, used, custom)?;
                 stmt![name, ".decode(", value_stmt, ")"]
             }
@@ -867,8 +862,13 @@ impl ::std::fmt::Display for m::Type {
             m::Type::Unsigned(_) => write!(f, "int"),
             m::Type::Float | m::Type::Double => write!(f, "float"),
             m::Type::String => write!(f, "str"),
-            m::Type::Custom(ref custom) => write!(f, "{}", custom.join(".")),
-            m::Type::UsedType(ref used, ref custom) => write!(f, "{}.{}", used, custom.join(".")),
+            m::Type::Custom(ref used, ref custom) => {
+                if let Some(ref used) = *used {
+                    write!(f, "{}.{}", used, custom.join("."))
+                } else {
+                    write!(f, "{}", custom.join("."))
+                }
+            }
             m::Type::Array(_) => write!(f, "array"),
             m::Type::Boolean => write!(f, "bool"),
             _ => write!(f, "<unknown>"),

@@ -19,6 +19,12 @@ pub struct Instance {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub struct Constant {
+    pub prefix: Option<String>,
+    pub parts: Vec<String>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum Value {
     String(String),
     Number(f64),
@@ -26,6 +32,7 @@ pub enum Value {
     Identifier(String),
     Type(Type),
     Instance(Token<Instance>),
+    Constant(Token<Constant>),
 }
 
 #[derive(Debug)]
@@ -44,8 +51,7 @@ pub enum Type {
     String,
     Bytes,
     Any,
-    UsedType(String, Vec<String>),
-    Custom(Vec<String>),
+    Custom(Option<String>, Vec<String>),
     Array(Box<Type>),
     Map(Box<Type>, Box<Type>),
 }
@@ -342,8 +348,7 @@ impl MatchDecl {
             Type::Boolean => MatchKind::Boolean,
             Type::String | Type::Bytes => MatchKind::String,
             Type::Any => MatchKind::Any,
-            Type::UsedType(_, _) |
-            Type::Custom(_) |
+            Type::Custom(_, _) |
             Type::Map(_, _) => MatchKind::Object,
             Type::Array(_) => MatchKind::Array,
         }
