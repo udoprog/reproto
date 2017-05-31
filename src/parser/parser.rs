@@ -216,7 +216,7 @@ impl_rdp! {
 
         value = { instance | boolean | identifier | string | number }
 
-        instance = { type_spec ~ left_paren ~ (field_init ~ (comma ~ field_init)*)? ~ right_paren }
+        instance = { type_spec ~ (left_paren ~ (field_init ~ (comma ~ field_init)*)? ~ right_paren)? }
         field_init = { identifier ~ colon ~ value }
 
         identifier = @{ ['a'..'z'] ~ (['0'..'9'] | ['a'..'z'] | ["_"])* }
@@ -450,9 +450,7 @@ impl_rdp! {
             (
                 token: instance,
                 ty: _type_spec(),
-                _: left_paren,
-                arguments: _field_init_list(),
-                _: right_paren
+                arguments: _instance_arguments(),
             ) => {
                 let pos = (token.start, token.end);
                 let arguments = arguments?.into_iter().collect();
@@ -488,6 +486,18 @@ impl_rdp! {
 
                 Ok(ast::Value::Boolean(value))
             },
+        }
+
+        _instance_arguments(&self) -> Result<LinkedList<ast::Token<ast::FieldInit>>> {
+            (
+                _: left_paren,
+                arguments: _field_init_list(),
+                _: right_paren,
+            ) => {
+                arguments
+            },
+
+            () => Ok(LinkedList::new()),
         }
 
         _field_init_list(&self) -> Result<LinkedList<ast::Token<ast::FieldInit>>> {

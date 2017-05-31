@@ -241,17 +241,18 @@ impl Listeners for Module {
         }
 
         let constructor = &mut event.spec.constructors[0];
-        let creator_annotation = AnnotationSpec::new(&self.creator);
-
-        constructor.push_annotation(&creator_annotation);
 
         if constructor.arguments.len() != event.fields.len() {
-            return Err(format!("The number of constructor arguments ({}) did not match the \
-                                number of fields ({})",
+            return Err(format!("{:?}: the number of constructor arguments ({}) did not match \
+                                the number of fields ({})",
+                               event.class_type,
                                constructor.arguments.len(),
                                event.fields.len())
                 .into());
         }
+
+        let creator_annotation = AnnotationSpec::new(&self.creator);
+        constructor.push_annotation(&creator_annotation);
 
         let zipped = constructor.arguments.iter_mut().zip(event.fields.iter());
 

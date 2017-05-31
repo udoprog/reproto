@@ -39,6 +39,7 @@ impl JavaField {
         let name = format!("get{}", self.camel_name);
         let mut getter = java::MethodSpec::new(mods![java::Modifier::Public], &name);
         getter.returns(&self.ty);
+        getter.push(stmt!["return this.", &self.ident, ";"]);
         Ok(getter)
     }
 }

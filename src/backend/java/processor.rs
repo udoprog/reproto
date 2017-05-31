@@ -130,6 +130,21 @@ impl Processor {
         self.java_package(package).parts.join(".")
     }
 
+    fn convert_custom(&self,
+                      pos: &m::Pos,
+                      package: &m::Package,
+                      parts: &Vec<String>)
+                      -> Result<Type> {
+        let key = (package.clone(), parts.clone());
+
+        if !self.env.types.contains_key(&key) {
+            return Err(Error::pos(format!("no such type: {}", parts.join(".")), pos.clone()));
+        }
+
+        let package_name = self.java_package_name(package);
+        Ok(Type::class(&package_name, &parts.join(".")).into())
+    }
+
     /// Convert the given type to a java type.
     fn convert_type(&self, pos: &m::Pos, package: &m::Package, ty: &m::Type) -> Result<Type> {
         let ty = match *ty {
@@ -153,32 +168,18 @@ impl Processor {
                 self.list.with_arguments(vec![argument]).into()
             }
             m::Type::Custom(ref parts) => {
-                let key = (package.clone(), parts.clone());
-
-                if let None = self.env.types.get(&key) {
-                    return Err(Error::pos(format!("no such type: {}", parts.join(".")),
-                                          pos.clone()));
-                }
-
-                if let Some(last) = parts.iter().last() {
-                    let package_name = self.java_package_name(package);
-                    Type::class(&package_name, last).into()
-                } else {
-                    return Err(Error::pos(format!("unsupported custom type: {:?}", parts),
-                                          pos.clone()));
-                }
+                return self.convert_custom(pos, package, parts);
             }
-            m::Type::Any => self.object.clone().into(),
-            m::Type::UsedType(ref used, ref custom) => {
-                let package = self.env.lookup_used(pos, package, used, custom)?;
-                let package_name = self.java_package_name(package);
-                Type::class(&package_name, &custom.join(".")).into()
+            m::Type::UsedType(ref used, ref parts) => {
+                let package = self.env.lookup_used(pos, package, used, parts)?;
+                return self.convert_custom(pos, package, parts);
             }
             m::Type::Map(ref key, ref value) => {
                 let key = self.convert_type(pos, package, key)?;
                 let value = self.convert_type(pos, package, value)?;
                 self.map.with_arguments(vec![key, value]).into()
             }
+            m::Type::Any => self.object.clone().into(),
             ref t => {
                 return Err(Error::pos(format!("unsupported type: {:?}", t), pos.clone()));
             }
@@ -471,18 +472,48 @@ impl Processor {
         }
     }
 
-    fn literal_value(&self, pos: &m::Pos, value: &m::Value, ty: &Type) -> Result<Variable> {
+    fn literal_value(&self,
+                     pos: &m::Pos,
+                     package: &m::Package,
+                     value: &m::Value,
+                     ty: &Type)
+                     -> Result<Statement> {
         if let Type::Primitive(ref primitive) = *ty {
             if let m::Value::Number(ref float) = *value {
                 let lit = self.to_number_literal(pos, float, primitive)?;
-                return Ok(lit.into());
+                return Ok(Variable::Literal(lit).into());
             }
         }
 
         if let Type::Class(ref class) = *ty {
             if *class == self.string {
                 if let m::Value::String(ref value) = *value {
-                    return Ok(Variable::String(value.to_owned()));
+                    return Ok(Variable::String(value.to_owned()).into());
+                }
+            }
+
+            if let m::Value::Instance(ref instance) = *value {
+                let current_ty = self.convert_type(pos, package, &instance.ty)?;
+
+                // TODO: fix this
+                if let Type::Class(ref current) = current_ty {
+                    println!("current = {:?}", current);
+
+                    if class.name != current.name {
+                        return Err(Error::pos(format!("expected {}", class.name), pos.clone()));
+                    }
+
+                    let mut arguments = Statement::new();
+
+                    for init in &instance.arguments {
+                        // TODO: map out init position, and check that required variables are set.
+                        arguments.push(self.literal_value(pos, package, &init.value, &current_ty)?);
+                    }
+
+                    let n = stmt!["new ", &ty, "(", arguments.join(", "), ")"];
+                    return Ok(n);
+                } else {
+                    return Err(Error::pos("expected class".to_owned(), pos.clone()));
                 }
             }
         }
@@ -558,6 +589,20 @@ impl Processor {
         let mut spec = EnumSpec::new(mods![Modifier::Public], &body.name);
         let fields = self.convert_fields(package, &body.fields)?;
 
+        for field in &fields {
+            spec.push_field(&field.spec);
+
+            if self.options.build_getters {
+                spec.push(field.getter()?);
+            }
+
+            if self.options.build_setters {
+                if let Some(setter) = field.setter()? {
+                    spec.push(setter);
+                }
+            }
+        }
+
         for code in body.codes.for_context(JAVA_CONTEXT) {
             spec.push(code.inner.lines);
         }
@@ -570,7 +615,7 @@ impl Processor {
                 let mut value_arguments = Statement::new();
 
                 for (value, field) in enum_literal.arguments.iter().zip(fields.iter()) {
-                    value_arguments.push(self.literal_value(&value.pos, value, &field.ty)?);
+                    value_arguments.push(self.literal_value(&value.pos, package, value, &field.ty)?);
                 }
 
                 enum_stmt.push(stmt!["(", value_arguments.join(", "), ")"]);
@@ -582,18 +627,6 @@ impl Processor {
 
         let constructor = self.build_enum_constructor(&spec);
         spec.push_constructor(constructor);
-
-        for field in &fields {
-            if self.options.build_getters {
-                spec.push(field.getter()?);
-            }
-
-            if self.options.build_setters {
-                if let Some(setter) = field.setter()? {
-                    spec.push(setter);
-                }
-            }
-        }
 
         let mut from_value: Option<MethodSpec> = None;
         let mut to_value: Option<MethodSpec> = None;
@@ -633,24 +666,39 @@ impl Processor {
 
     fn process_tuple(&self, package: &m::Package, body: &m::TupleBody) -> Result<FileSpec> {
         let class_type = Type::class(&self.java_package_name(package), &body.name);
-        let mut class = ClassSpec::new(mods![Modifier::Public], &body.name);
+        let mut spec = ClassSpec::new(mods![Modifier::Public], &body.name);
 
         let fields = self.convert_fields(package, &body.fields)?;
 
-        for code in body.codes.for_context(JAVA_CONTEXT) {
-            class.push(code.inner.lines);
+        for field in &fields {
+            spec.push_field(&field.spec);
+
+            if self.options.build_getters {
+                spec.push(field.getter()?);
+            }
+
+            if self.options.build_setters {
+                if let Some(setter) = field.setter()? {
+                    spec.push(setter);
+                }
+            }
         }
 
-        self.add_class(&class_type, &mut class)?;
+        for code in body.codes.for_context(JAVA_CONTEXT) {
+            spec.push(code.inner.lines);
+        }
+
+        self.add_class(&class_type, &mut spec)?;
+
         self.listeners
             .tuple_added(&mut TupleAdded {
                 fields: &fields,
                 class_type: &class_type,
-                spec: &mut class,
+                spec: &mut spec,
             })?;
 
         let mut file_spec = self.new_file_spec(package);
-        file_spec.push(&class);
+        file_spec.push(&spec);
 
         Ok(file_spec)
     }
@@ -658,23 +706,38 @@ impl Processor {
     fn process_type(&self, package: &m::Package, body: &m::TypeBody) -> Result<FileSpec> {
         let class_type = Type::class(&self.java_package_name(package), &body.name);
 
-        let mut class = ClassSpec::new(mods![Modifier::Public], &body.name);
+        let mut spec = ClassSpec::new(mods![Modifier::Public], &body.name);
         let fields = self.convert_fields(package, &body.fields)?;
 
-        for code in body.codes.for_context(JAVA_CONTEXT) {
-            class.push(code.inner.lines);
+        for field in &fields {
+            spec.push_field(&field.spec);
+
+            if self.options.build_getters {
+                spec.push(field.getter()?);
+            }
+
+            if self.options.build_setters {
+                if let Some(setter) = field.setter()? {
+                    spec.push(setter);
+                }
+            }
         }
 
-        self.add_class(&class_type, &mut class)?;
+        for code in body.codes.for_context(JAVA_CONTEXT) {
+            spec.push(code.inner.lines);
+        }
+
+        self.add_class(&class_type, &mut spec)?;
+
         self.listeners
             .class_added(&mut ClassAdded {
                 fields: &fields,
                 class_type: &class_type,
-                spec: &mut class,
+                spec: &mut spec,
             })?;
 
         let mut file_spec = self.new_file_spec(package);
-        file_spec.push(&class);
+        file_spec.push(&spec);
 
         Ok(file_spec)
     }
@@ -706,7 +769,10 @@ impl Processor {
 
             class.implements(&parent_type);
 
-            for field in &interface_fields {
+            let mut fields = interface_fields.clone();
+            fields.extend(self.convert_fields(package, &sub_type.inner.fields)?);
+
+            for field in &fields {
                 class.push_field(&field.spec);
 
                 if self.options.build_getters {
@@ -721,9 +787,6 @@ impl Processor {
                     }
                 }
             }
-
-            let mut fields = interface_fields.clone();
-            fields.extend(self.convert_fields(package, &sub_type.inner.fields)?);
 
             self.add_class(&class_type, &mut class)?;
 

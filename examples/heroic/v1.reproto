@@ -2,12 +2,24 @@ package heroic.v1;
 
 use heroic.common as c;
 
+type Sampling {
+    unit?: TimeUnit;
+    size?: unsigned;
+    extent?: unsigned;
+}
+
 enum SI {
   NANO = 3;
   MICRO = 2;
   MILLI = 10;
 
   serialized_as_name true;
+}
+
+enum TestComplex {
+  FIRST(Sampling(unit: TimeUnit));
+
+  sampling: Sampling;
 }
 
 enum TimeUnit {
