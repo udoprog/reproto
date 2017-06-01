@@ -71,6 +71,27 @@ impl Environment {
             .ok_or_else(|| Error::pos(format!("Missing import alias for ({})", used), pos.clone()))
     }
 
+    /// Lookup the declaration matching the custom type.
+    pub fn lookup_decl<'a>(&'a self,
+                           pos: &Pos,
+                           package: &'a Package,
+                           custom: &Custom)
+                           -> Result<(&'a Package, &'a Decl)> {
+        let package = if let Some(ref prefix) = custom.prefix {
+            self.lookup_used(pos, package, prefix)?
+        } else {
+            package
+        };
+
+        let key = (package.clone(), custom.parts.clone());
+
+        if let Some(decl) = self.types.get(&key) {
+            return Ok((package, decl));
+        }
+
+        return Err(Error::pos("no such type".to_owned(), pos.clone()).into());
+    }
+
     pub fn import_file(&mut self, path: &Path, package: Option<&Package>) -> Result<()> {
         debug!("in: {}", path.display());
 

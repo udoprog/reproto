@@ -14,7 +14,7 @@ pub struct FieldInit {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Instance {
-    pub ty: Type,
+    pub ty: Custom,
     pub arguments: Vec<Token<FieldInit>>,
 }
 
@@ -42,6 +42,12 @@ pub struct OptionDecl {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub struct Custom {
+    pub prefix: Option<String>,
+    pub parts: Vec<String>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum Type {
     Double,
     Float,
@@ -51,7 +57,7 @@ pub enum Type {
     String,
     Bytes,
     Any,
-    Custom(Option<String>, Vec<String>),
+    Custom(Custom),
     Array(Box<Type>),
     Map(Box<Type>, Box<Type>),
 }
@@ -348,8 +354,7 @@ impl MatchDecl {
             Type::Boolean => MatchKind::Boolean,
             Type::String | Type::Bytes => MatchKind::String,
             Type::Any => MatchKind::Any,
-            Type::Custom(_, _) |
-            Type::Map(_, _) => MatchKind::Object,
+            Type::Custom(_) | Type::Map(_, _) => MatchKind::Object,
             Type::Array(_) => MatchKind::Array,
         }
     }

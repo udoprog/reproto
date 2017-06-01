@@ -133,16 +133,24 @@ impl Processor {
     fn convert_custom(&self,
                       pos: &m::Pos,
                       package: &m::Package,
-                      parts: &Vec<String>)
+                      custom: &m::Custom)
                       -> Result<Type> {
-        let key = (package.clone(), parts.clone());
+        let package = if let Some(ref prefix) = custom.prefix {
+            self.env.lookup_used(pos, package, prefix)?
+        } else {
+            package
+        };
+
+        let key = (package.clone(), custom.parts.clone());
+
+        let name = custom.parts.join(".");
 
         if !self.env.types.contains_key(&key) {
-            return Err(Error::pos(format!("no such type: {}", parts.join(".")), pos.clone()));
+            return Err(Error::pos(format!("no such type: {}", name), pos.clone()));
         }
 
         let package_name = self.java_package_name(package);
-        Ok(Type::class(&package_name, &parts.join(".")).into())
+        Ok(Type::class(&package_name, &name).into())
     }
 
     /// Convert the given type to a java type.
@@ -167,14 +175,8 @@ impl Processor {
                 let argument = self.convert_type(pos, package, ty)?;
                 self.list.with_arguments(vec![argument]).into()
             }
-            m::Type::Custom(ref prefix, ref parts) => {
-                let package = if let Some(ref prefix) = *prefix {
-                    self.env.lookup_used(pos, package, prefix)?
-                } else {
-                    package
-                };
-
-                return self.convert_custom(pos, package, parts);
+            m::Type::Custom(ref custom) => {
+                return self.convert_custom(pos, package, custom);
             }
             m::Type::Map(ref key, ref value) => {
                 let key = self.convert_type(pos, package, key)?;
@@ -495,9 +497,22 @@ impl Processor {
             }
 
             if let m::Value::Instance(ref instance) = *value {
-                let current_ty = self.convert_type(pos, package, &instance.ty)?;
+                let current_ty = self.convert_custom(pos, package, &instance.ty)?;
+                let (_, decl) = self.env.lookup_decl(pos, package, &instance.ty)?;
 
-                // TODO: fix this
+                match *decl {
+                    m::Decl::Enum(_) => {
+                        return Err(Error::pos("cannot make instance of enum".to_owned(),
+                                              pos.clone()));
+                    }
+                    m::Decl::Interface(_) => {
+                        return Err(Error::pos("cannot make instance of interface".to_owned(),
+                                              pos.clone()));
+                    }
+                    _ => {}
+                }
+
+                // TODO: check arguments against decl.
                 if let Type::Class(ref current) = current_ty {
                     println!("current = {:?}", current);
 

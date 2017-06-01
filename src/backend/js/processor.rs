@@ -315,22 +315,15 @@ impl Processor {
         }
     }
 
-    fn name(&self,
-            pos: &Pos,
-            package: &Package,
-            used: &Option<String>,
-            custom: &Vec<String>)
-            -> Result<Name> {
-        if let Some(ref used) = *used {
+    fn name(&self, pos: &Pos, package: &Package, custom: &Custom) -> Result<Name> {
+        if let Some(ref used) = custom.prefix {
             let package = self.env.lookup_used(pos, package, used)?;
             let package = self.package(package);
             let package = package.parts.join(".");
-            Ok(Name::imported_alias(&package, &custom.join("."), used).into())
+            Ok(Name::imported_alias(&package, &custom.parts.join("."), used).into())
         } else {
             let package = self.package(package);
-            let key = &(package.clone(), custom.to_owned());
-            let _ = self.env.types.get(key);
-            Ok(Name::local(&custom.join(".")).into())
+            Ok(Name::local(&custom.parts.join(".")).into())
         }
     }
 
@@ -351,7 +344,7 @@ impl Processor {
             Type::String => value_stmt,
             Type::Any => value_stmt,
             Type::Boolean => value_stmt,
-            Type::Custom(ref _used, ref _custom) => stmt![value_stmt, ".encode()"],
+            Type::Custom(ref _custom) => stmt![value_stmt, ".encode()"],
             Type::Array(ref inner) => {
                 let v = stmt!["v"];
                 let inner = self.encode(package, inner, &v)?;
@@ -380,8 +373,8 @@ impl Processor {
             Type::String => value_stmt,
             Type::Any => value_stmt,
             Type::Boolean => value_stmt,
-            Type::Custom(ref used, ref custom) => {
-                let name = self.name(pos, package, used, custom)?;
+            Type::Custom(ref custom) => {
+                let name = self.name(pos, package, custom)?;
                 stmt![name, ".decode(", value_stmt, ")"]
             }
             Type::Array(ref inner) => {

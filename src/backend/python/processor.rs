@@ -333,22 +333,15 @@ impl Processor {
         }
     }
 
-    fn used_name(&self,
-                 pos: &m::Pos,
-                 package: &m::Package,
-                 used: &Option<String>,
-                 custom: &Vec<String>)
-                 -> Result<Name> {
-        if let Some(ref used) = *used {
+    fn used_name(&self, pos: &m::Pos, package: &m::Package, custom: &m::Custom) -> Result<Name> {
+        if let Some(ref used) = custom.prefix {
             let package = self.env.lookup_used(pos, package, used)?;
             let package = self.package(package);
             let package = package.parts.join(".");
-            Ok(Name::imported_alias(&package, &custom.join("."), used).into())
+            Ok(Name::imported_alias(&package, &custom.parts.join("."), used).into())
         } else {
             let package = self.package(package);
-            let key = &(package.clone(), custom.to_owned());
-            let _ = self.env.types.get(key);
-            Ok(Name::local(&custom.join(".")).into())
+            Ok(Name::local(&custom.parts.join(".")).into())
         }
     }
 
@@ -369,7 +362,7 @@ impl Processor {
             m::Type::String => value_stmt,
             m::Type::Any => value_stmt,
             m::Type::Boolean => value_stmt,
-            m::Type::Custom(ref _used, ref _custom) => stmt![value_stmt, ".encode()"],
+            m::Type::Custom(ref _custom) => stmt![value_stmt, ".encode()"],
             m::Type::Array(ref inner) => {
                 let v = stmt!["v"];
                 let inner = self.encode(package, inner, v)?;
@@ -403,8 +396,8 @@ impl Processor {
             m::Type::String => value_stmt,
             m::Type::Any => value_stmt,
             m::Type::Boolean => value_stmt,
-            m::Type::Custom(ref used, ref custom) => {
-                let name = self.used_name(pos, package, used, custom)?;
+            m::Type::Custom(ref custom) => {
+                let name = self.used_name(pos, package, custom)?;
                 stmt![name, ".decode(", value_stmt, ")"]
             }
             m::Type::Array(ref inner) => {
@@ -862,11 +855,11 @@ impl ::std::fmt::Display for m::Type {
             m::Type::Unsigned(_) => write!(f, "int"),
             m::Type::Float | m::Type::Double => write!(f, "float"),
             m::Type::String => write!(f, "str"),
-            m::Type::Custom(ref used, ref custom) => {
-                if let Some(ref used) = *used {
-                    write!(f, "{}.{}", used, custom.join("."))
+            m::Type::Custom(ref custom) => {
+                if let Some(ref used) = custom.prefix {
+                    write!(f, "{}.{}", used, custom.parts.join("."))
                 } else {
-                    write!(f, "{}", custom.join("."))
+                    write!(f, "{}", custom.parts.join("."))
                 }
             }
             m::Type::Array(_) => write!(f, "array"),

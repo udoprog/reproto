@@ -1,4 +1,4 @@
-use backend::models::{Type, Modifier, Package};
+use backend::models::{Type, Custom, Modifier, Package};
 use token;
 
 /// Position relative in file where the declaration is present.
@@ -13,7 +13,7 @@ pub struct FieldInit {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Instance {
-    pub ty: Type,
+    pub ty: Custom,
     pub arguments: Vec<Token<FieldInit>>,
 }
 

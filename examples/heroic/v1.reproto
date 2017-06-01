@@ -17,8 +17,8 @@ enum SI {
 }
 
 enum ComplexEnum {
-  FIRST(SI.NANO);
-  SECOND(SI.MILLI);
+  FIRST(SI());
+  SECOND(SI());
 
   si: SI;
 }

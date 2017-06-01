@@ -217,7 +217,7 @@ impl_rdp! {
 
         value = { instance | constant | boolean | identifier | string | number }
 
-        instance = { type_spec ~ (left_paren ~ (field_init ~ (comma ~ field_init)*)? ~ right_paren) }
+        instance = { custom_type ~ (left_paren ~ (field_init ~ (comma ~ field_init)*)? ~ right_paren) }
         constant = { custom_type }
 
         field_init = { identifier ~ colon ~ value }
@@ -452,7 +452,8 @@ impl_rdp! {
         _value(&self) -> Result<ast::Value> {
             (
                 token: instance,
-                ty: _type_spec(),
+                _: custom_type,
+                custom: _custom(),
                 _: left_paren,
                 arguments: _field_init_list(),
                 _: right_paren,
@@ -461,7 +462,7 @@ impl_rdp! {
                 let arguments = arguments?.into_iter().collect();
 
                 let instance = ast::Instance {
-                    ty: ty?,
+                   ty: custom,
                    arguments: arguments,
                 };
 
@@ -471,15 +472,13 @@ impl_rdp! {
             (
                 token: constant,
                 _: custom_type,
-                prefix: _used_prefix(),
-                parts: _type_identifier_list(),
+                custom: _custom(),
             ) => {
                 let pos = (token.start, token.end);
-                let parts = parts.into_iter().collect();
 
                 let instance = ast::Constant {
-                    prefix: prefix,
-                    parts: parts,
+                    prefix: custom.prefix,
+                    parts: custom.parts,
                 };
 
                 Ok(ast::Value::Constant(ast::Token::new(instance, pos)))
@@ -792,9 +791,19 @@ impl_rdp! {
                 Ok(m::Type::Map(Box::new(key), Box::new(value)))
             },
 
-            (_: custom_type, prefix: _used_prefix(), parts: _type_identifier_list()) => {
+            (_: custom_type, custom: _custom()) => {
+                Ok(m::Type::Custom(custom))
+            },
+        }
+
+        _custom(&self) -> m::Custom {
+            (prefix: _used_prefix(), parts: _type_identifier_list()) => {
                 let parts = parts.into_iter().collect();
-                Ok(m::Type::Custom(prefix, parts))
+
+                m::Custom {
+                    prefix: prefix,
+                    parts: parts,
+                }
             },
         }
 
