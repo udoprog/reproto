@@ -34,3 +34,12 @@ version = "0.13.0"
 
 [build-dependencies.lalrpop-snap]
 version = "0.13.0"
+
+[build-dependencies.toml]
+version = "0.4.1"
+
+[build-dependencies.toml]
+version = "0.4.1"
+
+[build-dependencies.handlebars]
+version = "0.27.0"
