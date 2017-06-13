@@ -102,7 +102,7 @@ mod tests {
     const INTERFACE1: &[u8] = include_bytes!("tests/interface1.reproto");
 
     fn parse(input: &'static str) -> Box<Iterator<Item = Result<(usize, token::Token, usize)>>> {
-        Box::new(lexer::lex(input.chars().enumerate()))
+        Box::new(lexer::lex(input.chars()))
     }
 
     fn parse_file(input: &'static str) -> File {

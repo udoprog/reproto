@@ -69,15 +69,15 @@ impl Environment {
                 let type_id = RpTypeId::new(package.clone(), RpName::with_parts(current.clone()));
                 let token = RpLoc::new(RpRegistered::Enum(en.clone()), decl.pos.clone());
 
-                for value in &en.values {
+                for variant in &en.variants {
                     let enum_constant = RpRegistered::EnumConstant {
                         parent: en.clone(),
-                        value: value.inner.clone(),
+                        variant: variant.inner.clone(),
                     };
                     let token = RpLoc::new(enum_constant, decl.pos.clone());
 
                     let mut current = current.clone();
-                    current.push((*value.name).to_owned());
+                    current.push((*variant.name).to_owned());
                     out.push((type_id.with_name(RpName::with_parts(current)), token));
                 }
 

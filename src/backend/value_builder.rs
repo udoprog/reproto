@@ -127,7 +127,7 @@ pub trait ValueBuilder
                     .constant(&value.pos, &env.package, constant, target)?;
 
                 match *reg_constant {
-                    RpRegistered::EnumConstant { parent: _, value: _ } => {
+                    RpRegistered::EnumConstant { parent: _, variant: _ } => {
                         let ty =
                             self.convert_constant(&value.pos, &env.package.into_type_id(constant))?;
                         return self.constant(ty);

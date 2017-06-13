@@ -1,16 +1,14 @@
 use backend::*;
+use backend::collecting::Collecting;
 use backend::errors::*;
 use backend::for_context::ForContext;
+use backend::package_processor::PackageProcessor;
 use backend::variables::Variables;
 use codeviz::js::*;
 use naming::{self, FromNaming};
-use options::Options;
-use std::collections::HashMap;
-use std::collections::hash_map::Entry;
-use std::fs;
-use std::fs::File;
-use std::io::Write;
+use std::path::Path;
 use std::path::PathBuf;
+use std::rc::Rc;
 use super::converter::Converter;
 use super::dynamic_converter::DynamicConverter;
 use super::dynamic_decode::DynamicDecode;
@@ -50,15 +48,13 @@ impl Listeners for Vec<Box<Listeners>> {
 }
 
 pub struct ProcessorOptions {
-    parent: Options,
     pub build_getters: bool,
     pub build_constructor: bool,
 }
 
 impl ProcessorOptions {
-    pub fn new(options: Options) -> ProcessorOptions {
+    pub fn new() -> ProcessorOptions {
         ProcessorOptions {
-            parent: options,
             build_getters: false,
             build_constructor: true,
         }
@@ -66,8 +62,9 @@ impl ProcessorOptions {
 }
 
 pub struct Processor {
-    options: ProcessorOptions,
     env: Environment,
+    out_path: PathBuf,
+    id_converter: Option<Box<naming::Naming>>,
     package_prefix: Option<RpPackage>,
     listeners: Box<Listeners>,
     to_lower_snake: Box<naming::Naming>,
@@ -78,14 +75,17 @@ pub struct Processor {
 }
 
 impl Processor {
-    pub fn new(options: ProcessorOptions,
+    pub fn new(_options: ProcessorOptions,
                env: Environment,
+               out_path: PathBuf,
+               id_converter: Option<Box<naming::Naming>>,
                package_prefix: Option<RpPackage>,
                listeners: Box<Listeners>)
                -> Processor {
         Processor {
-            options: options,
             env: env,
+            out_path: out_path,
+            id_converter: id_converter,
             package_prefix: package_prefix,
             listeners: listeners,
             to_lower_snake: naming::SnakeCase::new().to_lower_snake(),
@@ -312,7 +312,7 @@ impl Processor {
     }
 
     fn field_ident(&self, field: &RpField) -> String {
-        if let Some(ref id_converter) = self.options.parent.id_converter {
+        if let Some(ref id_converter) = self.id_converter {
             id_converter.convert(&field.name)
         } else {
             field.name.to_owned()
@@ -361,7 +361,110 @@ impl Processor {
         ctor
     }
 
-    fn process_tuple(&self, type_id: &RpTypeId, body: &RpTupleBody) -> Result<Element> {
+    fn enum_encode_decode(&self,
+                          body: &RpEnumBody,
+                          fields: &Vec<RpLoc<JsField>>,
+                          class: &ClassSpec)
+                          -> Result<Element> {
+        // lookup serialized_as if specified.
+        if let Some(ref s) = body.serialized_as {
+            let mut elements = Elements::new();
+
+            if let Some((_, ref field)) = self.find_field(fields, &s.inner) {
+                elements.push(self.encode_enum_method(&field.name)?);
+                let decode = self.decode_enum_method(&class, &field.name)?;
+                elements.push(decode);
+                return Ok(elements.into());
+            }
+
+            return Err(Error::pos(format!("no field named: {}", s.inner), s.pos.clone()));
+        }
+
+        if body.serialized_as_name {
+            let mut elements = Elements::new();
+
+            elements.push(self.encode_enum_method("name")?);
+            let decode = self.decode_enum_method(&class, "name")?;
+            elements.push(decode);
+            return Ok(elements.into());
+        }
+
+        let mut elements = Elements::new();
+        elements.push(self.encode_enum_method("ordinal")?);
+        let decode = self.decode_enum_method(&class, "ordinal")?;
+        elements.push(decode);
+        Ok(elements.into())
+    }
+
+    fn build_getters(&self, fields: &Vec<RpLoc<JsField>>) -> Result<Vec<MethodSpec>> {
+        let mut result = Vec::new();
+
+        for field in fields {
+            let name = self.to_lower_snake.convert(&field.ident);
+            let getter_name = format!("get_{}", name);
+            let mut method_spec = MethodSpec::new(&getter_name);
+            method_spec.push(js![return "this.", name]);
+            result.push(method_spec);
+        }
+
+        Ok(result)
+    }
+}
+
+impl Backend for Processor {
+    fn process(&self) -> Result<()> {
+        let files = self.populate_files()?;
+        self.write_files(files)
+    }
+
+    fn verify(&self) -> Result<Vec<Error>> {
+        Ok(vec![])
+    }
+}
+
+impl Collecting for FileSpec {
+    type Processor = Processor;
+
+    fn new() -> Self {
+        FileSpec::new()
+    }
+
+    fn into_bytes(self, _: &Self::Processor) -> Result<Vec<u8>> {
+        let mut out = String::new();
+        self.format(&mut out)?;
+        Ok(out.into_bytes())
+    }
+}
+
+impl PackageProcessor for Processor {
+    type Out = FileSpec;
+
+    fn ext(&self) -> &str {
+        EXT
+    }
+
+    fn env(&self) -> &Environment {
+        &self.env
+    }
+
+    fn package_prefix(&self) -> &Option<RpPackage> {
+        &self.package_prefix
+    }
+
+    fn out_path(&self) -> &Path {
+        &self.out_path
+    }
+
+    fn default_process(&self, _out: &mut Self::Out, type_id: &RpTypeId, _: &RpPos) -> Result<()> {
+        Err(format!("not supported: {:?}", type_id).into())
+    }
+
+    fn process_tuple(&self,
+                     out: &mut Self::Out,
+                     type_id: &RpTypeId,
+                     _: &RpPos,
+                     body: Rc<RpTupleBody>)
+                     -> Result<()> {
         let mut class = ClassSpec::new(&body.name);
         let mut fields: Vec<RpLoc<JsField>> = Vec::new();
 
@@ -398,45 +501,16 @@ impl Processor {
             class.push(code.inner.lines);
         }
 
-        Ok(class.into())
+        out.push(class);
+        Ok(())
     }
 
-    fn enum_encode_decode(&self,
-                          body: &RpEnumBody,
-                          fields: &Vec<RpLoc<JsField>>,
-                          class: &ClassSpec)
-                          -> Result<Element> {
-        // lookup serialized_as if specified.
-        if let Some(ref s) = body.serialized_as {
-            let mut elements = Elements::new();
-
-            if let Some((_, ref field)) = self.find_field(fields, &s.inner) {
-                elements.push(self.encode_enum_method(&field.name)?);
-                let decode = self.decode_enum_method(&class, &field.name)?;
-                elements.push(decode);
-                return Ok(elements.into());
-            }
-
-            return Err(Error::pos(format!("no field named: {}", s.inner), s.pos.clone()));
-        }
-
-        if body.serialized_as_name {
-            let mut elements = Elements::new();
-
-            elements.push(self.encode_enum_method("name")?);
-            let decode = self.decode_enum_method(&class, "name")?;
-            elements.push(decode);
-            return Ok(elements.into());
-        }
-
-        let mut elements = Elements::new();
-        elements.push(self.encode_enum_method("ordinal")?);
-        let decode = self.decode_enum_method(&class, "ordinal")?;
-        elements.push(decode);
-        Ok(elements.into())
-    }
-
-    fn process_enum(&self, type_id: &RpTypeId, body: &RpEnumBody) -> Result<Element> {
+    fn process_enum(&self,
+                    out: &mut Self::Out,
+                    type_id: &RpTypeId,
+                    _: &RpPos,
+                    body: Rc<RpEnumBody>)
+                    -> Result<()> {
         let mut class = ClassSpec::new(&body.name);
         let mut fields: Vec<RpLoc<JsField>> = Vec::new();
 
@@ -469,13 +543,13 @@ impl Processor {
         let mut values = Elements::new();
         let variables = Variables::new();
 
-        for value in &body.values {
+        for variant in &body.variants {
             let mut value_arguments = Statement::new();
 
-            value_arguments.push(value.ordinal.to_string());
-            value_arguments.push(string(&*value.name));
+            value_arguments.push(variant.ordinal.to_string());
+            value_arguments.push(string(&*variant.name));
 
-            for (value, field) in value.arguments.iter().zip(fields.iter()) {
+            for (value, field) in variant.arguments.iter().zip(fields.iter()) {
                 let env = ValueBuilderEnv {
                     value: &value,
                     package: &type_id.package,
@@ -487,7 +561,7 @@ impl Processor {
             }
 
             let arguments = js![new &body.name, value_arguments];
-            let member = stmt![&class.name, ".", &*value.name];
+            let member = stmt![&class.name, ".", &*variant.name];
 
             values.push(js![= &member, arguments]);
             members.push(member);
@@ -509,24 +583,17 @@ impl Processor {
         let members_key = stmt![&class.name, ".", &self.values];
         elements.push(js![= members_key, js!([members])]);
 
-        Ok(elements.join(Spacing).into())
+        out.push(elements.join(Spacing));
+        Ok(())
     }
 
-    fn build_getters(&self, fields: &Vec<RpLoc<JsField>>) -> Result<Vec<MethodSpec>> {
-        let mut result = Vec::new();
 
-        for field in fields {
-            let name = self.to_lower_snake.convert(&field.ident);
-            let getter_name = format!("get_{}", name);
-            let mut method_spec = MethodSpec::new(&getter_name);
-            method_spec.push(js![return "this.", name]);
-            result.push(method_spec);
-        }
-
-        Ok(result)
-    }
-
-    fn process_type(&self, type_id: &RpTypeId, body: &RpTypeBody) -> Result<Element> {
+    fn process_type(&self,
+                    out: &mut Self::Out,
+                    type_id: &RpTypeId,
+                    _: &RpPos,
+                    body: Rc<RpTypeBody>)
+                    -> Result<()> {
         let fields = self.convert_fields(&body.fields);
 
         let mut class = ClassSpec::new(&body.name);
@@ -551,15 +618,21 @@ impl Processor {
             class.push(code.inner.lines);
         }
 
-        Ok(class.into())
+        out.push(class);
+        Ok(())
     }
 
-    fn process_interface(&self, type_id: &RpTypeId, body: &RpInterfaceBody) -> Result<Element> {
+    fn process_interface(&self,
+                         out: &mut Self::Out,
+                         type_id: &RpTypeId,
+                         _: &RpPos,
+                         body: Rc<RpInterfaceBody>)
+                         -> Result<()> {
         let mut classes = Elements::new();
 
         let mut interface_spec = ClassSpec::new(&body.name);
 
-        interface_spec.push(self.interface_decode_method(type_id, body)?);
+        interface_spec.push(self.interface_decode_method(type_id, &body)?);
 
         let interface_fields = self.convert_fields(&body.fields);
 
@@ -606,86 +679,8 @@ impl Processor {
             classes.push(stmt![&class.name, ".TYPE", " = ", string(sub_type.name.clone()), ";"]);
         }
 
-        Ok(classes.join(Spacing).into())
-    }
-
-    fn populate_files(&self) -> Result<HashMap<&RpPackage, FileSpec>> {
-        let mut files = HashMap::new();
-
-        // Process all types discovered so far.
-        for (type_id, decl) in &self.env.decls {
-            let spec = match decl.inner {
-                RpDecl::Interface(ref body) => self.process_interface(type_id, body)?,
-                RpDecl::Type(ref body) => self.process_type(type_id, body)?,
-                RpDecl::Tuple(ref body) => self.process_tuple(type_id, body)?,
-                RpDecl::Enum(ref body) => self.process_enum(type_id, body)?,
-            };
-
-            match files.entry(&type_id.package) {
-                Entry::Vacant(entry) => {
-                    let mut file_spec = FileSpec::new();
-                    file_spec.push(spec);
-                    entry.insert(file_spec);
-                }
-                Entry::Occupied(entry) => {
-                    let mut file_spec = entry.into_mut();
-                    file_spec.push(spec);
-                }
-            }
-        }
-
-        Ok(files)
-    }
-
-    fn setup_module_path(&self, root_dir: &PathBuf, package: &RpPackage) -> Result<PathBuf> {
-        let package = self.package(package);
-
-        let mut full_path = root_dir.to_owned();
-        let mut iter = package.parts.iter().peekable();
-
-        while let Some(part) = iter.next() {
-            full_path = full_path.join(part);
-        }
-
-        if let Some(parent) = full_path.parent() {
-            if !parent.is_dir() {
-                fs::create_dir_all(parent)?;
-            }
-        }
-
-        // path to final file
-        full_path.set_extension(EXT);
-        Ok(full_path)
-    }
-
-    fn write_files(&self, files: HashMap<&RpPackage, FileSpec>) -> Result<()> {
-        let root_dir = &self.options.parent.out_path;
-
-        for (package, file_spec) in files {
-            let full_path = self.setup_module_path(root_dir, package)?;
-
-            debug!("+module: {}", full_path.display());
-
-            let mut out = String::new();
-            file_spec.format(&mut out)?;
-
-            let mut f = File::create(full_path)?;
-            f.write_all(&out.into_bytes())?;
-            f.flush()?;
-        }
-
+        out.push(classes.join(Spacing));
         Ok(())
-    }
-}
-
-impl Backend for Processor {
-    fn process(&self) -> Result<()> {
-        let files = self.populate_files()?;
-        self.write_files(files)
-    }
-
-    fn verify(&self) -> Result<Vec<Error>> {
-        Ok(vec![])
     }
 }
 

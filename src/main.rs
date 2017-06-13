@@ -87,7 +87,7 @@ fn handle_backend_error(e: &backend::errors::ErrorKind) -> Result<()> {
                 print_error("required field", f)?;
             }
         }
-        backend::errors::ErrorKind::EnumValueConflict(ref pos, ref other) => {
+        backend::errors::ErrorKind::EnumVariantConflict(ref pos, ref other) => {
             print_error("conflicting name", pos)?;
             print_error("previous name here", other)?;
         }

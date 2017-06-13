@@ -1,9 +1,10 @@
 pub mod container;
 pub mod converter;
 pub mod decode;
+pub mod doc;
+pub mod dynamic_converter;
 pub mod dynamic_decode;
 pub mod dynamic_encode;
-pub mod dynamic_converter;
 pub mod encode;
 pub mod environment;
 pub mod errors;
@@ -14,6 +15,8 @@ pub mod match_decode;
 pub mod python;
 pub mod value_builder;
 pub mod variables;
+mod package_processor;
+mod collecting;
 
 use options::Options;
 pub use self::environment::{Environment, InitFields};
@@ -30,6 +33,7 @@ pub fn resolve(backend: &str, options: Options, env: Environment) -> Result<Box<
         "java" => Box::new(java::resolve(options, env)?),
         "python" => Box::new(python::resolve(options, env)?),
         "js" => Box::new(js::resolve(options, env)?),
+        "doc" => Box::new(doc::resolve(options, env)?),
         _ => return Err(format!("Unknown backend type: {}", backend).into()),
     };
 

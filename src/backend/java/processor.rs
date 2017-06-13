@@ -2,7 +2,6 @@ use backend::*;
 use backend::for_context::ForContext;
 use codeviz::java::*;
 use naming::{self, FromNaming};
-use options::Options;
 use std::fs;
 use std::fs::File;
 use std::io::Write;
@@ -16,7 +15,6 @@ use super::variables::Variables;
 const JAVA_CONTEXT: &str = "java";
 
 pub struct ProcessorOptions {
-    parent: Options,
     /// Should fields be nullable?
     pub nullable: bool,
     /// Should the type be immutable?
@@ -36,9 +34,8 @@ pub struct ProcessorOptions {
 }
 
 impl ProcessorOptions {
-    pub fn new(options: Options) -> ProcessorOptions {
+    pub fn new() -> ProcessorOptions {
         ProcessorOptions {
-            parent: options,
             nullable: false,
             immutable: true,
             build_setters: true,
@@ -54,6 +51,7 @@ impl ProcessorOptions {
 pub struct Processor {
     options: ProcessorOptions,
     env: Environment,
+    out_path: PathBuf,
     listeners: Box<Listeners>,
     package_prefix: Option<RpPackage>,
     snake_to_upper_camel: Box<naming::Naming>,
@@ -75,12 +73,14 @@ pub struct Processor {
 impl Processor {
     pub fn new(options: ProcessorOptions,
                env: Environment,
+               out_path: PathBuf,
                package_prefix: Option<RpPackage>,
                listeners: Box<Listeners>)
                -> Processor {
         Processor {
             options: options,
             env: env,
+            out_path: out_path,
             package_prefix: package_prefix,
             snake_to_upper_camel: naming::SnakeCase::new().to_upper_camel(),
             snake_to_lower_camel: naming::SnakeCase::new().to_lower_camel(),
@@ -544,14 +544,14 @@ impl Processor {
 
         let variables = Variables::new();
 
-        for enum_literal in &body.values {
+        for variant in &body.variants {
             let mut enum_value = Elements::new();
-            let mut enum_stmt = stmt![&*enum_literal.name];
+            let mut enum_stmt = stmt![&*variant.name];
 
-            if !enum_literal.arguments.is_empty() {
+            if !variant.arguments.is_empty() {
                 let mut value_arguments = Statement::new();
 
-                for (value, field) in enum_literal.arguments.iter().zip(fields.iter()) {
+                for (value, field) in variant.arguments.iter().zip(fields.iter()) {
                     let env = ValueBuilderEnv {
                         value: &value,
                         package: pkg,
@@ -830,7 +830,7 @@ impl Processor {
     fn process_files<F>(&self, mut consumer: F) -> Result<()>
         where F: FnMut(PathBuf, &RpTypeId, &RpDecl) -> Result<()>
     {
-        let root_dir = &self.options.parent.out_path;
+        let root_dir = &self.out_path;
 
         // Process all types discovered so far.
         for (ref type_id, ref decl) in &self.env.decls {

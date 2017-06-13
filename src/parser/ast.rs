@@ -44,6 +44,7 @@ pub struct OptionDecl {
 pub struct Field {
     pub modifier: RpModifier,
     pub name: String,
+    pub comment: Vec<String>,
     pub ty: RpType,
     pub field_as: Option<AstLoc<Value>>,
 }
@@ -147,12 +148,12 @@ pub struct SubType {
 #[derive(Debug)]
 pub struct EnumBody {
     pub name: String,
-    pub values: Vec<AstLoc<EnumValue>>,
+    pub variants: Vec<AstLoc<EnumVariant>>,
     pub members: Vec<AstLoc<Member>>,
 }
 
 #[derive(Debug)]
-pub struct EnumValue {
+pub struct EnumVariant {
     pub name: AstLoc<String>,
     pub arguments: Vec<AstLoc<Value>>,
     pub ordinal: Option<AstLoc<Value>>,

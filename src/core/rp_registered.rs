@@ -1,7 +1,7 @@
 use std::rc::Rc;
 use super::errors::*;
 use super::rp_enum_body::RpEnumBody;
-use super::rp_enum_value::RpEnumValue;
+use super::rp_enum_variant::RpEnumVariant;
 use super::rp_field::RpField;
 use super::rp_interface_body::RpInterfaceBody;
 use super::rp_loc::RpLoc;
@@ -21,7 +21,7 @@ pub enum RpRegistered {
     },
     EnumConstant {
         parent: Rc<RpEnumBody>,
-        value: Rc<RpEnumValue>,
+        variant: Rc<RpEnumVariant>,
     },
 }
 
@@ -76,7 +76,7 @@ impl RpRegistered {
             }
             // enum constant to parent type
             (&RpRegistered::Enum(ref target),
-             &RpRegistered::EnumConstant { parent: ref source, value: _ }) => {
+             &RpRegistered::EnumConstant { parent: ref source, variant: _ }) => {
                 Rc::ptr_eq(target, source)
             }
             // exact matching sub-type
@@ -85,8 +85,8 @@ impl RpRegistered {
                 Rc::ptr_eq(target_parent, source_parent) && Rc::ptr_eq(target, source)
             }
             // exact matching constant
-            (&RpRegistered::EnumConstant { parent: ref target_parent, value: ref target },
-             &RpRegistered::EnumConstant { parent: ref source_parent, value: ref source }) => {
+            (&RpRegistered::EnumConstant { parent: ref target_parent, variant: ref target },
+             &RpRegistered::EnumConstant { parent: ref source_parent, variant: ref source }) => {
                 Rc::ptr_eq(target_parent, source_parent) && Rc::ptr_eq(target, source)
             }
             _ => false,
@@ -102,8 +102,8 @@ impl RpRegistered {
             RpRegistered::SubType { ref parent, ref sub_type } => {
                 format!("type {}.{}", parent.name, sub_type.name)
             }
-            RpRegistered::EnumConstant { ref parent, ref value } => {
-                format!("{}.{}", parent.name, *value.name)
+            RpRegistered::EnumConstant { ref parent, ref variant } => {
+                format!("{}.{}", parent.name, *variant.name)
             }
         }
     }

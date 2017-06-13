@@ -6,21 +6,21 @@ use super::rp_loc::{RpLoc, RpPos};
 use super::rp_value::RpValue;
 
 #[derive(Debug, Clone)]
-pub struct RpEnumValue {
+pub struct RpEnumVariant {
     pub name: RpLoc<String>,
     pub arguments: Vec<RpLoc<RpValue>>,
     pub ordinal: u32,
 }
 
 /// enum value with assigned ordinal
-impl IntoModel for (ast::EnumValue, u32) {
-    type Output = Rc<RpEnumValue>;
+impl IntoModel for (ast::EnumVariant, u32) {
+    type Output = Rc<RpEnumVariant>;
 
     fn into_model(self, pos: &RpPos) -> Result<Self::Output> {
         let value = self.0;
         let ordinal = self.1;
 
-        let value = RpEnumValue {
+        let value = RpEnumVariant {
             name: value.name.into_model(pos)?,
             arguments: value.arguments.into_model(pos)?,
             ordinal: ordinal,

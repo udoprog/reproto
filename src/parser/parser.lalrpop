@@ -16,14 +16,14 @@ pub File: File = {
 };
 
 Use: UseDecl = {
-    "use" <package:Loc<Package>> <alias:("as" Identifier)?> ";" => UseDecl {
+    "use" <package:Loc<Package>> <alias:("as" IdentifierValue)?> ";" => UseDecl {
         package: package,
         alias: alias.map(|t| t.1),
     },
 };
 
 PackageDecl: RpPackage = "package" <package:Package> ";" => package;
-Package: RpPackage = <parts:OneOrMore<".", Identifier>> => RpPackage::new(parts);
+Package: RpPackage = <parts:OneOrMore<".", IdentifierValue>> => RpPackage::new(parts);
 
 Decl: Decl = {
     <en:Enum> => Decl::Enum(en),
@@ -34,13 +34,13 @@ Decl: Decl = {
 
 Enum: EnumBody =
     "enum" <name:TypeIdentifier> "{"
-      <values:Loc<EnumValue>*>
+      <variants:Loc<EnumVariant>*>
       <members:Loc<Member>*>
     "}" =>
 {
     EnumBody {
         name: name,
-        values: values,
+        variants: variants,
         members: members,
     }
 };
@@ -80,13 +80,13 @@ Tuple: TupleBody =
     }
 };
 
-EnumValue: EnumValue =
+EnumVariant: EnumVariant =
     <name:Loc<TypeIdentifier>>
     <arguments:("(" OneOrMore<",", Loc<Value>> ")")?>
     <ordinal:("=" Loc<Value>)?>
     ";" =>
 {
-    EnumValue {
+    EnumVariant {
         name: name,
         arguments: arguments.map(|a| a.1).unwrap_or_else(|| vec![]),
         ordinal: ordinal.map(|o| o.1),
@@ -97,7 +97,8 @@ pub Member: Member = {
     <name:Identifier> <modifier:"?"?> ":" <ty:TypeSpec> <alias:("as" Loc<Value>)?> ";" => {
          let field = Field {
              modifier: modifier.map(|_| RpModifier::Optional).unwrap_or(RpModifier::Required),
-             name: name,
+             name: name.value,
+             comment: name.comment,
              ty: ty,
              field_as: alias.map(|a| a.1),
          };
@@ -113,7 +114,7 @@ pub Member: Member = {
          Member::Match(m)
     },
 
-    <s:@L> <name:Identifier> <values:OneOrMore<",", Loc<Value>>> ";" <e:@R> => {
+    <s:@L> <name:IdentifierValue> <values:OneOrMore<",", Loc<Value>>> ";" <e:@R> => {
          let option = OptionDecl {
              name: name,
              values: values,
@@ -122,7 +123,7 @@ pub Member: Member = {
          Member::Option(AstLoc::new(option, (s, e)))
     },
 
-    <context:Identifier> "{{" <content:code> "}}" => {
+    <context:IdentifierValue> "{{" <content:code> "}}" => {
         let content = strip_code_block(&content);
         Member::Code(context, content)
     },
@@ -140,7 +141,7 @@ MatchCondition: MatchCondition = {
     <value:Loc<Value>> => MatchCondition::Value(value),
 };
 
-MatchVariable: MatchVariable = <name:Identifier> ":" <ty:TypeSpec> => MatchVariable {
+MatchVariable: MatchVariable = <name:IdentifierValue> ":" <ty:TypeSpec> => MatchVariable {
     name: name.to_owned(),
     ty: ty,
 };
@@ -159,7 +160,7 @@ pub Value: Value = {
     <number:Number> => Value::Number(number),
     <true> => Value::Boolean(true),
     <false> => Value::Boolean(false),
-    <identifier:Identifier> => Value::Identifier(identifier),
+    <identifier:IdentifierValue> => Value::Identifier(identifier),
 };
 
 Instance: Instance = {
@@ -170,7 +171,7 @@ Instance: Instance = {
 };
 
 FieldInit: FieldInit = {
-    <name:Loc<Identifier>> ":" <value:Loc<Value>> => FieldInit {
+    <name:Loc<IdentifierValue>> ":" <value:Loc<Value>> => FieldInit {
         name: name,
         value: value,
     },
@@ -191,7 +192,7 @@ pub TypeSpec: RpType = {
 };
 
 Name: RpName = {
-    <prefix:(Identifier "::")?> <parts:OneOrMore<".", TypeIdentifier>> => RpName {
+    <prefix:(IdentifierValue "::")?> <parts:OneOrMore<".", TypeIdentifier>> => RpName {
         prefix: prefix.map(|p| p.0),
         parts: parts,
     }
@@ -215,6 +216,8 @@ OneOrMore<Sep, T>: Vec<T> = {
     }
 };
 
+IdentifierValue: String = <identifier:Identifier> => identifier.value;
+
 Loc<Inner>: AstLoc<Inner> = <s:@L> <inner:Inner> <e:@R> => AstLoc::new(inner, (s, e));
 
 extern {
@@ -223,7 +226,7 @@ extern {
 
     enum Token {
         TypeIdentifier => Token::TypeIdentifier(<String>),
-        Identifier => Token::Identifier(<String>),
+        Identifier => Token::Identifier(<Commented<String>>),
         Number => Token::Number(<RpNumber>),
         "match" => Token::MatchKeyword,
         "use" => Token::UseKeyword,

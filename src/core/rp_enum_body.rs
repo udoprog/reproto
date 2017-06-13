@@ -5,7 +5,7 @@ use super::into_model::IntoModel;
 use super::merge::Merge;
 use super::options::Options;
 use super::rp_code::RpCode;
-use super::rp_enum_value::RpEnumValue;
+use super::rp_enum_variant::RpEnumVariant;
 use super::rp_field::RpField;
 use super::rp_loc::{RpLoc, RpPos};
 use super::rp_match_decl::RpMatchDecl;
@@ -14,7 +14,7 @@ use super::utils;
 #[derive(Debug, Clone)]
 pub struct RpEnumBody {
     pub name: String,
-    pub values: Vec<RpLoc<Rc<RpEnumValue>>>,
+    pub variants: Vec<RpLoc<Rc<RpEnumVariant>>>,
     pub fields: Vec<RpLoc<RpField>>,
     pub codes: Vec<RpLoc<RpCode>>,
     pub match_decl: RpMatchDecl,
@@ -26,32 +26,31 @@ impl IntoModel for ast::EnumBody {
     type Output = Rc<RpEnumBody>;
 
     fn into_model(self, pos: &RpPos) -> Result<Rc<RpEnumBody>> {
-        let mut values: Vec<RpLoc<Rc<RpEnumValue>>> = Vec::new();
+        let mut variants: Vec<RpLoc<Rc<RpEnumVariant>>> = Vec::new();
 
         let mut ordinals = utils::OrdinalGenerator::new();
 
         let (fields, codes, options, match_decl) = utils::members_into_model(pos, self.members)?;
 
-        for value in self.values {
-            let ordinal = ordinals.next(&value.ordinal, pos)
+        for variant in self.variants {
+            let ordinal = ordinals.next(&variant.ordinal, pos)
                 .map_err(|e| Error::pos(e.description().into(), pos.clone()))?;
 
-            let value = RpLoc::new((value.inner, ordinal).into_model(pos)?,
-                                   (pos.0.clone(), value.pos.0, value.pos.1));
+            let variant = RpLoc::new((variant.inner, ordinal).into_model(pos)?,
+                                     (pos.0.clone(), variant.pos.0, variant.pos.1));
 
-            if fields.len() != value.arguments.len() {
+            if fields.len() != variant.arguments.len() {
                 return Err(Error::pos(format!("expected {} arguments", fields.len()),
-                                      value.pos.clone()));
+                                      variant.pos.clone()));
             }
 
-            if let Some(other) = values.iter().find(|v| *v.name == *value.name) {
-                return Err(ErrorKind::EnumValueConflict(other.name.pos.clone(),
-                                                        value.name.pos.clone())
+            if let Some(other) = variants.iter().find(|v| *v.name == *variant.name) {
+                return Err(ErrorKind::EnumVariantConflict(other.name.pos.clone(),
+                                                          variant.name.pos.clone())
                     .into());
             }
 
-            /// need to tack on an ordinal value.
-            values.push(value);
+            variants.push(variant);
         }
 
         let options = Options::new(pos, options);
@@ -66,7 +65,7 @@ impl IntoModel for ast::EnumBody {
 
         let en = RpEnumBody {
             name: self.name,
-            values: values,
+            variants: variants,
             fields: fields,
             codes: codes,
             match_decl: match_decl,

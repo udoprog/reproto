@@ -1,18 +1,20 @@
 use backend::*;
+use backend::collecting::Collecting;
 use backend::errors::*;
 use backend::for_context::ForContext;
+use backend::package_processor::PackageProcessor;
 use backend::value_builder::*;
 use backend::variables::Variables;
 use codeviz::python::*;
 use core::*;
 use naming::{self, FromNaming};
-use options::Options;
 use std::collections::HashMap;
-use std::collections::hash_map::Entry;
 use std::fs;
 use std::fs::File;
 use std::io::Write;
+use std::path::Path;
 use std::path::PathBuf;
+use std::rc::Rc;
 use super::converter::Converter;
 use super::dynamic_converter::DynamicConverter;
 use super::dynamic_decode::DynamicDecode;
@@ -61,15 +63,13 @@ impl Field {
 }
 
 pub struct ProcessorOptions {
-    parent: Options,
     pub build_getters: bool,
     pub build_constructor: bool,
 }
 
 impl ProcessorOptions {
-    pub fn new(options: Options) -> ProcessorOptions {
+    pub fn new() -> ProcessorOptions {
         ProcessorOptions {
-            parent: options,
             build_getters: true,
             build_constructor: true,
         }
@@ -77,8 +77,9 @@ impl ProcessorOptions {
 }
 
 pub struct Processor {
-    options: ProcessorOptions,
     env: Environment,
+    out_path: PathBuf,
+    id_converter: Option<Box<naming::Naming>>,
     package_prefix: Option<RpPackage>,
     listeners: Box<Listeners>,
     to_lower_snake: Box<naming::Naming>,
@@ -95,14 +96,17 @@ pub struct Processor {
 }
 
 impl Processor {
-    pub fn new(options: ProcessorOptions,
+    pub fn new(_options: ProcessorOptions,
                env: Environment,
+               out_path: PathBuf,
+               id_converter: Option<Box<naming::Naming>>,
                package_prefix: Option<RpPackage>,
                listeners: Box<Listeners>)
                -> Processor {
         Processor {
-            options: options,
             env: env,
+            out_path: out_path,
+            id_converter: id_converter,
             package_prefix: package_prefix,
             listeners: listeners,
             to_lower_snake: naming::SnakeCase::new().to_lower_snake(),
@@ -341,7 +345,7 @@ impl Processor {
     }
 
     fn ident(&self, name: &str) -> String {
-        if let Some(ref id_converter) = self.options.parent.id_converter {
+        if let Some(ref id_converter) = self.id_converter {
             id_converter.convert(name)
         } else {
             name.to_owned()
@@ -370,11 +374,224 @@ impl Processor {
         constructor
     }
 
+    fn build_getters(&self, fields: &Vec<RpLoc<Field>>) -> Result<Vec<MethodSpec>> {
+        let mut result = Vec::new();
+
+        for field in fields {
+            let name = self.to_lower_snake.convert(&field.ident);
+            let getter_name = format!("get_{}", name);
+            let mut method_spec = MethodSpec::new(&getter_name);
+            method_spec.push_argument(stmt!["self"]);
+            method_spec.push(stmt!["return self.", name]);
+            result.push(method_spec);
+        }
+
+        Ok(result)
+    }
+
+    fn populate_files(&self) -> Result<HashMap<&RpPackage, FileSpec>> {
+        let mut enums = Vec::new();
+
+        let mut files = self.do_populate_files(|type_id, decl| {
+                if let RpDecl::Enum(ref body) = decl.inner {
+                    enums.push((type_id, body));
+                }
+
+                Ok(())
+            })?;
+
+        /// process static initialization of enums at bottom of file
+        for (type_id, body) in enums {
+            if let Some(ref mut file_spec) = files.get_mut(&type_id.package) {
+                file_spec.push(self.enum_variants(type_id, body)?);
+            } else {
+                return Err(format!("no such package: {}", &type_id.package).into());
+            }
+        }
+
+        Ok(files)
+    }
+
+    fn setup_module_path(&self, root_dir: &PathBuf, package: &RpPackage) -> Result<PathBuf> {
+        let package = self.package(package);
+
+        let mut full_path = root_dir.to_owned();
+        let mut iter = package.parts.iter().peekable();
+
+        while let Some(part) = iter.next() {
+            full_path = full_path.join(part);
+
+            if iter.peek().is_none() {
+                continue;
+            }
+
+            if !full_path.is_dir() {
+                debug!("+dir: {}", full_path.display());
+                fs::create_dir_all(&full_path)?;
+            }
+
+            let init_path = full_path.join(INIT_PY);
+
+            if !init_path.is_file() {
+                debug!("+init: {}", init_path.display());
+                File::create(init_path)?;
+            }
+        }
+
+        if let Some(parent) = full_path.parent() {
+            if !parent.is_dir() {
+                debug!("+dir: {}", parent.display());
+                fs::create_dir_all(&parent)?;
+            }
+        }
+
+        // path to final file
+        full_path.set_extension(EXT);
+        Ok(full_path)
+    }
+
+    fn write_files(&self, files: HashMap<&RpPackage, FileSpec>) -> Result<()> {
+        let root_dir = &self.out_path;
+
+        for (package, file_spec) in files {
+            let full_path = self.setup_module_path(root_dir, package)?;
+
+            debug!("+module: {}", full_path.display());
+
+            let mut out = String::new();
+            file_spec.format(&mut out)?;
+
+            let mut f = File::create(full_path)?;
+            f.write_all(&out.into_bytes())?;
+            f.flush()?;
+        }
+
+        Ok(())
+    }
+
+    fn convert_type_id<F>(&self, pos: &RpPos, type_id: &RpTypeId, path_syntax: F) -> Result<Name>
+        where F: Fn(&Vec<String>) -> String
+    {
+        let package = &type_id.package;
+        let name = &type_id.name;
+
+        if let Some(ref used) = name.prefix {
+            let package = self.env
+                .lookup_used(package, used)
+                .map_err(|e| Error::pos(e.description().to_owned(), pos.clone()))?;
+
+            let package = self.package(package);
+            let package = package.parts.join(".");
+            return Ok(Name::imported_alias(&package, &path_syntax(&name.parts), used).into());
+        }
+
+        // no nested types in python
+        Ok(Name::local(&path_syntax(&name.parts)).into())
+    }
+
+    fn enum_variants(&self, type_id: &RpTypeId, body: &RpEnumBody) -> Result<Statement> {
+        let mut arguments = Statement::new();
+
+        let variables = Variables::new();
+
+        for variant in &body.variants {
+            let name = Variable::String((*variant.name).to_owned());
+
+            let mut enum_arguments = Statement::new();
+
+            enum_arguments.push(name);
+
+            if !variant.arguments.is_empty() {
+                let mut value_arguments = Statement::new();
+
+                for (value, field) in variant.arguments.iter().zip(body.fields.iter()) {
+                    let env = ValueBuilderEnv {
+                        value: &value,
+                        package: &type_id.package,
+                        ty: Some(&field.ty),
+                        variables: &variables,
+                    };
+
+                    value_arguments.push(self.value(&env)?);
+                }
+
+                enum_arguments.push(stmt!["(", value_arguments.join(", "), ")"]);
+            } else {
+                enum_arguments.push(variant.ordinal.to_string());
+            }
+
+            arguments.push(stmt!["(", enum_arguments.join(", "), ")"]);
+        }
+
+        let class_name = Variable::String(body.name.to_owned());
+
+        Ok(stmt![&body.name,
+                 " = ",
+                 &self.enum_enum,
+                 "(",
+                 class_name,
+                 ", [",
+                 arguments.join(", "),
+                 "], type=",
+                 &body.name,
+                 ")"])
+    }
+}
+
+impl Backend for Processor {
+    fn process(&self) -> Result<()> {
+        let files = self.populate_files()?;
+        self.write_files(files)
+    }
+
+    fn verify(&self) -> Result<Vec<Error>> {
+        Ok(vec![])
+    }
+}
+
+impl Collecting for FileSpec {
+    type Processor = Processor;
+
+    fn new() -> Self {
+        FileSpec::new()
+    }
+
+    fn into_bytes(self, _: &Self::Processor) -> Result<Vec<u8>> {
+        let mut out = String::new();
+        self.format(&mut out)?;
+        Ok(out.into_bytes())
+    }
+}
+
+impl PackageProcessor for Processor {
+    type Out = FileSpec;
+
+    fn ext(&self) -> &str {
+        EXT
+    }
+
+    fn env(&self) -> &Environment {
+        &self.env
+    }
+
+    fn package_prefix(&self) -> &Option<RpPackage> {
+        &self.package_prefix
+    }
+
+    fn out_path(&self) -> &Path {
+        &self.out_path
+    }
+
+    fn default_process(&self, _out: &mut Self::Out, type_id: &RpTypeId, _: &RpPos) -> Result<()> {
+        Err(format!("not supported: {:?}", type_id).into())
+    }
+
     fn process_tuple(&self,
+                     out: &mut Self::Out,
                      type_id: &RpTypeId,
                      pos: &RpPos,
-                     body: &RpTupleBody)
-                     -> Result<ClassSpec> {
+                     body: Rc<RpTupleBody>)
+                     -> Result<()> {
         let mut class = ClassSpec::new(&body.name);
         let mut fields: Vec<RpLoc<Field>> = Vec::new();
 
@@ -408,10 +625,16 @@ impl Processor {
         let encode = self.encode_tuple_method(&type_id, &fields)?;
         class.push(encode);
 
-        Ok(class)
+        out.push(class);
+        Ok(())
     }
 
-    fn process_enum(&self, _type_id: &RpTypeId, body: &RpEnumBody) -> Result<ClassSpec> {
+    fn process_enum(&self,
+                    out: &mut Self::Out,
+                    _: &RpTypeId,
+                    _: &RpPos,
+                    body: Rc<RpEnumBody>)
+                    -> Result<()> {
         let mut class = ClassSpec::new(&body.name);
         let mut fields: Vec<RpLoc<Field>> = Vec::new();
 
@@ -453,77 +676,16 @@ impl Processor {
             }
         }
 
-        Ok(class)
-    }
-
-    fn process_enum_values(&self, type_id: &RpTypeId, body: &RpEnumBody) -> Result<Statement> {
-        let mut arguments = Statement::new();
-
-        let variables = Variables::new();
-
-        for value in &body.values {
-            let name = Variable::String((*value.name).to_owned());
-
-            let mut enum_arguments = Statement::new();
-
-            enum_arguments.push(name);
-
-            if !value.arguments.is_empty() {
-                let mut value_arguments = Statement::new();
-
-                for (value, field) in value.arguments.iter().zip(body.fields.iter()) {
-                    let env = ValueBuilderEnv {
-                        value: &value,
-                        package: &type_id.package,
-                        ty: Some(&field.ty),
-                        variables: &variables,
-                    };
-
-                    value_arguments.push(self.value(&env)?);
-                }
-
-                enum_arguments.push(stmt!["(", value_arguments.join(", "), ")"]);
-            } else {
-                enum_arguments.push(value.ordinal.to_string());
-            }
-
-            arguments.push(stmt!["(", enum_arguments.join(", "), ")"]);
-        }
-
-        let class_name = Variable::String(body.name.to_owned());
-
-        Ok(stmt![&body.name,
-                 " = ",
-                 &self.enum_enum,
-                 "(",
-                 class_name,
-                 ", [",
-                 arguments.join(", "),
-                 "], type=",
-                 &body.name,
-                 ")"])
-    }
-
-    fn build_getters(&self, fields: &Vec<RpLoc<Field>>) -> Result<Vec<MethodSpec>> {
-        let mut result = Vec::new();
-
-        for field in fields {
-            let name = self.to_lower_snake.convert(&field.ident);
-            let getter_name = format!("get_{}", name);
-            let mut method_spec = MethodSpec::new(&getter_name);
-            method_spec.push_argument(stmt!["self"]);
-            method_spec.push(stmt!["return self.", name]);
-            result.push(method_spec);
-        }
-
-        Ok(result)
+        out.push(class);
+        Ok(())
     }
 
     fn process_type(&self,
+                    out: &mut Self::Out,
                     type_id: &RpTypeId,
                     pos: &RpPos,
-                    body: &RpTypeBody)
-                    -> Result<ClassSpec> {
+                    body: Rc<RpTypeBody>)
+                    -> Result<()> {
         let mut class = ClassSpec::new(&body.name);
         let mut fields = Vec::new();
 
@@ -559,18 +721,19 @@ impl Processor {
             class.push(code.inner.lines);
         }
 
-        Ok(class)
+        out.push(class);
+        Ok(())
     }
 
     fn process_interface(&self,
+                         out: &mut Self::Out,
                          type_id: &RpTypeId,
-                         body: &RpInterfaceBody)
-                         -> Result<Vec<ClassSpec>> {
-        let mut classes = Vec::new();
-
+                         _: &RpPos,
+                         body: Rc<RpInterfaceBody>)
+                         -> Result<()> {
         let mut interface_spec = ClassSpec::new(&body.name);
 
-        interface_spec.push(self.interface_decode_method(type_id, body)?);
+        interface_spec.push(self.interface_decode_method(type_id, &body)?);
 
         let mut interface_fields = Vec::new();
 
@@ -586,7 +749,7 @@ impl Processor {
             interface_spec.push(code.inner.lines);
         }
 
-        classes.push(interface_spec);
+        out.push(interface_spec);
 
         for (_, ref sub_type) in &body.sub_types {
             let mut class = ClassSpec::new(&format!("{}_{}", &body.name, &sub_type.name));
@@ -635,147 +798,10 @@ impl Processor {
                 class.push(code.inner.lines);
             }
 
-            classes.push(class);
-        }
-
-        Ok(classes)
-    }
-
-    fn populate_files(&self) -> Result<HashMap<&RpPackage, FileSpec>> {
-        let mut files = HashMap::new();
-
-        let mut enums = Vec::new();
-
-        // Process all types discovered so far.
-        for (type_id, decl) in &self.env.decls {
-            let class_specs: Vec<ClassSpec> = match decl.inner {
-                RpDecl::Interface(ref body) => self.process_interface(type_id, body)?,
-                RpDecl::Type(ref body) => vec![self.process_type(type_id, &decl.pos, body)?],
-                RpDecl::Tuple(ref body) => vec![self.process_tuple(type_id, &decl.pos, body)?],
-                RpDecl::Enum(ref body) => {
-                    enums.push((type_id, body));
-                    vec![self.process_enum(type_id, body)?]
-                }
-            };
-
-            match files.entry(&type_id.package) {
-                Entry::Vacant(entry) => {
-                    let mut file_spec = FileSpec::new();
-
-                    for class_spec in class_specs {
-                        file_spec.push(class_spec);
-                    }
-
-                    entry.insert(file_spec);
-                }
-                Entry::Occupied(entry) => {
-                    let mut file_spec = entry.into_mut();
-
-                    for class_spec in class_specs {
-                        file_spec.push(class_spec);
-                    }
-                }
-            }
-        }
-
-        /// process static initialization of enums at bottom of file
-        for (type_id, body) in enums {
-            if let Some(ref mut file_spec) = files.get_mut(&type_id.package) {
-                file_spec.push(self.process_enum_values(type_id, body)?);
-            } else {
-                return Err(format!("no such package: {}", &type_id.package).into());
-            }
-        }
-
-        Ok(files)
-    }
-
-    fn setup_module_path(&self, root_dir: &PathBuf, package: &RpPackage) -> Result<PathBuf> {
-        let package = self.package(package);
-
-        let mut full_path = root_dir.to_owned();
-        let mut iter = package.parts.iter().peekable();
-
-        while let Some(part) = iter.next() {
-            full_path = full_path.join(part);
-
-            if iter.peek().is_none() {
-                continue;
-            }
-
-            if !full_path.is_dir() {
-                debug!("+dir: {}", full_path.display());
-                fs::create_dir_all(&full_path)?;
-            }
-
-            let init_path = full_path.join(INIT_PY);
-
-            if !init_path.is_file() {
-                debug!("+init: {}", init_path.display());
-                File::create(init_path)?;
-            }
-        }
-
-        if let Some(parent) = full_path.parent() {
-            if !parent.is_dir() {
-                debug!("+dir: {}", parent.display());
-                fs::create_dir_all(&parent)?;
-            }
-        }
-
-        // path to final file
-        full_path.set_extension(EXT);
-        Ok(full_path)
-    }
-
-    fn write_files(&self, files: HashMap<&RpPackage, FileSpec>) -> Result<()> {
-        let root_dir = &self.options.parent.out_path;
-
-        for (package, file_spec) in files {
-            let full_path = self.setup_module_path(root_dir, package)?;
-
-            debug!("+module: {}", full_path.display());
-
-            let mut out = String::new();
-            file_spec.format(&mut out)?;
-
-            let mut f = File::create(full_path)?;
-            f.write_all(&out.into_bytes())?;
-            f.flush()?;
+            out.push(class);
         }
 
         Ok(())
-    }
-
-    fn convert_type_id<F>(&self, pos: &RpPos, type_id: &RpTypeId, path_syntax: F) -> Result<Name>
-        where F: Fn(&Vec<String>) -> String
-    {
-        let package = &type_id.package;
-        let name = &type_id.name;
-
-        if let Some(ref used) = name.prefix {
-            let package = self.env
-                .lookup_used(package, used)
-                .map_err(|e| Error::pos(e.description().to_owned(), pos.clone()))?;
-
-            let package = self.package(package);
-            let package = package.parts.join(".");
-            return Ok(Name::imported_alias(&package, &path_syntax(&name.parts), used).into());
-        }
-
-        // no nested types in python
-        Ok(Name::local(&path_syntax(&name.parts)).into())
-    }
-}
-
-impl Backend for Processor {
-    fn process(&self) -> Result<()> {
-        let files = self.populate_files()?;
-        self.write_files(files)
-    }
-
-    fn verify(&self) -> Result<Vec<Error>> {
-        Ok(vec![])
     }
 }
 

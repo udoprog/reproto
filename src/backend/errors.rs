@@ -10,6 +10,7 @@ error_chain! {
 
     foreign_links {
         IO(::std::io::Error);
+        Fmt(::std::fmt::Error);
     }
 
     errors {
@@ -47,7 +48,7 @@ error_chain! {
             description("missing required")
         }
 
-        EnumValueConflict(pos: RpPos, other: RpPos) {
+        EnumVariantConflict(pos: RpPos, other: RpPos) {
             description("enum value conflict")
         }
 

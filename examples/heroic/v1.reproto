@@ -3,6 +3,9 @@ package heroic.v1;
 use heroic.common as c;
 
 type Sampling {
+    // Unit of the sampling.
+    //
+    // This is used primarily to mess with gabriel
     unit?: TimeUnit;
     size: unsigned;
     extent?: unsigned;
@@ -22,7 +25,9 @@ enum TimeUnit {
 
   serialized_as number;
 
+  // The name of the time unit
   name: string;
+  // The number of the time unit
   number: double;
 
   java {{
@@ -53,17 +58,24 @@ interface Samples {
     name: string => Samples.Points(name: name, data: []);
   }
 
+  // Name of the current set of samples
+  //
+  // ```
+  // This is an example code-block.
+  // ```
   name: string;
 
   Points {
     name "points";
 
+    // List of points
     data: [Point];
   }
 
   Events {
     name "events";
 
+    // List of events
     data: [Event];
   }
 }

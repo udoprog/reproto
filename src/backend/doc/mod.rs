@@ -12,7 +12,6 @@ fn setup_module(module: &str) -> Result<Box<processor::Listeners>> {
 
 pub fn resolve(options: Options, env: Environment) -> Result<processor::Processor> {
     let out_path = options.out_path;
-    let id_converter = options.id_converter;
 
     let package_prefix = options.package_prefix
         .clone()
@@ -33,7 +32,6 @@ pub fn resolve(options: Options, env: Environment) -> Result<processor::Processo
     return Ok(processor::Processor::new(options,
                                         env,
                                         out_path,
-                                        id_converter,
                                         package_prefix,
                                         Box::new(listeners)));
 }

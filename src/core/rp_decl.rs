@@ -66,10 +66,11 @@ impl Merge for RpLoc<RpDecl> {
             }
             RpDecl::Enum(ref mut body) => {
                 if let RpDecl::Enum(other) = source.inner {
-                    if let Some(value) = other.values.iter().next() {
-                        return Err(Error::extend_enum("cannot extend enum with additional values"
+                    if let Some(variant) = other.variants.iter().next() {
+                        return Err(Error::extend_enum("cannot extend enum with additional \
+                                                       variants"
                                                           .to_owned(),
-                                                      value.pos.clone(),
+                                                      variant.pos.clone(),
                                                       dest_pos));
                     }
 

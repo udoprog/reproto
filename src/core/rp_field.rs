@@ -11,6 +11,7 @@ use super::rp_value::RpValue;
 pub struct RpField {
     pub modifier: RpModifier,
     pub name: String,
+    pub comment: Vec<String>,
     pub ty: RpType,
     pub field_as: Option<RpLoc<String>>,
 }
@@ -55,6 +56,7 @@ impl IntoModel for ast::Field {
         let field = RpField {
             modifier: self.modifier,
             name: self.name,
+            comment: self.comment,
             ty: self.ty,
             field_as: field_as,
         };
