@@ -350,18 +350,22 @@ impl Processor {
     }
 }
 
-impl Collecting for String {
+pub struct Collector {
+    buffer: String,
+}
+
+impl Collecting for Collector {
     type Processor = Processor;
 
     fn new() -> Self {
-        String::new()
+        Collector { buffer: String::new() }
     }
 
     fn into_bytes(self, processor: &Self::Processor) -> Result<Vec<u8>> {
         let mut out = String::new();
 
         processor.write_doc(&mut out, move |out| {
-                out.write_str(&self)?;
+                out.write_str(&self.buffer)?;
                 Ok(())
             })?;
 
@@ -369,8 +373,14 @@ impl Collecting for String {
     }
 }
 
+impl FmtWrite for Collector {
+    fn write_str(&mut self, other: &str) -> ::std::result::Result<(), ::std::fmt::Error> {
+        self.buffer.write_str(other)
+    }
+}
+
 impl PackageProcessor for Processor {
-    type Out = String;
+    type Out = Collector;
 
     fn ext(&self) -> &str {
         EXT

@@ -2,7 +2,7 @@ use super::errors::*;
 use super::into_model::IntoModel;
 use super::rp_loc::RpPos;
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct RpName {
     pub prefix: Option<String>,
     pub parts: Vec<String>,

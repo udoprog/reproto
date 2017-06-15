@@ -5,7 +5,7 @@ use super::rp_loc::{RpLoc, RpPos};
 use super::rp_match_condition::RpMatchCondition;
 use super::rp_value::RpValue;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct RpMatchMember {
     pub condition: RpLoc<RpMatchCondition>,
     pub value: RpLoc<RpValue>,

@@ -4,7 +4,7 @@ use super::into_model::IntoModel;
 use super::rp_loc::{RpLoc, RpPos};
 use super::rp_value::RpValue;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 pub struct RpFieldInit {
     pub name: RpLoc<String>,
     pub value: RpLoc<RpValue>,

@@ -9,7 +9,7 @@ use super::rp_match_variable::RpMatchVariable;
 use super::rp_type::RpType;
 use super::rp_value::RpValue;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct RpMatchDecl {
     pub by_value: Vec<(RpLoc<RpValue>, RpByValueMatch)>,
     pub by_type: Vec<(RpMatchKind, RpByTypeMatch)>,

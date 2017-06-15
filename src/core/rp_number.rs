@@ -2,6 +2,7 @@ use num::bigint::BigInt;
 use num::integer::Integer;
 use num::traits::Signed;
 use num::traits::cast::ToPrimitive;
+use serde;
 use std::fmt;
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -105,6 +106,15 @@ impl fmt::Display for RpNumber {
         } else {
             write!(f, "{}.{}", base, decimal)
         }
+    }
+}
+
+impl serde::Serialize for RpNumber {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: serde::Serializer
+    {
+        let n = self.to_f64().unwrap();
+        serializer.serialize_f64(n)
     }
 }
 

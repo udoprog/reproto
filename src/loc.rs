@@ -1,9 +1,21 @@
+use serde;
 use std::path::PathBuf;
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Loc<T, P> {
     pub inner: T,
     pub pos: P,
+}
+
+impl<T, P> serde::Serialize for Loc<T, P>
+    where T: serde::Serialize,
+          P: serde::Serialize
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: serde::Serializer
+    {
+        (&self.inner, &self.pos).serialize(serializer)
+    }
 }
 
 impl<T, P> ::std::ops::Deref for Loc<T, P> {

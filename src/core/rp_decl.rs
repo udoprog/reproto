@@ -10,7 +10,7 @@ use super::rp_service_body::RpServiceBody;
 use super::rp_tuple_body::RpTupleBody;
 use super::rp_type_body::RpTypeBody;
 
-#[derive(Clone)]
+#[derive(Clone, Serialize)]
 pub enum RpDecl {
     Type(Rc<RpTypeBody>),
     Interface(Rc<RpInterfaceBody>),

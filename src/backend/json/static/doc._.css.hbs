@@ -1,0 +1,140 @@
+/* vim: ft=css
+ */
+
+body {
+  background-color: {{bg}};
+}
+
+h1, h2, h3, h4, h5, h6 {
+  margin: 0;
+}
+
+p {
+  margin: 10px 0;
+}
+
+pre {
+  margin: 10px 0;
+}
+
+section {
+  margin: 10px 10px;
+  padding: 10px;
+  border-radius: 6px;
+}
+
+.description {
+  margin: 10px 0;
+}
+
+.description h1 {
+  font-size: 100%;
+}
+
+.description h2 {
+  font-size: 90%;
+}
+
+.description h3 {
+  font-size: 80%;
+}
+
+.description h4 {
+  font-size: 70%;
+}
+
+.description h5 {
+  font-size: 60%;
+}
+
+.description h6 {
+  font-size: 60%;
+  font-weight: normal;
+}
+
+section > h1 {
+  padding: 5px 10px;
+  margin-bottom: 10px;
+  background: {{title_bg}};
+  border-radius: 4px;
+}
+
+section > h1 > .type {
+  color: #000000;
+  font-weight: bold;
+  font-size: 50%;
+  float: right;
+  text-transform: uppercase;
+}
+
+section.section-type {
+  background-color: {{type_bg}};
+}
+
+section.section-enum {
+  background-color: {{enum_bg}};
+}
+
+section.section-tuple {
+  background-color: {{tuple_bg}};
+}
+
+section.section-interface {
+  background-color: {{interface_bg}};
+}
+
+section.section-service {
+  background-color: {{service_bg}};
+}
+
+.variants {
+}
+
+.fields {
+}
+
+.fields > .field {
+  margin: 5px 0px;
+}
+
+.fields > .field > .name {
+  font-weight: bold;
+}
+
+.fields > .field > .name > .ty {
+  margin-left: 5px;
+}
+
+.fields > .field > .name.required {
+}
+
+.ty-name {
+  font-weight: bold;
+}
+
+.ty-array {
+}
+
+.ty-array-left {
+  margin: 0 0.1em;
+  font-weight: bold;
+  color: #CECECE;
+}
+
+.ty-array-right {
+  margin: 0 0.1em;
+  font-weight: bold;
+  color: #CECECE;
+}
+
+.ty-map-key {
+  font-weight: bold;
+}
+
+.ty-map-separator {
+  margin: 0 0.1em;
+}
+
+.ty-map-value {
+  font-weight: bold;
+}

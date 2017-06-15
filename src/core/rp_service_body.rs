@@ -5,7 +5,7 @@ use super::into_model::IntoModel;
 use super::merge::Merge;
 use super::rp_loc::RpPos;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct RpServiceBody {
     pub name: String,
     pub comment: Vec<String>,

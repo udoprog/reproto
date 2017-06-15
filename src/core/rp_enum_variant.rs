@@ -5,7 +5,7 @@ use super::into_model::IntoModel;
 use super::rp_loc::{RpLoc, RpPos};
 use super::rp_value::RpValue;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct RpEnumVariant {
     pub name: RpLoc<String>,
     pub comment: Vec<String>,

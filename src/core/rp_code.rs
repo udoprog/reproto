@@ -2,7 +2,7 @@ use super::errors::*;
 use super::merge::Merge;
 use super::rp_loc::RpLoc;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct RpCode {
     pub context: String,
     pub lines: Vec<String>,

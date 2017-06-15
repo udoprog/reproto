@@ -1,7 +1,7 @@
 use super::rp_name::RpName;
 use super::rp_package::RpPackage;
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct RpTypeId {
     pub package: RpPackage,
     pub name: RpName,

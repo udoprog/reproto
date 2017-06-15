@@ -9,7 +9,7 @@ use super::rp_number::RpNumber;
 use super::rp_path::RpPath;
 use super::rp_type::RpType;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 pub enum RpValue {
     Path(RpPath),
     String(String),

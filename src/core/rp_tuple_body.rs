@@ -10,7 +10,7 @@ use super::rp_loc::{RpLoc, RpPos};
 use super::rp_match_decl::RpMatchDecl;
 use super::utils;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct RpTupleBody {
     pub name: String,
     pub comment: Vec<String>,

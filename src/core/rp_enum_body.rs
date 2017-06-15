@@ -11,7 +11,7 @@ use super::rp_loc::{RpLoc, RpPos};
 use super::rp_match_decl::RpMatchDecl;
 use super::utils;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct RpEnumBody {
     pub name: String,
     pub comment: Vec<String>,

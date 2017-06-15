@@ -4,7 +4,7 @@ use super::into_model::IntoModel;
 use super::rp_loc::{RpLoc, RpPos};
 use super::rp_value::RpValue;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct RpOptionDecl {
     pub name: String,
     pub values: Vec<RpLoc<RpValue>>,

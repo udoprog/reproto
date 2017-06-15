@@ -1,6 +1,7 @@
 use codeviz::errors as codeviz;
 use core::*;
 use parser::errors as parser_errors;
+use serde_json;
 
 error_chain! {
     links {
@@ -11,6 +12,7 @@ error_chain! {
     foreign_links {
         IO(::std::io::Error);
         Fmt(::std::fmt::Error);
+        Serde(serde_json::Error);
     }
 
     errors {

@@ -12,7 +12,7 @@ use super::rp_match_decl::RpMatchDecl;
 use super::rp_sub_type::RpSubType;
 use super::utils;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct RpInterfaceBody {
     pub name: String,
     pub comment: Vec<String>,
