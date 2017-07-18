@@ -3,5 +3,5 @@ OUT := $(CURDIR)/target
 
 all:
 	@$(BABEL) src generated --out-dir $(OUT)
-	@echo "#!/usr/bin/env bash\nexec env NODE_PATH="$(OUT)" node $(CURDIR)/target/script.js" > script.sh
+	@echo -e "#!/usr/bin/env bash\nexec env NODE_PATH="$(OUT)" node $(CURDIR)/target/script.js" > script.sh
 	@chmod +x script.sh

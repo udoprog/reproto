@@ -16,8 +16,10 @@ pub struct Module {
     serializer_provider: ClassType,
     parser: ClassType,
     deserialization_context: ClassType,
+    type_reference: ClassType,
     token: ClassType,
     string: ClassType,
+    optional: ClassType,
     io_exception: ClassType,
 }
 
@@ -41,8 +43,10 @@ impl Module {
             parser: Type::class("com.fasterxml.jackson.core", "JsonParser"),
             deserialization_context: Type::class("com.fasterxml.jackson.databind",
                                                  "DeserializationContext"),
+            type_reference: Type::class("com.fasterxml.jackson.core.type", "TypeReference"),
             token: Type::class("com.fasterxml.jackson.core", "JsonToken"),
             string: Type::class("java.lang", "String"),
+            optional: Type::class("java.util", "Optional"),
             io_exception: Type::class("java.io", "IOException"),
         }
     }
@@ -110,25 +114,21 @@ impl Module {
                                       -> Result<(Option<(Statement, &str)>, Statement)>
         where A: Into<Variable> + Clone
     {
-        match *ty {
+        let (token, reader) = match *ty {
             Type::Primitive(ref primitive) => {
                 let test = stmt!["!", parser, ".nextToken().isNumeric()"];
 
                 match *primitive {
-                    SHORT => {
-                        Ok((Some((test, "VALUE_NUMBER_INT")), stmt![parser, ".getShortValue()"]))
-                    }
-                    LONG => {
-                        Ok((Some((test, "VALUE_NUMBER_INT")), stmt![parser, ".getLongValue()"]))
-                    }
+                    SHORT => (Some((test, "VALUE_NUMBER_INT")), stmt![parser, ".getShortValue()"]),
+                    LONG => (Some((test, "VALUE_NUMBER_INT")), stmt![parser, ".getLongValue()"]),
                     INTEGER => {
-                        Ok((Some((test, "VALUE_NUMBER_INT")), stmt![parser, ".getIntegerValue()"]))
+                        (Some((test, "VALUE_NUMBER_INT")), stmt![parser, ".getIntegerValue()"])
                     }
                     FLOAT => {
-                        Ok((Some((test, "VALUE_NUMBER_FLOAT")), stmt![parser, ".getFloatValue()"]))
+                        (Some((test, "VALUE_NUMBER_FLOAT")), stmt![parser, ".getFloatValue()"])
                     }
                     DOUBLE => {
-                        Ok((Some((test, "VALUE_NUMBER_FLOAT")), stmt![parser, ".getDoubleValue()"]))
+                        (Some((test, "VALUE_NUMBER_FLOAT")), stmt![parser, ".getDoubleValue()"])
                     }
                     _ => return Err("cannot deserialize type".into()),
                 }
@@ -137,20 +137,23 @@ impl Module {
                 if *class == self.string {
                     let test = stmt![parser, ".nextToken() != ", &self.token, ".VALUE_STRING"];
                     let token = Some((test, "VALUE_STRING"));
-                    return Ok((token, stmt![parser, ".getText()"]));
-                }
+                    (token, stmt![parser, ".getText()"])
+                } else {
+                    let argument = if class.arguments.is_empty() {
+                        stmt![class, ".class"]
+                    } else {
+                        stmt!["new ", self.type_reference.with_arguments(vec![class]), "(){}"]
+                    };
 
-                if class.arguments.is_empty() {
-                    return Ok((None, stmt![parser, ".readValueAs(", class, ".class)"]));
+                    (None, stmt![parser, ".readValueAs(", argument, ")"])
                 }
-
-                // TODO: support generics
-                return Err("cannot deserialize type".into());
             }
             Type::Local(ref local) => {
-                return Ok((None, stmt![parser, ".readValueAs(", &local.name, ")"]));
+                (None, stmt![parser, ".readValueAs(", &local.name, ".class)"])
             }
-        }
+        };
+
+        Ok((token, reader))
     }
 
     fn wrong_token_exception(&self,
@@ -201,6 +204,12 @@ impl Module {
         for field in fields {
             let (token, reader) = self.deserialize_method_for_type(&field.java_type, &parser)?;
 
+            let reader = if field.is_optional() {
+                stmt![&self.optional, ".of(", reader, ")"]
+            } else {
+                reader
+            };
+
             if let Some((test, expected)) = token {
                 let mut field_check = Elements::new();
                 field_check.push(stmt!["if (", &test, ") {"]);
@@ -210,7 +219,7 @@ impl Module {
             }
 
             let variable = stmt!["v_", &field.java_spec.name];
-            let assign = stmt!["final ", &field.java_spec.ty, " ", &variable, " = ", reader, ";"];
+            let assign = stmt!["final ", &field.java_type, " ", &variable, " = ", reader, ";"];
             deserialize.push(assign);
             arguments.push(variable);
         }

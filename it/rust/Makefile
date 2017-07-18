@@ -4,5 +4,5 @@ BINARY := $(CURDIR)/target/debug/rust
 
 all:
 	$(CARGO) build
-	@echo "#!/usr/bin/env bash\nexec $(BINARY)" > script.sh
+	@echo -e "#!/usr/bin/env bash\nexec $(BINARY)" > script.sh
 	@chmod +x script.sh

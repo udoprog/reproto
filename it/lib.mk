@@ -42,8 +42,8 @@ EXCLUDE ?=
 # projects that are supported after checking that necessary tools are available
 INCLUDE ?= %
 
-SUITES := $(filter $(INCLUDE), $(filter-out $(EXCLUDE),$(SUITES)))
-PROJECTS ?= $(filter $(INCLUDE), $(filter-out $(EXCLUDE),$(PROJECTS)))
+SUITES := $(filter $(INCLUDE), $(filter-out $(EXCLUDE), $(SUITES)))
+PROJECTS := $(filter $(INCLUDE), $(filter-out $(EXCLUDE), $(PROJECTS)))
 
 PACKAGES := $(TARGETS:%=--package %)
 

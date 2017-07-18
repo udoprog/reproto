@@ -47,4 +47,11 @@ impl<'a> JavaField<'a> {
         getter.push(stmt!["return this.", &self.ident, ";"]);
         Ok(getter)
     }
+
+    pub fn is_optional(&self) -> bool {
+        match *self.modifier {
+            RpModifier::Optional => true,
+            _ => false,
+        }
+    }
 }

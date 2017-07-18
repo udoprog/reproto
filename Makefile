@@ -5,7 +5,7 @@ DEFAULT_TOOL := $(CURDIR)/target/debug/reproto
 PYTHON ?= python3
 PROJECTS ?= $(shell PYTHON=$(PYTHON) tools/check-project-deps)
 TOOL ?= $(DEFAULT_TOOL)
-ENVIRONMENT = INCLUDE="$(PROJECTS)" PYTHON="$(PYTHON)" TOOL="$(TOOL)"
+ENVIRONMENT := INCLUDE="$(PROJECTS)" PYTHON="$(PYTHON)" TOOL="$(TOOL)"
 EACH := tools/for-each-it
 
 CARGO_TARGET_DIR=$(CURDIR)/target
