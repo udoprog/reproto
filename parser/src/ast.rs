@@ -709,49 +709,7 @@ impl<'input> IntoModel for ServiceBody<'input> {
 
         while let Some((parent, children)) = queue.pop() {
             for child in children {
-                match child {
-                    ServiceNested::Endpoint {
-                        method,
-                        path,
-                        comment,
-                        options,
-                        children,
-                    } => {
-                        let node = Rc::new(RefCell::new(Node {
-                            parent: Some(parent.clone()),
-                            method: method.into_model()?,
-                            path: path.into_model()?,
-                            options: options.into_model()?,
-                            comment: comment.into_iter().map(ToOwned::to_owned).collect(),
-                            returns: Vec::new(),
-                            accepts: Vec::new(),
-                        }));
-
-                        queue.push((node, children));
-                    }
-                    // end node, manifest an endpoint.
-                    ServiceNested::Returns {
-                        comment,
-                        status,
-                        produces,
-                        ty,
-                        options,
-                    } => {
-                        let comment = comment.into_iter().map(ToOwned::to_owned).collect();
-                        let returns = convert_return(comment, status, produces, ty, options)?;
-                        parent.try_borrow_mut()?.push_returns(returns);
-                    }
-                    ServiceNested::Accepts {
-                        comment,
-                        accepts,
-                        ty,
-                        options,
-                    } => {
-                        let comment = comment.into_iter().map(ToOwned::to_owned).collect();
-                        let accepts = convert_accepts(comment, accepts, ty, options)?;
-                        parent.try_borrow_mut()?.push_accepts(accepts);
-                    }
-                }
+                process_child(&mut queue, &parent, child)?;
             }
 
             let p = parent.as_ref().try_borrow()?;
@@ -769,7 +727,59 @@ impl<'input> IntoModel for ServiceBody<'input> {
             endpoints: endpoints,
         };
 
-        Ok(Rc::new(service_body))
+        return Ok(Rc::new(service_body));
+
+        fn process_child<'input>(
+            queue: &mut Vec<(Rc<RefCell<Node>>, Vec<ServiceNested<'input>>)>,
+            parent: &Rc<RefCell<Node>>,
+            child: ServiceNested<'input>,
+        ) -> Result<()> {
+            match child {
+                ServiceNested::Endpoint {
+                    method,
+                    path,
+                    comment,
+                    options,
+                    children,
+                } => {
+                    let node = Rc::new(RefCell::new(Node {
+                        parent: Some(parent.clone()),
+                        method: method.into_model()?,
+                        path: path.into_model()?,
+                        options: options.into_model()?,
+                        comment: comment.into_iter().map(ToOwned::to_owned).collect(),
+                        returns: Vec::new(),
+                        accepts: Vec::new(),
+                    }));
+
+                    queue.push((node, children));
+                }
+                // end node, manifest an endpoint.
+                ServiceNested::Returns {
+                    comment,
+                    status,
+                    produces,
+                    ty,
+                    options,
+                } => {
+                    let comment = comment.into_iter().map(ToOwned::to_owned).collect();
+                    let returns = convert_return(comment, status, produces, ty, options)?;
+                    parent.try_borrow_mut()?.push_returns(returns);
+                }
+                ServiceNested::Accepts {
+                    comment,
+                    accepts,
+                    ty,
+                    options,
+                } => {
+                    let comment = comment.into_iter().map(ToOwned::to_owned).collect();
+                    let accepts = convert_accepts(comment, accepts, ty, options)?;
+                    parent.try_borrow_mut()?.push_accepts(accepts);
+                }
+            }
+
+            Ok(())
+        }
     }
 }
 
