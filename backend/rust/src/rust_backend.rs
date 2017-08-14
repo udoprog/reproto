@@ -1,6 +1,9 @@
 use super::*;
 use std::rc::Rc;
 
+const TYPE_SEP: &'static str = "_";
+const SCOPE_SEP: &'static str = "::";
+
 pub struct RustBackend {
     pub env: Environment,
     listeners: Box<Listeners>,
@@ -46,16 +49,23 @@ impl RustBackend {
         }
     }
 
-    fn convert_type_id(&self, pos: &Pos, type_id: &RpTypeId) -> Result<Name> {
-        let (package, registered) = self.env.lookup(&type_id.package, &type_id.name).map_err(
-            |e| {
-                Error::pos(e.description().to_owned(), pos.into())
-            },
-        )?;
+    fn convert_type_name(&self, type_id: &RpTypeId) -> String {
+        type_id.name.join(TYPE_SEP)
+    }
 
-        let name = registered.name().join(".");
+    fn convert_type_id(&self, pos: &Pos, lookup_id: &RpTypeId) -> Result<Name> {
+        let LookupResult {
+            package,
+            registered,
+            type_id,
+            ..
+        } = self.env
+            .lookup(&lookup_id.package, &lookup_id.name)
+            .map_err(|e| Error::pos(e.description().to_owned(), pos.into()))?;
 
-        if let Some(ref prefix) = type_id.name.prefix {
+        let name = registered.local_name(&type_id, |p| p.join(TYPE_SEP), |c| c.join(SCOPE_SEP));
+
+        if let Some(ref prefix) = lookup_id.name.prefix {
             let package_name = self.package(package).parts.join("::");
             return Ok(Name::Imported(
                 Name::imported_alias(&package_name, &name, prefix),
@@ -154,9 +164,11 @@ impl RustBackend {
             fields.push(self.into_type(type_id, field)?);
         }
 
+        let name = self.convert_type_name(type_id);
+
         let mut elements = Elements::new();
         elements.push("#[derive(Serialize, Deserialize, Debug)]");
-        elements.push(stmt!["struct ", &body.name, "(", fields.join(", "), ");"]);
+        elements.push(stmt!["struct ", &name, "(", fields.join(", "), ");"]);
 
         out.0.push(elements);
         Ok(())
@@ -165,11 +177,12 @@ impl RustBackend {
     pub fn process_enum(
         &self,
         out: &mut RustFileSpec,
-        _: &RpTypeId,
+        type_id: &RpTypeId,
         _: &Pos,
         body: Rc<RpEnumBody>,
     ) -> Result<()> {
-        let mut enum_spec = EnumSpec::new(&body.name);
+        let name = self.convert_type_name(type_id);
+        let mut enum_spec = EnumSpec::new(&name);
         enum_spec.public();
 
         for code in body.codes.for_context(RUST_CONTEXT) {
@@ -193,7 +206,8 @@ impl RustBackend {
             fields.push(self.field_element(type_id, field)?);
         }
 
-        let mut struct_spec = StructSpec::new(&body.name);
+        let name = self.convert_type_name(type_id);
+        let mut struct_spec = StructSpec::new(&name);
         struct_spec.public();
 
         struct_spec.push_attribute("#[derive(Serialize, Deserialize, Debug)]");
@@ -214,7 +228,8 @@ impl RustBackend {
         _: &Pos,
         body: Rc<RpInterfaceBody>,
     ) -> Result<()> {
-        let mut enum_spec = EnumSpec::new(&body.name);
+        let name = self.convert_type_name(type_id);
+        let mut enum_spec = EnumSpec::new(&name);
         enum_spec.public();
 
         enum_spec.push_attribute("#[derive(Serialize, Deserialize, Debug)]");

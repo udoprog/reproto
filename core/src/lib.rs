@@ -100,6 +100,18 @@ pub enum RpDecl {
 }
 
 impl RpDecl {
+    pub fn decls(&self) -> Vec<&Rc<Loc<RpDecl>>> {
+        use self::RpDecl::*;
+
+        match *self {
+            Type(ref body) => body.decls.iter().collect(),
+            Interface(ref body) => body.decls.iter().collect(),
+            Enum(ref body) => body.decls.iter().collect(),
+            Tuple(ref body) => body.decls.iter().collect(),
+            Service(_) => vec![],
+        }
+    }
+
     pub fn name(&self) -> &str {
         use self::RpDecl::*;
 
@@ -127,79 +139,84 @@ impl RpDecl {
     /// Convert a declaration into its registered types.
     pub fn into_registered_type(
         &self,
-        package: &RpVersionedPackage,
+        type_id: &RpTypeId,
         pos: &Pos,
     ) -> Vec<(RpTypeId, Loc<RpRegistered>)> {
         use self::RpDecl::*;
 
+        let mut out = Vec::new();
+
         match *self {
             Type(ref ty) => {
-                let type_id = package.into_type_id(RpName::with_parts(vec![ty.name.clone()]));
                 let token = Loc::new(RpRegistered::Type(ty.clone()), pos.clone());
-                vec![(type_id, token)]
+                out.push((type_id.clone(), token));
             }
             Interface(ref interface) => {
-                let mut out = Vec::new();
-
-                let current = vec![interface.name.clone()];
-                let type_id = RpTypeId::new(package.clone(), RpName::with_parts(current.clone()));
                 let token = Loc::new(RpRegistered::Interface(interface.clone()), pos.clone());
 
                 for (name, sub_type) in &interface.sub_types {
-                    let sub_type = RpRegistered::SubType {
-                        parent: interface.clone(),
-                        sub_type: sub_type.as_ref().clone(),
-                    };
+                    let type_id = type_id.extend(name.to_owned());
 
-                    let token = Loc::new(sub_type, pos.clone());
+                    let token = Loc::new(
+                        RpRegistered::SubType {
+                            parent: interface.clone(),
+                            sub_type: sub_type.as_ref().clone(),
+                        },
+                        pos.clone(),
+                    );
 
-                    let mut current = current.clone();
-                    current.push(name.to_owned());
-                    out.push((type_id.with_name(RpName::with_parts(current)), token));
+                    out.push((type_id.clone(), token));
+
+                    for d in &sub_type.decls {
+                        let (d, pos) = d.ref_both();
+
+                        out.extend(d.into_registered_type(
+                            &type_id.extend(d.name().to_owned()),
+                            pos,
+                        ));
+                    }
                 }
 
-                out.push((type_id, token));
-                out
+                out.push((type_id.clone(), token));
             }
             Enum(ref en) => {
-                let mut out = Vec::new();
-
-                let current = vec![en.name.clone()];
-                let type_id = RpTypeId::new(package.clone(), RpName::with_parts(current.clone()));
                 let token = Loc::new(RpRegistered::Enum(en.clone()), pos.clone());
 
                 for variant in &en.variants {
-                    let enum_constant = RpRegistered::EnumConstant {
-                        parent: en.clone(),
-                        variant: variant.as_ref().clone(),
-                    };
-                    let token = Loc::new(enum_constant, pos.clone());
+                    let token = Loc::new(
+                        RpRegistered::EnumConstant {
+                            parent: en.clone(),
+                            variant: variant.as_ref().clone(),
+                        },
+                        pos.clone(),
+                    );
 
-                    let mut current = current.clone();
-                    current.push((*variant.name).to_owned());
-                    out.push((type_id.with_name(RpName::with_parts(current)), token));
+                    let type_id = type_id.extend(variant.as_ref().name.as_ref().to_owned());
+                    out.push((type_id, token));
                 }
 
-                out.push((type_id, token));
-                out
+                out.push((type_id.clone(), token));
             }
             Tuple(ref tuple) => {
-                let type_id = RpTypeId::new(
-                    package.clone(),
-                    RpName::with_parts(vec![tuple.name.clone()]),
-                );
                 let token = Loc::new(RpRegistered::Tuple(tuple.clone()), pos.clone());
-                vec![(type_id, token)]
+                out.push((type_id.clone(), token));
             }
             Service(ref service) => {
-                let type_id = RpTypeId::new(
-                    package.clone(),
-                    RpName::with_parts(vec![service.name.clone()]),
-                );
                 let token = Loc::new(RpRegistered::Service(service.clone()), pos.clone());
-                vec![(type_id, token)]
+                out.push((type_id.clone(), token));
             }
         }
+
+        for d in &self.decls() {
+            let (d, pos) = d.ref_both();
+
+            out.extend(d.into_registered_type(
+                &type_id.extend(d.name().to_owned()),
+                pos,
+            ));
+        }
+
+        out
     }
 }
 
@@ -287,6 +304,8 @@ impl Merge for Loc<RpDecl> {
 pub struct RpEnumBody {
     pub name: String,
     pub comment: Vec<String>,
+    /// Inner declarations.
+    pub decls: Vec<Rc<Loc<RpDecl>>>,
     pub variants: Vec<Loc<Rc<RpEnumVariant>>>,
     pub fields: Vec<Loc<RpField>>,
     pub codes: Vec<Loc<RpCode>>,
@@ -399,6 +418,8 @@ pub struct RpInstance {
 pub struct RpInterfaceBody {
     pub name: String,
     pub comment: Vec<String>,
+    /// Inner declarations.
+    pub decls: Vec<Rc<Loc<RpDecl>>>,
     pub fields: Vec<Loc<RpField>>,
     pub codes: Vec<Loc<RpCode>>,
     pub match_decl: RpMatchDecl,
@@ -578,6 +599,10 @@ impl RpName {
             prefix: self.prefix.clone(),
             parts: parts,
         }
+    }
+
+    pub fn join<S: AsRef<str>>(&self, joiner: S) -> String {
+        self.parts.join(joiner.as_ref())
     }
 }
 
@@ -978,6 +1003,39 @@ impl RpRegistered {
             } => vec![&parent.name, &variant.name],
         }
     }
+
+    pub fn local_name<PackageFn, InnerFn>(
+        &self,
+        type_id: &RpTypeId,
+        package_fn: PackageFn,
+        inner_fn: InnerFn,
+    ) -> String
+    where
+        PackageFn: Fn(Vec<&str>) -> String,
+        InnerFn: Fn(Vec<&str>) -> String,
+    {
+        use self::RpRegistered::*;
+
+        let name = &type_id.name;
+
+        match *self {
+            Type(_) | Interface(_) | Enum(_) | Tuple(_) | Service(_) => {
+                let p = name.parts.iter().map(String::as_str).collect();
+                package_fn(p)
+            }
+            SubType { .. } |
+            EnumConstant { .. } => {
+                let mut v: Vec<&str> = name.parts.iter().map(String::as_str).collect();
+                let at = v.len().saturating_sub(2);
+                let last = inner_fn(v.split_off(at));
+
+                let mut parts = v.clone();
+                parts.push(last.as_str());
+
+                inner_fn(parts)
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -1072,6 +1130,8 @@ pub struct RpServiceReturns {
 pub struct RpSubType {
     pub name: String,
     pub comment: Vec<String>,
+    /// Inner declarations.
+    pub decls: Vec<Rc<Loc<RpDecl>>>,
     pub fields: Vec<Loc<RpField>>,
     pub codes: Vec<Loc<RpCode>>,
     pub names: Vec<Loc<String>>,
@@ -1105,6 +1165,7 @@ impl Merge for RpSubType {
 pub struct RpTupleBody {
     pub name: String,
     pub comment: Vec<String>,
+    pub decls: Vec<Rc<Loc<RpDecl>>>,
     pub fields: Vec<Loc<RpField>>,
     pub codes: Vec<Loc<RpCode>>,
     pub match_decl: RpMatchDecl,
@@ -1128,6 +1189,7 @@ impl Merge for RpTupleBody {
 pub struct RpTypeBody {
     pub name: String,
     pub comment: Vec<String>,
+    pub decls: Vec<Rc<Loc<RpDecl>>>,
     pub fields: Vec<Loc<RpField>>,
     pub codes: Vec<Loc<RpCode>>,
     pub match_decl: RpMatchDecl,

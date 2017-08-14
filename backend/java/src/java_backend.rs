@@ -87,17 +87,20 @@ impl JavaBackend {
         self.java_package(pkg).parts.join(".")
     }
 
-    fn convert_type_id(&self, pos: &Pos, type_id: &RpTypeId) -> Result<Type> {
-        let (package, registered) = self.env.lookup(&type_id.package, &type_id.name).map_err(
-            |e| {
-                Error::pos(e.description().to_owned(), pos.into())
-            },
-        )?;
+    fn convert_type_id(&self, pos: &Pos, lookup_id: &RpTypeId) -> Result<Type> {
+        let LookupResult {
+            package,
+            registered,
+            type_id,
+            ..
+        } = self.env
+            .lookup(&lookup_id.package, &lookup_id.name)
+            .map_err(|e| Error::pos(e.description().to_owned(), pos.into()))?;
 
         let package_name = self.java_package_name(package);
-        Ok(
-            Type::class(&package_name, &registered.name().join(".")).into(),
-        )
+        let name = registered.local_name(&type_id, |p| p.join("."), |c| c.join("."));
+
+        Ok(Type::class(&package_name, &name).into())
     }
 
     /// Convert the given type to a java type.
@@ -528,7 +531,7 @@ impl JavaBackend {
         Ok(to_value)
     }
 
-    fn process_enum(&self, type_id: &RpTypeId, body: &RpEnumBody) -> Result<FileSpec> {
+    fn process_enum(&self, type_id: &RpTypeId, body: &RpEnumBody) -> Result<EnumSpec> {
         let class_type = Type::class(&self.java_package_name(&type_id.package), &body.name);
 
         let mut spec = EnumSpec::new(mods![Modifier::Public], &body.name);
@@ -608,13 +611,10 @@ impl JavaBackend {
             spec.push(to_value);
         }
 
-        let mut file_spec = self.new_file_spec(&type_id.package);
-        file_spec.push(&spec);
-
-        Ok(file_spec)
+        Ok(spec)
     }
 
-    fn process_tuple(&self, type_id: &RpTypeId, body: &RpTupleBody) -> Result<FileSpec> {
+    fn process_tuple(&self, type_id: &RpTypeId, body: &RpTupleBody) -> Result<ClassSpec> {
         let class_type = Type::class(&self.java_package_name(&type_id.package), &body.name);
         let mut spec = ClassSpec::new(mods![Modifier::Public], &body.name);
 
@@ -646,13 +646,10 @@ impl JavaBackend {
             spec: &mut spec,
         })?;
 
-        let mut file_spec = self.new_file_spec(&type_id.package);
-        file_spec.push(&spec);
-
-        Ok(file_spec)
+        Ok(spec)
     }
 
-    fn process_type(&self, type_id: &RpTypeId, body: &RpTypeBody) -> Result<FileSpec> {
+    fn process_type(&self, type_id: &RpTypeId, body: &RpTypeBody) -> Result<ClassSpec> {
         let class_type = Type::class(&self.java_package_name(&type_id.package), &body.name);
 
         let mut spec = ClassSpec::new(mods![Modifier::Public], &body.name);
@@ -687,17 +684,14 @@ impl JavaBackend {
             spec: &mut spec,
         })?;
 
-        let mut file_spec = self.new_file_spec(&type_id.package);
-        file_spec.push(&spec);
-
-        Ok(file_spec)
+        Ok(spec)
     }
 
     fn process_interface(
         &self,
         type_id: &RpTypeId,
         interface: &RpInterfaceBody,
-    ) -> Result<FileSpec> {
+    ) -> Result<InterfaceSpec> {
         let parent_type = Type::class(&self.java_package_name(&type_id.package), &interface.name);
 
         let mut interface_spec = InterfaceSpec::new(mods![Modifier::Public], &interface.name);
@@ -784,22 +778,16 @@ impl JavaBackend {
             interface_spec.push(&class);
         }
 
-        let mut file_spec = self.new_file_spec(&type_id.package);
-
         self.listeners.interface_added(&mut InterfaceAdded {
             interface: interface,
             spec: &mut interface_spec,
         })?;
 
-        file_spec.push(&interface_spec);
-        Ok(file_spec)
+        Ok(interface_spec)
     }
 
-    fn process_service(&self, type_id: &RpTypeId, body: &RpServiceBody) -> Result<FileSpec> {
-        let mut file_spec = self.new_file_spec(&type_id.package);
-        let interface_spec = InterfaceSpec::new(mods![Modifier::Public], &body.name);
-        file_spec.push(&interface_spec);
-        Ok(file_spec)
+    fn process_service(&self, _type_id: &RpTypeId, body: &RpServiceBody) -> Result<InterfaceSpec> {
+        Ok(InterfaceSpec::new(mods![Modifier::Public], &body.name))
     }
 
     fn convert_field<'a>(
@@ -853,14 +841,76 @@ impl JavaBackend {
         Ok(self.new_field_spec(&field_type, &ident))
     }
 
-    pub fn build_file_spec(&self, type_id: &RpTypeId, decl: &RpDecl) -> Result<FileSpec> {
+    fn process_decl(
+        &self,
+        type_id: &RpTypeId,
+        decl: &RpDecl,
+        depth: usize,
+        container: &mut Container,
+    ) -> Result<()> {
         match *decl {
-            RpDecl::Interface(ref interface) => self.process_interface(type_id, interface),
-            RpDecl::Type(ref ty) => self.process_type(type_id, ty),
-            RpDecl::Tuple(ref ty) => self.process_tuple(type_id, ty),
-            RpDecl::Enum(ref ty) => self.process_enum(type_id, ty),
-            RpDecl::Service(ref ty) => self.process_service(type_id, ty),
+            RpDecl::Interface(ref interface) => {
+                let mut spec = self.process_interface(type_id, interface)?;
+
+                for d in &interface.decls {
+                    let type_id = type_id.extend(d.name().to_owned());
+                    self.process_decl(&type_id, d, depth + 1, &mut spec)?;
+                }
+
+                container.push_contained(spec.into());
+            }
+            RpDecl::Type(ref ty) => {
+                let mut spec = self.process_type(type_id, ty)?;
+
+                // Inner classes should be static.
+                if depth > 0 {
+                    spec.modifiers.insert(Modifier::Static);
+                }
+
+                for d in &ty.decls {
+                    let type_id = type_id.extend(d.name().to_owned());
+                    self.process_decl(&type_id, d, depth + 1, &mut spec)?;
+                }
+
+                container.push_contained(spec.into());
+            }
+            RpDecl::Tuple(ref ty) => {
+                let mut spec = self.process_tuple(type_id, ty)?;
+
+                // Inner classes should be static.
+                if depth > 0 {
+                    spec.modifiers.insert(Modifier::Static);
+                }
+
+                for d in &ty.decls {
+                    let type_id = type_id.extend(d.name().to_owned());
+                    self.process_decl(&type_id, d, depth + 1, &mut spec)?;
+                }
+
+                container.push_contained(spec.into());
+            }
+            RpDecl::Enum(ref ty) => {
+                let mut spec = self.process_enum(type_id, ty)?;
+
+                for d in &ty.decls {
+                    let type_id = type_id.extend(d.name().to_owned());
+                    self.process_decl(&type_id, d, depth + 1, &mut spec)?;
+                }
+
+                container.push_contained(spec.into());
+            }
+            RpDecl::Service(ref ty) => {
+                container.push_contained(self.process_service(type_id, ty)?.into());
+            }
         }
+
+        Ok(())
+    }
+
+    pub fn build_file_spec(&self, type_id: &RpTypeId, decl: &RpDecl) -> Result<FileSpec> {
+        let mut file_spec = self.new_file_spec(&type_id.package);
+        self.process_decl(type_id, decl, 0usize, &mut file_spec)?;
+        Ok(file_spec)
     }
 }
 
@@ -964,5 +1014,33 @@ impl ValueBuilder for JavaBackend {
             arguments.join(", "),
             ")",
         ])
+    }
+}
+
+trait Container {
+    fn push_contained(&mut self, element: Element);
+}
+
+impl Container for FileSpec {
+    fn push_contained(&mut self, element: Element) {
+        self.push(element);
+    }
+}
+
+impl Container for InterfaceSpec {
+    fn push_contained(&mut self, element: Element) {
+        self.push(element);
+    }
+}
+
+impl Container for ClassSpec {
+    fn push_contained(&mut self, element: Element) {
+        self.push(element);
+    }
+}
+
+impl Container for EnumSpec {
+    fn push_contained(&mut self, element: Element) {
+        self.push(element);
     }
 }

@@ -94,7 +94,7 @@ impl<'a> DocCompiler<'a> {
     fn write_overviews(
         &self,
         packages: &[RpVersionedPackage],
-        files: &mut BTreeMap<&RpVersionedPackage, DocCollector>,
+        files: &mut BTreeMap<RpVersionedPackage, DocCollector>,
     ) -> Result<()> {
         for (package, collector) in files.iter_mut() {
             collector.set_package_title(format!("{}", package));
@@ -105,7 +105,7 @@ impl<'a> DocCompiler<'a> {
                 self.backend.write_packages(
                     &mut out,
                     packages,
-                    Some(*package),
+                    Some(package),
                 )?;
             }
 

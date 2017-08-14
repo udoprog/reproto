@@ -9,12 +9,12 @@ extern crate linked_hash_map;
 
 pub mod ast;
 pub mod errors;
+pub mod scope;
 mod lexer;
 #[allow(unused)]
 mod parser;
 mod token;
 mod utils;
-mod scope;
 
 use self::errors::*;
 use core::object;

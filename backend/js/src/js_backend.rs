@@ -1,6 +1,8 @@
 use super::*;
 use std::rc::Rc;
 
+const TYPE_SEP: &'static str = "_";
+
 pub struct JsBackend {
     pub env: Environment,
     listeners: Box<Listeners>,
@@ -401,7 +403,7 @@ impl JsBackend {
         _: &Pos,
         body: Rc<RpTupleBody>,
     ) -> Result<()> {
-        let mut class = ClassSpec::new(&body.name);
+        let mut class = ClassSpec::new(&type_id.name.join(TYPE_SEP));
         class.export();
 
         let fields: Vec<Loc<JsField>> = body.fields.iter().map(|f| self.into_js_field(f)).collect();
@@ -443,7 +445,7 @@ impl JsBackend {
         _: &Pos,
         body: Rc<RpEnumBody>,
     ) -> Result<()> {
-        let mut class = ClassSpec::new(&body.name);
+        let mut class = ClassSpec::new(&type_id.name.join(TYPE_SEP));
         class.export();
 
         let fields: Vec<Loc<JsField>> = body.fields
@@ -508,7 +510,7 @@ impl JsBackend {
     ) -> Result<()> {
         let fields: Vec<_> = body.fields.iter().map(|f| self.into_js_field(f)).collect();
 
-        let mut class = ClassSpec::new(&body.name);
+        let mut class = ClassSpec::new(&type_id.name.join(TYPE_SEP));
         class.export();
 
         let constructor = self.build_constructor(&fields);
@@ -550,7 +552,7 @@ impl JsBackend {
     ) -> Result<()> {
         let mut classes = Elements::new();
 
-        let mut interface_spec = ClassSpec::new(&body.name);
+        let mut interface_spec = ClassSpec::new(&type_id.name.join(TYPE_SEP));
         interface_spec.export();
 
         interface_spec.push(self.interface_decode_method(type_id, &body)?);
@@ -636,16 +638,19 @@ impl Converter for JsBackend {
         stmt![name]
     }
 
-    fn convert_type(&self, pos: &Pos, type_id: &RpTypeId) -> Result<Name> {
-        let (package, registered) = self.env.lookup(&type_id.package, &type_id.name).map_err(
-            |e| {
-                Error::pos(e.description().to_owned(), pos.into())
-            },
-        )?;
+    fn convert_type(&self, pos: &Pos, lookup_id: &RpTypeId) -> Result<Name> {
+        let LookupResult {
+            package,
+            registered,
+            type_id,
+            ..
+        } = self.env
+            .lookup(&lookup_id.package, &lookup_id.name)
+            .map_err(|e| Error::pos(e.description().to_owned(), pos.into()))?;
 
-        let name = registered.name().join("_");
+        let name = registered.local_name(&type_id, |p| p.join(TYPE_SEP), |c| c.join(TYPE_SEP));
 
-        if let Some(ref used) = type_id.name.prefix {
+        if let Some(ref used) = lookup_id.name.prefix {
             let package = self.package(package).parts.join(".");
             return Ok(Name::imported_alias(&package, &name, used).into());
         }

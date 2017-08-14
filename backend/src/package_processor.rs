@@ -79,68 +79,74 @@ where
         self.default_process(out, type_id, pos)
     }
 
-    fn populate_files(&self) -> Result<BTreeMap<&RpVersionedPackage, Self::Out>> {
+    fn populate_files(&self) -> Result<BTreeMap<RpVersionedPackage, Self::Out>> {
         self.do_populate_files(|_, _| Ok(()))
     }
 
-    fn do_populate_files<'b, F>(
-        &'b self,
+    fn do_populate_files<F>(
+        &self,
         mut callback: F,
-    ) -> Result<BTreeMap<&RpVersionedPackage, Self::Out>>
+    ) -> Result<BTreeMap<RpVersionedPackage, Self::Out>>
     where
-        F: FnMut(&'b RpTypeId, &'b Loc<RpDecl>) -> Result<()>,
+        F: FnMut(Rc<RpTypeId>, Rc<Loc<RpDecl>>) -> Result<()>,
     {
+        use self::RpDecl::*;
+
         let mut files = BTreeMap::new();
 
         // Process all types discovered so far.
-        for (type_id, decl) in &self.env().decls {
-            callback(type_id, decl)?;
+        self.env().for_each_decl(|type_id, decl| {
+            callback(type_id.clone(), decl.clone())?;
 
-            let mut out = files.entry(&type_id.package).or_insert_with(Self::Out::new);
+            let mut out = files.entry(type_id.package.clone()).or_insert_with(
+                Self::Out::new,
+            );
 
-            match ***decl {
-                RpDecl::Interface(ref body) => {
+            match **decl {
+                Interface(ref body) => {
                     self.process_interface(
                         &mut out,
-                        type_id,
+                        type_id.as_ref(),
                         decl.pos(),
                         body.clone(),
-                    )?
+                    )?;
                 }
-                RpDecl::Type(ref body) => {
+                Type(ref body) => {
                     self.process_type(
                         &mut out,
-                        type_id,
+                        type_id.as_ref(),
                         decl.pos(),
                         body.clone(),
-                    )?
+                    )?;
                 }
-                RpDecl::Tuple(ref body) => {
+                Tuple(ref body) => {
                     self.process_tuple(
                         &mut out,
-                        type_id,
+                        type_id.as_ref(),
                         decl.pos(),
                         body.clone(),
-                    )?
+                    )?;
                 }
-                RpDecl::Enum(ref body) => {
+                Enum(ref body) => {
                     self.process_enum(
                         &mut out,
-                        type_id,
+                        type_id.as_ref(),
                         decl.pos(),
                         body.clone(),
-                    )?
+                    )?;
                 }
-                RpDecl::Service(ref body) => {
+                Service(ref body) => {
                     self.process_service(
                         &mut out,
-                        type_id,
+                        type_id.as_ref(),
                         decl.pos(),
                         body.clone(),
-                    )?
+                    )?;
                 }
             };
-        }
+
+            Ok(())
+        })?;
 
         Ok(files)
     }
@@ -165,9 +171,9 @@ where
         Ok(full_path)
     }
 
-    fn write_files(&self, files: BTreeMap<&RpVersionedPackage, Self::Out>) -> Result<()> {
+    fn write_files(&self, files: BTreeMap<RpVersionedPackage, Self::Out>) -> Result<()> {
         for (package, out) in files {
-            let package = self.processed_package(package);
+            let package = self.processed_package(&package);
             let full_path = self.setup_module_path(&package)?;
 
             debug!("+module: {}", full_path.display());

@@ -75,12 +75,12 @@ impl<'a> PackageProcessor<'a> for PythonCompiler<'a> {
         self.backend.process_interface(out, type_id, pos, body)
     }
 
-    fn populate_files(&self) -> Result<BTreeMap<&RpVersionedPackage, PythonFileSpec>> {
+    fn populate_files(&self) -> Result<BTreeMap<RpVersionedPackage, PythonFileSpec>> {
         let mut enums = Vec::new();
 
         let mut files = self.do_populate_files(|type_id, decl| {
-            if let RpDecl::Enum(ref body) = *decl.as_ref() {
-                enums.push((type_id, body));
+            if let RpDecl::Enum(ref body) = **decl {
+                enums.push((type_id.clone(), body.clone()));
             }
 
             Ok(())
@@ -88,7 +88,10 @@ impl<'a> PackageProcessor<'a> for PythonCompiler<'a> {
 
         for (type_id, body) in enums {
             if let Some(ref mut file_spec) = files.get_mut(&type_id.package) {
-                file_spec.0.push(self.backend.enum_variants(type_id, body)?);
+                file_spec.0.push(self.backend.enum_variants(
+                    type_id.as_ref(),
+                    &body,
+                )?);
             } else {
                 return Err(format!("no such package: {}", &type_id.package).into());
             }

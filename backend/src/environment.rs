@@ -6,12 +6,19 @@ use linked_hash_map::LinkedHashMap;
 use reproto_core::object::{Object, PathObject};
 use reproto_parser as parser;
 use reproto_parser::ast::IntoModel;
+use reproto_parser::scope::Scope;
 use reproto_repository::Resolver;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet, LinkedList};
 use std::path::Path;
 use std::rc::Rc;
 
 pub type InitFields = HashMap<String, Loc<RpFieldInit>>;
+
+pub struct LookupResult<'a> {
+    pub package: &'a RpVersionedPackage,
+    pub registered: &'a RpRegistered,
+    pub type_id: RpTypeId,
+}
 
 pub struct Environment {
     package_prefix: Option<RpPackage>,
@@ -85,8 +92,8 @@ impl Environment {
             // everything assignable to any type
             (&RpType::Any, _) => Ok(true),
             (&RpType::Name { name: ref target }, &RpType::Name { name: ref source }) => {
-                let (_, target) = self.lookup(package, target)?;
-                let (_, source) = self.lookup(package, source)?;
+                let LookupResult { registered: target, .. } = self.lookup(package, target)?;
+                let LookupResult { registered: source, .. } = self.lookup(package, source)?;
                 return Ok(target.is_assignable_from(source));
             }
             // arrays match if inner type matches
@@ -119,13 +126,15 @@ impl Environment {
         constant: &RpName,
         target: &RpName,
     ) -> Result<&'a RpRegistered> {
-        let (_, reg_constant) = self.lookup(package, constant).map_err(|e| {
-            Error::pos(e.description().to_owned(), pos.into())
-        })?;
+        let LookupResult { registered: reg_constant, .. } =
+            self.lookup(package, constant).map_err(|e| {
+                Error::pos(e.description().to_owned(), pos.into())
+            })?;
 
-        let (_, reg_target) = self.lookup(package, target).map_err(|e| {
-            Error::pos(e.description().to_owned(), pos.into())
-        })?;
+        let LookupResult { registered: reg_target, .. } =
+            self.lookup(package, target).map_err(|e| {
+                Error::pos(e.description().to_owned(), pos.into())
+            })?;
 
         if !reg_target.is_assignable_from(reg_constant) {
             return Err(Error::pos(
@@ -150,13 +159,15 @@ impl Environment {
         instance: &RpInstance,
         target: &RpName,
     ) -> Result<(&'a RpRegistered, InitFields)> {
-        let (_, reg_instance) = self.lookup(package, &instance.name).map_err(|e| {
-            Error::pos(e.description().to_owned(), pos.into())
-        })?;
+        let LookupResult { registered: reg_instance, .. } =
+            self.lookup(package, &instance.name).map_err(|e| {
+                Error::pos(e.description().to_owned(), pos.into())
+            })?;
 
-        let (_, reg_target) = self.lookup(package, target).map_err(|e| {
-            Error::pos(e.description().to_owned(), pos.into())
-        })?;
+        let LookupResult { registered: reg_target, .. } =
+            self.lookup(package, target).map_err(|e| {
+                Error::pos(e.description().to_owned(), pos.into())
+            })?;
 
         if !reg_target.is_assignable_from(reg_instance) {
             return Err(Error::pos(
@@ -231,22 +242,26 @@ impl Environment {
     /// Lookup the declaration matching the custom type.
     pub fn lookup<'a>(
         &'a self,
-        package: &'a RpVersionedPackage,
+        lookup_package: &'a RpVersionedPackage,
         lookup_name: &RpName,
-    ) -> Result<(&RpVersionedPackage, &'a RpRegistered)> {
+    ) -> Result<LookupResult<'a>> {
         let (package, name) = if let Some(ref prefix) = lookup_name.prefix {
             (
-                self.lookup_used(package, prefix)?,
+                self.lookup_used(lookup_package, prefix)?,
                 lookup_name.without_prefix(),
             )
         } else {
-            (package, lookup_name.clone())
+            (lookup_package, lookup_name.clone())
         };
 
-        let types_key = RpTypeId::new(package.clone(), name);
+        let type_id = RpTypeId::new(package.clone(), name);
 
-        if let Some(ty) = self.types.get(&types_key) {
-            return Ok((package, ty));
+        if let Some(registered) = self.types.get(&type_id) {
+            return Ok(LookupResult {
+                package: package,
+                registered: registered,
+                type_id: type_id,
+            });
         }
 
         return Err(format!("no such type: {}", lookup_name).into());
@@ -263,7 +278,9 @@ impl Environment {
         let object = object.into();
         let content = parser::read_reader(object.read()?)?;
         let object = Rc::new(object);
-        let file = parser::parse_string(object, content.as_str())?.into_model()?;
+        let file = parser::parse_string(object, content.as_str())?.into_model(
+            &Scope::new(),
+        )?;
         Ok(Some((package, file)))
     }
 
@@ -300,6 +317,29 @@ impl Environment {
             .as_ref()
             .map(|prefix| prefix.join_versioned(package))
             .unwrap_or_else(|| package.clone())
+    }
+
+    /// Walks the entire tree of declarations and emits them to the provided function.
+    pub fn for_each_decl<F>(&self, mut f: F) -> Result<()>
+    where
+        F: FnMut(Rc<RpTypeId>, Rc<Loc<RpDecl>>) -> Result<()>,
+    {
+        let mut queue = LinkedList::new();
+        queue.extend(self.decls.iter().map(
+            |(k, v)| (Rc::new(k.clone()), v.clone()),
+        ));
+
+        while let Some(next) = queue.pop_front() {
+            let (type_id, decl) = next;
+            f(type_id.clone(), decl.clone())?;
+
+            for d in decl.decls() {
+                let type_id = Rc::new(type_id.extend(d.name().to_owned()));
+                queue.push_back((type_id, d.clone()));
+            }
+        }
+
+        Ok(())
     }
 
     /// Process and merge declarations.
@@ -341,12 +381,13 @@ impl Environment {
     ) -> Result<LinkedHashMap<RpTypeId, Loc<RpRegistered>>> {
         let mut types = LinkedHashMap::new();
 
-        for (key, t) in decls.values().flat_map(
-            |d| d.into_registered_type(&package, d.pos()),
-        )
-        {
-            if types.insert(key.clone(), t).is_some() {
-                return Err(ErrorKind::RegisteredTypeConflict(key.clone()).into());
+        for d in decls.values() {
+            let type_id = package.into_type_id(RpName::with_parts(vec![d.name().to_owned()]));
+
+            for (key, t) in d.into_registered_type(&type_id, d.pos()) {
+                if types.insert(key.clone(), t).is_some() {
+                    return Err(ErrorKind::RegisteredTypeConflict(key.clone()).into());
+                }
             }
         }
 

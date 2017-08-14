@@ -5,3 +5,11 @@ type Entry {
 type Foo {
     field: string;
 }
+
+type Bar {
+    field: ::Inner;
+
+    type Inner {
+      field: string;
+    }
+}

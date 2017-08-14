@@ -1,5 +1,6 @@
 pub use core::*;
 use errors::*;
+use scope::Scope;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
@@ -25,7 +26,7 @@ pub enum Type {
 impl IntoModel for Type {
     type Output = RpType;
 
-    fn into_model(self) -> Result<RpType> {
+    fn into_model(self, scope: &Scope) -> Result<RpType> {
         use self::Type::*;
 
         let out = match self {
@@ -35,11 +36,11 @@ impl IntoModel for Type {
             Unsigned { size } => RpType::Unsigned { size: size },
             Boolean => RpType::Boolean,
             String => RpType::String,
-            Name { name } => RpType::Name { name: name.into_model()? },
-            Array { inner } => RpType::Array { inner: inner.into_model()? },
+            Name { name } => RpType::Name { name: name.into_model(scope)? },
+            Array { inner } => RpType::Array { inner: inner.into_model(scope)? },
             Map { key, value } => RpType::Map {
-                key: key.into_model()?,
-                value: value.into_model()?,
+                key: key.into_model(scope)?,
+                value: value.into_model(scope)?,
             },
             Any => RpType::Any,
             Bytes => RpType::Bytes,
@@ -58,30 +59,34 @@ pub enum Decl<'input> {
     Service(ServiceBody<'input>),
 }
 
-impl<'input> IntoModel for Decl<'input> {
-    type Output = (RpDecl, Vec<Loc<RpDecl>>);
-
-    fn into_model(self) -> Result<Self::Output> {
+impl<'input> Decl<'input> {
+    pub fn name(&self) -> &str {
         use self::Decl::*;
 
+        match *self {
+            Type(ref body) => &body.name,
+            Tuple(ref body) => &body.name,
+            Interface(ref body) => &body.name,
+            Enum(ref body) => &body.name,
+            Service(ref body) => &body.name,
+        }
+    }
+}
+
+impl<'input> IntoModel for Decl<'input> {
+    type Output = RpDecl;
+
+    fn into_model(self, scope: &Scope) -> Result<Self::Output> {
+        use self::Decl::*;
+
+        let s = scope.child(self.name().to_owned());
+
         let out = match self {
-            Type(body) => {
-                let (body, decls) = body.into_model()?;
-                (RpDecl::Type(body), decls)
-            }
-            Interface(body) => {
-                let (body, decls) = body.into_model()?;
-                (RpDecl::Interface(body), decls)
-            }
-            Enum(body) => {
-                let (body, decls) = body.into_model()?;
-                (RpDecl::Enum(body), decls)
-            }
-            Tuple(body) => {
-                let (body, decls) = body.into_model()?;
-                (RpDecl::Tuple(body), decls)
-            }
-            Service(body) => (RpDecl::Service(body.into_model()?), vec![]),
+            Type(body) => RpDecl::Type(body.into_model(&s)?),
+            Interface(body) => RpDecl::Interface(body.into_model(&s)?),
+            Enum(body) => RpDecl::Enum(body.into_model(&s)?),
+            Tuple(body) => RpDecl::Tuple(body.into_model(&s)?),
+            Service(body) => RpDecl::Service(body.into_model(&s)?),
         };
 
         Ok(out)
@@ -97,14 +102,14 @@ pub struct EnumBody<'input> {
 }
 
 impl<'input> IntoModel for EnumBody<'input> {
-    type Output = (Rc<RpEnumBody>, Vec<Loc<RpDecl>>);
+    type Output = Rc<RpEnumBody>;
 
-    fn into_model(self) -> Result<Self::Output> {
+    fn into_model(self, scope: &Scope) -> Result<Self::Output> {
         let mut variants: Vec<Loc<Rc<RpEnumVariant>>> = Vec::new();
 
         let mut ordinals = OrdinalGenerator::new();
 
-        let (fields, codes, options, match_decl, decls) = members_into_model(self.members)?;
+        let (fields, codes, options, match_decl, decls) = members_into_model(scope, self.members)?;
 
         for variant in self.variants {
             let (variant, variant_pos) = variant.both();
@@ -121,7 +126,7 @@ impl<'input> IntoModel for EnumBody<'input> {
                 );
             }
 
-            let variant = Loc::new((variant, ordinal).into_model()?, pos.clone());
+            let variant = Loc::new((variant, ordinal).into_model(scope)?, pos.clone());
 
             if let Some(other) = variants.iter().find(|v| *v.name == *variant.name) {
                 return Err(
@@ -149,6 +154,7 @@ impl<'input> IntoModel for EnumBody<'input> {
         let en = RpEnumBody {
             name: self.name.to_owned(),
             comment: self.comment.into_iter().map(ToOwned::to_owned).collect(),
+            decls: decls,
             variants: variants,
             fields: fields,
             codes: codes,
@@ -157,7 +163,7 @@ impl<'input> IntoModel for EnumBody<'input> {
             serialized_as_name: serialized_as_name,
         };
 
-        Ok((Rc::new(en), decls))
+        Ok(Rc::new(en))
     }
 }
 
@@ -173,14 +179,14 @@ pub struct EnumVariant<'input> {
 impl<'input> IntoModel for (EnumVariant<'input>, u32) {
     type Output = Rc<RpEnumVariant>;
 
-    fn into_model(self) -> Result<Self::Output> {
+    fn into_model(self, scope: &Scope) -> Result<Self::Output> {
         let value = self.0;
         let ordinal = self.1;
 
         let value = RpEnumVariant {
-            name: value.name.into_model()?,
+            name: value.name.into_model(scope)?,
             comment: value.comment.into_iter().map(ToOwned::to_owned).collect(),
-            arguments: value.arguments.into_model()?,
+            arguments: value.arguments.into_model(scope)?,
             ordinal: ordinal,
         };
 
@@ -197,10 +203,10 @@ pub struct FieldInit<'input> {
 impl<'input> IntoModel for FieldInit<'input> {
     type Output = RpFieldInit;
 
-    fn into_model(self) -> Result<RpFieldInit> {
+    fn into_model(self, scope: &Scope) -> Result<RpFieldInit> {
         let field_init = RpFieldInit {
-            name: self.name.into_model()?,
-            value: self.value.into_model()?,
+            name: self.name.into_model(scope)?,
+            value: self.value.into_model(scope)?,
         };
 
         Ok(field_init)
@@ -228,8 +234,8 @@ impl<'input> Field<'input> {
 impl<'input> IntoModel for Field<'input> {
     type Output = RpField;
 
-    fn into_model(self) -> Result<RpField> {
-        let field_as = self.field_as.into_model()?;
+    fn into_model(self, scope: &Scope) -> Result<RpField> {
+        let field_as = self.field_as.into_model(scope)?;
 
         let field_as = if let Some(field_as) = field_as {
             match field_as.both() {
@@ -251,7 +257,7 @@ impl<'input> IntoModel for Field<'input> {
             self.modifier,
             name,
             comment,
-            self.ty.into_model()?,
+            self.ty.into_model(scope)?,
             field_as,
         ))
     }
@@ -267,25 +273,14 @@ pub struct File<'input> {
 impl<'input> IntoModel for File<'input> {
     type Output = RpFile;
 
-    fn into_model(self) -> Result<RpFile> {
-        let options = Options::new(self.options.into_model()?);
+    fn into_model(self, scope: &Scope) -> Result<RpFile> {
+        let options = Options::new(self.options.into_model(scope)?);
 
-        let mut decls = Vec::new();
-
-        for d in self.decls {
-            let ((d, inner_decls), pos) = d.into_model()?.both();
-
-            decls.push(Loc::new(d, pos));
-            decls.extend(inner_decls);
-        }
-
-        let file = RpFile {
+        Ok(RpFile {
             options: options,
-            uses: self.uses.into_model()?,
-            decls: decls,
-        };
-
-        Ok(file)
+            uses: self.uses.into_model(scope)?,
+            decls: self.decls.into_model(scope)?,
+        })
     }
 }
 
@@ -307,10 +302,10 @@ pub struct Instance<'input> {
 impl<'input> IntoModel for Instance<'input> {
     type Output = RpInstance;
 
-    fn into_model(self) -> Result<RpInstance> {
+    fn into_model(self, scope: &Scope) -> Result<RpInstance> {
         let instance = RpInstance {
-            name: self.name.into_model()?,
-            arguments: self.arguments.into_model()?,
+            name: self.name.into_model(scope)?,
+            arguments: self.arguments.into_model(scope)?,
         };
 
         Ok(instance)
@@ -326,20 +321,16 @@ pub struct InterfaceBody<'input> {
 }
 
 impl<'input> IntoModel for InterfaceBody<'input> {
-    type Output = (Rc<RpInterfaceBody>, Vec<Loc<RpDecl>>);
+    type Output = Rc<RpInterfaceBody>;
 
-    fn into_model(self) -> Result<Self::Output> {
+    fn into_model(self, scope: &Scope) -> Result<Self::Output> {
         use std::collections::btree_map::Entry::*;
 
-        let (fields, codes, options, match_decl, mut decls) = members_into_model(self.members)?;
+        let (fields, codes, options, match_decl, decls) = members_into_model(scope, self.members)?;
 
         let mut sub_types: BTreeMap<String, Loc<Rc<RpSubType>>> = BTreeMap::new();
 
-        for sub_type in self.sub_types.into_model()? {
-            let ((sub_type, inner_decls), pos) = sub_type.both();
-            let sub_type = Loc::new(sub_type, pos);
-            decls.extend(inner_decls);
-
+        for sub_type in self.sub_types.into_model(scope)? {
             // key has to be owned by entry
             let key = sub_type.name.clone();
 
@@ -358,13 +349,14 @@ impl<'input> IntoModel for InterfaceBody<'input> {
         let interface_body = RpInterfaceBody {
             name: self.name.to_owned(),
             comment: self.comment.into_iter().map(ToOwned::to_owned).collect(),
+            decls: decls,
             fields: fields,
             codes: codes,
             match_decl: match_decl,
             sub_types: sub_types,
         };
 
-        Ok((Rc::new(interface_body), decls))
+        Ok(Rc::new(interface_body))
     }
 }
 
@@ -373,7 +365,7 @@ pub trait IntoModel {
     type Output;
 
     /// Convert the current type to a model.
-    fn into_model(self) -> Result<Self::Output>;
+    fn into_model(self, scope: &Scope) -> Result<Self::Output>;
 }
 
 /// Generic implementation for vectors.
@@ -383,9 +375,9 @@ where
 {
     type Output = Loc<T::Output>;
 
-    fn into_model(self) -> Result<Self::Output> {
+    fn into_model(self, scope: &Scope) -> Result<Self::Output> {
         let (value, pos) = self.both();
-        Ok(Loc::new(value.into_model()?, pos))
+        Ok(Loc::new(value.into_model(scope)?, pos))
     }
 }
 
@@ -396,11 +388,11 @@ where
 {
     type Output = Vec<T::Output>;
 
-    fn into_model(self) -> Result<Self::Output> {
+    fn into_model(self, scope: &Scope) -> Result<Self::Output> {
         let mut out = Vec::new();
 
         for v in self {
-            out.push(v.into_model()?);
+            out.push(v.into_model(scope)?);
         }
 
         Ok(out)
@@ -413,9 +405,9 @@ where
 {
     type Output = Option<T::Output>;
 
-    fn into_model(self) -> Result<Self::Output> {
+    fn into_model(self, scope: &Scope) -> Result<Self::Output> {
         if let Some(value) = self {
-            return Ok(Some(value.into_model()?));
+            return Ok(Some(value.into_model(scope)?));
         }
 
         Ok(None)
@@ -428,15 +420,15 @@ where
 {
     type Output = Box<T::Output>;
 
-    fn into_model(self) -> Result<Self::Output> {
-        Ok(Box::new((*self).into_model()?))
+    fn into_model(self, scope: &Scope) -> Result<Self::Output> {
+        Ok(Box::new((*self).into_model(scope)?))
     }
 }
 
 impl<'a> IntoModel for &'a str {
     type Output = String;
 
-    fn into_model(self) -> Result<Self::Output> {
+    fn into_model(self, _scope: &Scope) -> Result<Self::Output> {
         Ok(self.to_owned())
     }
 }
@@ -444,7 +436,7 @@ impl<'a> IntoModel for &'a str {
 impl IntoModel for String {
     type Output = String;
 
-    fn into_model(self) -> Result<Self::Output> {
+    fn into_model(self, _scope: &Scope) -> Result<Self::Output> {
         Ok(self)
     }
 }
@@ -452,7 +444,7 @@ impl IntoModel for String {
 impl IntoModel for RpPackage {
     type Output = RpPackage;
 
-    fn into_model(self) -> Result<Self::Output> {
+    fn into_model(self, _scope: &Scope) -> Result<Self::Output> {
         Ok(self)
     }
 }
@@ -460,14 +452,18 @@ impl IntoModel for RpPackage {
 impl IntoModel for Name {
     type Output = RpName;
 
-    fn into_model(self) -> Result<Self::Output> {
+    fn into_model(self, scope: &Scope) -> Result<Self::Output> {
         use self::Name::*;
 
         let out = match self {
             Relative { parts } => {
+                let mut all_parts: Vec<_> = scope.walk().collect();
+                all_parts.reverse();
+                all_parts.extend(parts);
+
                 RpName {
                     prefix: None,
-                    parts: parts,
+                    parts: all_parts,
                 }
             }
             Absolute { prefix, parts } => {
@@ -485,7 +481,7 @@ impl IntoModel for Name {
 impl<'input> IntoModel for (&'input Path, usize, usize) {
     type Output = (PathBuf, usize, usize);
 
-    fn into_model(self) -> Result<Self::Output> {
+    fn into_model(self, _scope: &Scope) -> Result<Self::Output> {
         Ok((self.0.to_owned(), self.1, self.2))
     }
 }
@@ -501,10 +497,10 @@ pub enum MatchCondition<'input> {
 impl<'input> IntoModel for MatchCondition<'input> {
     type Output = RpMatchCondition;
 
-    fn into_model(self) -> Result<RpMatchCondition> {
+    fn into_model(self, scope: &Scope) -> Result<RpMatchCondition> {
         let match_condition = match self {
-            MatchCondition::Value(value) => RpMatchCondition::Value(value.into_model()?),
-            MatchCondition::Type(ty) => RpMatchCondition::Type(ty.into_model()?),
+            MatchCondition::Value(value) => RpMatchCondition::Value(value.into_model(scope)?),
+            MatchCondition::Type(ty) => RpMatchCondition::Type(ty.into_model(scope)?),
         };
 
         Ok(match_condition)
@@ -521,11 +517,11 @@ pub struct MatchMember<'input> {
 impl<'input> IntoModel for MatchMember<'input> {
     type Output = RpMatchMember;
 
-    fn into_model(self) -> Result<RpMatchMember> {
+    fn into_model(self, scope: &Scope) -> Result<RpMatchMember> {
         let member = RpMatchMember {
-            comment: self.comment.into_model()?,
-            condition: self.condition.into_model()?,
-            object: self.object.into_model()?,
+            comment: self.comment.into_model(scope)?,
+            condition: self.condition.into_model(scope)?,
+            object: self.object.into_model(scope)?,
         };
 
         Ok(member)
@@ -541,10 +537,10 @@ pub struct MatchVariable<'input> {
 impl<'input> IntoModel for MatchVariable<'input> {
     type Output = RpMatchVariable;
 
-    fn into_model(self) -> Result<RpMatchVariable> {
+    fn into_model(self, scope: &Scope) -> Result<RpMatchVariable> {
         let match_variable = RpMatchVariable {
-            name: self.name.into_model()?,
-            ty: self.ty.into_model()?,
+            name: self.name.into_model(scope)?,
+            ty: self.ty.into_model(scope)?,
         };
 
         Ok(match_variable)
@@ -569,12 +565,12 @@ pub enum Object<'input> {
 impl<'input> IntoModel for Object<'input> {
     type Output = RpObject;
 
-    fn into_model(self) -> Result<RpObject> {
+    fn into_model(self, scope: &Scope) -> Result<RpObject> {
         use self::Object::*;
 
         let out = match self {
-            Instance(instance) => RpObject::Instance(instance.into_model()?),
-            Constant(constant) => RpObject::Constant(constant.into_model()?),
+            Instance(instance) => RpObject::Instance(instance.into_model(scope)?),
+            Constant(constant) => RpObject::Constant(constant.into_model(scope)?),
         };
 
         Ok(out)
@@ -590,10 +586,10 @@ pub struct OptionDecl<'input> {
 impl<'input> IntoModel for OptionDecl<'input> {
     type Output = RpOptionDecl;
 
-    fn into_model(self) -> Result<RpOptionDecl> {
+    fn into_model(self, scope: &Scope) -> Result<RpOptionDecl> {
         let decl = RpOptionDecl {
             name: self.name.to_owned(),
-            values: self.values.into_model()?,
+            values: self.values.into_model(scope)?,
         };
 
         Ok(decl)
@@ -612,13 +608,15 @@ pub enum PathSegment<'input> {
 impl<'input> IntoModel for PathSegment<'input> {
     type Output = RpPathSegment;
 
-    fn into_model(self) -> Result<RpPathSegment> {
+    fn into_model(self, scope: &Scope) -> Result<RpPathSegment> {
         let out = match self {
-            PathSegment::Literal { value } => RpPathSegment::Literal { value: value.into_model()? },
+            PathSegment::Literal { value } => RpPathSegment::Literal {
+                value: value.into_model(scope)?,
+            },
             PathSegment::Variable { name, ty } => {
                 RpPathSegment::Variable {
-                    name: name.into_model()?,
-                    ty: ty.into_model()?,
+                    name: name.into_model(scope)?,
+                    ty: ty.into_model(scope)?,
                 }
             }
         };
@@ -635,8 +633,8 @@ pub struct PathSpec<'input> {
 impl<'input> IntoModel for PathSpec<'input> {
     type Output = RpPathSpec;
 
-    fn into_model(self) -> Result<RpPathSpec> {
-        Ok(RpPathSpec { segments: self.segments.into_model()? })
+    fn into_model(self, scope: &Scope) -> Result<RpPathSpec> {
+        Ok(RpPathSpec { segments: self.segments.into_model(scope)? })
     }
 }
 
@@ -668,13 +666,14 @@ impl Node {
 }
 
 fn convert_return(
+    scope: &Scope,
     comment: Vec<String>,
     status: Option<Loc<RpNumber>>,
     produces: Option<Loc<String>>,
     ty: Option<Loc<Type>>,
     options: Vec<Loc<OptionDecl>>,
 ) -> Result<RpServiceReturns> {
-    let options = Options::new(options.into_model()?);
+    let options = Options::new(options.into_model(scope)?);
 
     let produces = produces.or(options.find_one_string("produces")?);
 
@@ -706,19 +705,20 @@ fn convert_return(
 
     Ok(RpServiceReturns {
         comment: comment,
-        ty: ty.into_model()?,
+        ty: ty.into_model(scope)?,
         produces: produces,
         status: status,
     })
 }
 
 fn convert_accepts(
+    scope: &Scope,
     comment: Vec<String>,
     accepts: Option<Loc<String>>,
     ty: Option<Loc<Type>>,
     options: Vec<Loc<OptionDecl>>,
 ) -> Result<RpServiceAccepts> {
-    let options = Options::new(options.into_model()?);
+    let options = Options::new(options.into_model(scope)?);
 
     let accepts = accepts.or(options.find_one_string("accept")?);
 
@@ -736,7 +736,7 @@ fn convert_accepts(
 
     Ok(RpServiceAccepts {
         comment: comment,
-        ty: ty.into_model()?,
+        ty: ty.into_model(scope)?,
         accepts: accepts,
     })
 }
@@ -788,7 +788,7 @@ fn unwind(node: Rc<RefCell<Node>>) -> Result<RpServiceEndpoint> {
 impl<'input> IntoModel for ServiceBody<'input> {
     type Output = Rc<RpServiceBody>;
 
-    fn into_model(self) -> Result<Rc<RpServiceBody>> {
+    fn into_model(self, scope: &Scope) -> Result<Rc<RpServiceBody>> {
         let mut endpoints: Vec<RpServiceEndpoint> = Vec::new();
 
         // collecting root declarations
@@ -807,7 +807,7 @@ impl<'input> IntoModel for ServiceBody<'input> {
 
         while let Some((parent, children)) = queue.pop() {
             for child in children {
-                process_child(&mut queue, &parent, child)?;
+                process_child(scope, &mut queue, &parent, child)?;
             }
 
             let p = parent.as_ref().try_borrow()?;
@@ -828,6 +828,7 @@ impl<'input> IntoModel for ServiceBody<'input> {
         return Ok(Rc::new(service_body));
 
         fn process_child<'input>(
+            scope: &Scope,
             queue: &mut Vec<(Rc<RefCell<Node>>, Vec<ServiceNested<'input>>)>,
             parent: &Rc<RefCell<Node>>,
             child: ServiceNested<'input>,
@@ -842,9 +843,9 @@ impl<'input> IntoModel for ServiceBody<'input> {
                 } => {
                     let node = Rc::new(RefCell::new(Node {
                         parent: Some(parent.clone()),
-                        method: method.into_model()?,
-                        path: path.into_model()?,
-                        options: options.into_model()?,
+                        method: method.into_model(scope)?,
+                        path: path.into_model(scope)?,
+                        options: options.into_model(scope)?,
                         comment: comment.into_iter().map(ToOwned::to_owned).collect(),
                         returns: Vec::new(),
                         accepts: Vec::new(),
@@ -861,7 +862,7 @@ impl<'input> IntoModel for ServiceBody<'input> {
                     options,
                 } => {
                     let comment = comment.into_iter().map(ToOwned::to_owned).collect();
-                    let returns = convert_return(comment, status, produces, ty, options)?;
+                    let returns = convert_return(scope, comment, status, produces, ty, options)?;
                     parent.try_borrow_mut()?.push_returns(returns);
                 }
                 ServiceNested::Accepts {
@@ -871,7 +872,7 @@ impl<'input> IntoModel for ServiceBody<'input> {
                     options,
                 } => {
                     let comment = comment.into_iter().map(ToOwned::to_owned).collect();
-                    let accepts = convert_accepts(comment, accepts, ty, options)?;
+                    let accepts = convert_accepts(scope, comment, accepts, ty, options)?;
                     parent.try_borrow_mut()?.push_accepts(accepts);
                 }
             }
@@ -924,9 +925,11 @@ pub struct SubType<'input> {
 }
 
 impl<'input> IntoModel for SubType<'input> {
-    type Output = (Rc<RpSubType>, Vec<Loc<RpDecl>>);
+    type Output = Rc<RpSubType>;
 
-    fn into_model(self) -> Result<Self::Output> {
+    fn into_model(self, scope: &Scope) -> Result<Self::Output> {
+        use self::Member::*;
+
         let mut fields: Vec<Loc<RpField>> = Vec::new();
         let mut codes = Vec::new();
         let mut options = Vec::new();
@@ -937,8 +940,8 @@ impl<'input> IntoModel for SubType<'input> {
             let (member, pos) = member.both();
 
             match member {
-                Member::Field(field) => {
-                    let field = field.into_model()?;
+                Field(field) => {
+                    let field = field.into_model(scope)?;
 
                     if let Some(other) = fields.iter().find(|f| {
                         f.name() == field.name() || f.ident() == field.ident()
@@ -955,19 +958,17 @@ impl<'input> IntoModel for SubType<'input> {
 
                     fields.push(Loc::new(field, pos));
                 }
-                Member::Code(context, lines) => {
+                Code(context, lines) => {
                     codes.push(code(pos, context.to_owned(), lines));
                 }
-                Member::Option(option) => {
-                    options.push(Loc::new(option.into_model()?, pos));
+                Option(option) => {
+                    options.push(Loc::new(option.into_model(scope)?, pos));
                 }
-                Member::Match(m) => {
-                    match_decl.push(Loc::new(m.into_model()?, pos))?;
+                Match(m) => {
+                    match_decl.push(Loc::new(m.into_model(scope)?, pos))?;
                 }
-                Member::InnerDecl(decl) => {
-                    let (d, inner_decls) = decl.into_model()?;
-                    decls.push(Loc::new(d, pos));
-                    decls.extend(inner_decls);
+                InnerDecl(decl) => {
+                    decls.push(Rc::new(Loc::new(decl.into_model(scope)?, pos)));
                 }
             }
         }
@@ -979,13 +980,14 @@ impl<'input> IntoModel for SubType<'input> {
         let sub_type = RpSubType {
             name: self.name.to_owned(),
             comment: self.comment.into_iter().map(ToOwned::to_owned).collect(),
+            decls: decls,
             fields: fields,
             codes: codes,
             names: names,
             match_decl: match_decl,
         };
 
-        Ok((Rc::new(sub_type), decls))
+        Ok(Rc::new(sub_type))
     }
 }
 
@@ -997,22 +999,23 @@ pub struct TupleBody<'input> {
 }
 
 impl<'input> IntoModel for TupleBody<'input> {
-    type Output = (Rc<RpTupleBody>, Vec<Loc<RpDecl>>);
+    type Output = Rc<RpTupleBody>;
 
-    fn into_model(self) -> Result<Self::Output> {
-        let (fields, codes, options, match_decl, decls) = members_into_model(self.members)?;
+    fn into_model(self, scope: &Scope) -> Result<Self::Output> {
+        let (fields, codes, options, match_decl, decls) = members_into_model(scope, self.members)?;
 
         let _options = Options::new(options);
 
         let tuple_body = RpTupleBody {
             name: self.name.to_owned(),
             comment: self.comment.into_iter().map(ToOwned::to_owned).collect(),
+            decls: decls,
             fields: fields,
             codes: codes,
             match_decl: match_decl,
         };
 
-        Ok((Rc::new(tuple_body), decls))
+        Ok(Rc::new(tuple_body))
     }
 }
 
@@ -1024,10 +1027,10 @@ pub struct TypeBody<'input> {
 }
 
 impl<'input> IntoModel for TypeBody<'input> {
-    type Output = (Rc<RpTypeBody>, Vec<Loc<RpDecl>>);
+    type Output = Rc<RpTypeBody>;
 
-    fn into_model(self) -> Result<Self::Output> {
-        let (fields, codes, options, match_decl, decls) = members_into_model(self.members)?;
+    fn into_model(self, scope: &Scope) -> Result<Self::Output> {
+        let (fields, codes, options, match_decl, decls) = members_into_model(scope, self.members)?;
 
         let options = Options::new(options);
 
@@ -1039,13 +1042,14 @@ impl<'input> IntoModel for TypeBody<'input> {
         let type_body = RpTypeBody {
             name: self.name.to_owned(),
             comment: self.comment.into_iter().map(ToOwned::to_owned).collect(),
+            decls: decls,
             fields: fields,
             codes: codes,
             match_decl: match_decl,
             reserved: reserved,
         };
 
-        Ok((Rc::new(type_body), decls))
+        Ok(Rc::new(type_body))
     }
 }
 
@@ -1059,9 +1063,9 @@ pub struct UseDecl<'input> {
 impl<'input> IntoModel for UseDecl<'input> {
     type Output = RpUseDecl;
 
-    fn into_model(self) -> Result<RpUseDecl> {
+    fn into_model(self, scope: &Scope) -> Result<RpUseDecl> {
         let use_decl = RpUseDecl {
-            package: self.package.into_model()?,
+            package: self.package.into_model(scope)?,
             version_req: self.version_req,
             alias: self.alias.map(ToOwned::to_owned),
         };
@@ -1084,8 +1088,9 @@ pub fn code(pos: Pos, context: String, lines: Vec<String>) -> Loc<RpCode> {
 }
 
 pub fn members_into_model(
+    scope: &Scope,
     members: Vec<Loc<Member>>,
-) -> Result<(Fields, Codes, OptionVec, RpMatchDecl, Vec<Loc<RpDecl>>)> {
+) -> Result<(Fields, Codes, OptionVec, RpMatchDecl, Vec<Rc<Loc<RpDecl>>>)> {
     use self::Member::*;
 
     let mut fields: Vec<Loc<RpField>> = Vec::new();
@@ -1099,7 +1104,7 @@ pub fn members_into_model(
 
         match value {
             Field(field) => {
-                let field = field.into_model()?;
+                let field = field.into_model(scope)?;
 
                 if let Some(other) = fields.iter().find(|f| {
                     f.name() == field.name() || f.ident() == field.ident()
@@ -1120,15 +1125,13 @@ pub fn members_into_model(
                 codes.push(code(pos.into(), context.to_owned(), lines));
             }
             Option(option) => {
-                options.push(Loc::new(option.into_model()?, pos));
+                options.push(Loc::new(option.into_model(scope)?, pos));
             }
             Match(m) => {
-                match_decl.push(Loc::new(m.into_model()?, pos))?;
+                match_decl.push(Loc::new(m.into_model(scope)?, pos))?;
             }
             InnerDecl(decl) => {
-                let (d, inner_decls) = decl.into_model()?;
-                decls.push(Loc::new(d, pos));
-                decls.extend(inner_decls);
+                decls.push(Rc::new(Loc::new(decl.into_model(scope)?, pos)));
             }
         }
     }
@@ -1205,14 +1208,14 @@ pub enum Value<'input> {
 impl<'input> IntoModel for Value<'input> {
     type Output = RpValue;
 
-    fn into_model(self) -> Result<RpValue> {
+    fn into_model(self, scope: &Scope) -> Result<RpValue> {
         let out = match self {
             Value::String(string) => RpValue::String(string),
             Value::Number(number) => RpValue::Number(number),
             Value::Boolean(boolean) => RpValue::Boolean(boolean),
             Value::Identifier(identifier) => RpValue::Identifier(identifier.to_owned()),
-            Value::Array(inner) => RpValue::Array(inner.into_model()?),
-            Value::Object(object) => RpValue::Object(object.into_model()?),
+            Value::Array(inner) => RpValue::Array(inner.into_model(scope)?),
+            Value::Object(object) => RpValue::Object(object.into_model(scope)?),
         };
 
         Ok(out)

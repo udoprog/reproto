@@ -17,7 +17,7 @@ impl<'a> RustCompiler<'a> {
         self.write_files(files)
     }
 
-    fn write_mod_files(&self, files: &BTreeMap<&RpVersionedPackage, RustFileSpec>) -> Result<()> {
+    fn write_mod_files(&self, files: &BTreeMap<RpVersionedPackage, RustFileSpec>) -> Result<()> {
         let mut packages: BTreeMap<PathBuf, BTreeSet<String>> = BTreeMap::new();
         let mut root_names = BTreeSet::new();
 
