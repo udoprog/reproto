@@ -7,6 +7,48 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
+#[derive(Debug, PartialEq, Clone)]
+pub enum Type {
+    Double,
+    Float,
+    Signed { size: Option<usize> },
+    Unsigned { size: Option<usize> },
+    Boolean,
+    String,
+    Bytes,
+    Any,
+    Name { name: Name },
+    Array { inner: Box<Type> },
+    Map { key: Box<Type>, value: Box<Type> },
+}
+
+impl IntoModel for Type {
+    type Output = RpType;
+
+    fn into_model(self) -> Result<RpType> {
+        use self::Type::*;
+
+        let out = match self {
+            Double => RpType::Double,
+            Float => RpType::Float,
+            Signed { size } => RpType::Signed { size: size },
+            Unsigned { size } => RpType::Unsigned { size: size },
+            Boolean => RpType::Boolean,
+            String => RpType::String,
+            Name { name } => RpType::Name { name: name.into_model()? },
+            Array { inner } => RpType::Array { inner: inner.into_model()? },
+            Map { key, value } => RpType::Map {
+                key: key.into_model()?,
+                value: value.into_model()?,
+            },
+            Any => RpType::Any,
+            Bytes => RpType::Bytes,
+        };
+
+        Ok(out)
+    }
+}
+
 #[derive(Debug)]
 pub enum Decl<'input> {
     Type(TypeBody<'input>),
@@ -158,7 +200,7 @@ pub struct Field<'input> {
     pub modifier: RpModifier,
     pub name: &'input str,
     pub comment: Vec<&'input str>,
-    pub ty: RpType,
+    pub ty: Type,
     pub field_as: Option<Loc<Value<'input>>>,
 }
 
@@ -192,11 +234,12 @@ impl<'input> IntoModel for Field<'input> {
 
         let name = self.name.to_owned();
         let comment = self.comment.into_iter().map(ToOwned::to_owned).collect();
+
         Ok(RpField::new(
             self.modifier,
             name,
             comment,
-            self.ty,
+            self.ty.into_model()?,
             field_as,
         ))
     }
@@ -226,8 +269,17 @@ impl<'input> IntoModel for File<'input> {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub enum Name {
+    Relative { parts: Vec<String> },
+    Absolute {
+        prefix: Option<String>,
+        parts: Vec<String>,
+    },
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct Instance<'input> {
-    pub name: RpName,
+    pub name: Name,
     pub arguments: Loc<Vec<Loc<FieldInit<'input>>>>,
 }
 
@@ -236,7 +288,7 @@ impl<'input> IntoModel for Instance<'input> {
 
     fn into_model(self) -> Result<RpInstance> {
         let instance = RpInstance {
-            name: self.name,
+            name: self.name.into_model()?,
             arguments: self.arguments.into_model()?,
         };
 
@@ -345,6 +397,17 @@ where
     }
 }
 
+impl<T> IntoModel for Box<T>
+where
+    T: IntoModel,
+{
+    type Output = Box<T::Output>;
+
+    fn into_model(self) -> Result<Self::Output> {
+        Ok(Box::new((*self).into_model()?))
+    }
+}
+
 impl<'a> IntoModel for &'a str {
     type Output = String;
 
@@ -369,19 +432,28 @@ impl IntoModel for RpPackage {
     }
 }
 
-impl IntoModel for RpType {
-    type Output = RpType;
-
-    fn into_model(self) -> Result<Self::Output> {
-        Ok(self)
-    }
-}
-
-impl IntoModel for RpName {
+impl IntoModel for Name {
     type Output = RpName;
 
     fn into_model(self) -> Result<Self::Output> {
-        Ok(self)
+        use self::Name::*;
+
+        let out = match self {
+            Relative { parts } => {
+                RpName {
+                    prefix: None,
+                    parts: parts,
+                }
+            }
+            Absolute { prefix, parts } => {
+                RpName {
+                    prefix: prefix,
+                    parts: parts,
+                }
+            }
+        };
+
+        Ok(out)
     }
 }
 
@@ -438,7 +510,7 @@ impl<'input> IntoModel for MatchMember<'input> {
 #[derive(Debug)]
 pub struct MatchVariable<'input> {
     pub name: &'input str,
-    pub ty: RpType,
+    pub ty: Type,
 }
 
 impl<'input> IntoModel for MatchVariable<'input> {
@@ -447,7 +519,7 @@ impl<'input> IntoModel for MatchVariable<'input> {
     fn into_model(self) -> Result<RpMatchVariable> {
         let match_variable = RpMatchVariable {
             name: self.name.into_model()?,
-            ty: self.ty,
+            ty: self.ty.into_model()?,
         };
 
         Ok(match_variable)
@@ -465,7 +537,7 @@ pub enum Member<'input> {
 #[derive(Debug, PartialEq, Clone)]
 pub enum Object<'input> {
     Instance(Loc<Instance<'input>>),
-    Constant(Loc<RpName>),
+    Constant(Loc<Name>),
 }
 
 impl<'input> IntoModel for Object<'input> {
@@ -476,7 +548,7 @@ impl<'input> IntoModel for Object<'input> {
 
         let out = match self {
             Instance(instance) => RpObject::Instance(instance.into_model()?),
-            Constant(constant) => RpObject::Constant(constant),
+            Constant(constant) => RpObject::Constant(constant.into_model()?),
         };
 
         Ok(out)
@@ -507,7 +579,7 @@ pub enum PathSegment<'input> {
     Literal { value: Loc<String> },
     Variable {
         name: Loc<&'input str>,
-        ty: Loc<RpType>,
+        ty: Loc<Type>,
     },
 }
 
@@ -573,7 +645,7 @@ fn convert_return(
     comment: Vec<String>,
     status: Option<Loc<RpNumber>>,
     produces: Option<Loc<String>>,
-    ty: Option<Loc<RpType>>,
+    ty: Option<Loc<Type>>,
     options: Vec<Loc<OptionDecl>>,
 ) -> Result<RpServiceReturns> {
     let options = Options::new(options.into_model()?);
@@ -617,7 +689,7 @@ fn convert_return(
 fn convert_accepts(
     comment: Vec<String>,
     accepts: Option<Loc<String>>,
-    ty: Option<Loc<RpType>>,
+    ty: Option<Loc<Type>>,
     options: Vec<Loc<OptionDecl>>,
 ) -> Result<RpServiceAccepts> {
     let options = Options::new(options.into_model()?);
@@ -796,13 +868,13 @@ pub enum ServiceNested<'input> {
         comment: Vec<&'input str>,
         status: Option<Loc<RpNumber>>,
         produces: Option<Loc<String>>,
-        ty: Option<Loc<RpType>>,
+        ty: Option<Loc<Type>>,
         options: Vec<Loc<OptionDecl<'input>>>,
     },
     Accepts {
         comment: Vec<&'input str>,
         accepts: Option<Loc<String>>,
-        ty: Option<Loc<RpType>>,
+        ty: Option<Loc<Type>>,
         options: Vec<Loc<OptionDecl<'input>>>,
     },
 }

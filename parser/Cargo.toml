@@ -25,4 +25,4 @@ log = "0.3"
 num = "0.1"
 
 [build-dependencies]
-lalrpop-snap = "0.13"
+lalrpop = "0.13"

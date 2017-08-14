@@ -1,5 +1,5 @@
-extern crate lalrpop_snap;
+extern crate lalrpop;
 
 fn main() {
-    lalrpop_snap::process_root().unwrap();
+    lalrpop::process_root().unwrap();
 }

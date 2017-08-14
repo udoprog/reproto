@@ -310,36 +310,39 @@ FieldInit: FieldInit<'input> = {
     },
 };
 
-pub TypeSpec: RpType = {
-    "any" => RpType::Any,
-    "float" => RpType::Float,
-    "double" => RpType::Double,
-    "signed" <size:TypeBits?> => RpType::Signed {
+pub TypeSpec: Type = {
+    "any" => Type::Any,
+    "float" => Type::Float,
+    "double" => Type::Double,
+    "signed" <size:TypeBits?> => Type::Signed {
         size: size
     },
-    "unsigned" <size:TypeBits?> => RpType::Unsigned {
+    "unsigned" <size:TypeBits?> => Type::Unsigned {
         size: size
     },
-    "boolean" => RpType::Boolean,
-    "string" => RpType::String,
-    "bytes" => RpType::Bytes,
-    <name:Name> => RpType::Name{
+    "boolean" => Type::Boolean,
+    "string" => Type::String,
+    "bytes" => Type::Bytes,
+    <name:Name> => Type::Name{
         name: name
     },
-    "[" <inner:TypeSpec> "]" => RpType::Array {
+    "[" <inner:TypeSpec> "]" => Type::Array {
         inner: Box::new(inner)
     },
-    "{" <key:TypeSpec> ":" <value:TypeSpec> "}" => RpType::Map{
+    "{" <key:TypeSpec> ":" <value:TypeSpec> "}" => Type::Map{
         key: Box::new(key),
         value: Box::new(value)
     },
 };
 
-Name: RpName = {
-    <prefix:(Identifier "::")?> <parts:OneOrMore<"::", TypeIdentifier>> => RpName {
+Name: Name = {
+    <prefix:(Identifier "::")?> <parts:OneOrMore<"::", TypeIdentifier>> => Name::Absolute {
         prefix: prefix.map(|p| p.0.to_owned()),
         parts: parts.into_iter().map(ToOwned::to_owned).collect(),
-    }
+    },
+    "::" <parts:OneOrMore<"::", TypeIdentifier>> => Name::Relative {
+        parts: parts.into_iter().map(ToOwned::to_owned).collect(),
+    },
 };
 
 TypeBits: usize = "/" <number:Number> => number.to_usize().unwrap_or(0usize);
