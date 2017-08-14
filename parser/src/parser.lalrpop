@@ -244,6 +244,10 @@ pub Member: Member<'input> = {
         let content = strip_code_block(content);
         Member::Code(context, content)
     },
+
+    <decl:Decl> => {
+        Member::InnerDecl(decl)
+    },
 };
 
 OptionDecl: OptionDecl<'input> = <name:Identifier> <values:OneOrMore<",", Loc<Value>>> ";" => OptionDecl {

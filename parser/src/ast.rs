@@ -59,20 +59,32 @@ pub enum Decl<'input> {
 }
 
 impl<'input> IntoModel for Decl<'input> {
-    type Output = RpDecl;
+    type Output = (RpDecl, Vec<Loc<RpDecl>>);
 
-    fn into_model(self) -> Result<RpDecl> {
+    fn into_model(self) -> Result<Self::Output> {
         use self::Decl::*;
 
-        let decl = match self {
-            Type(body) => RpDecl::Type(body.into_model()?),
-            Interface(body) => RpDecl::Interface(body.into_model()?),
-            Enum(body) => RpDecl::Enum(body.into_model()?),
-            Tuple(body) => RpDecl::Tuple(body.into_model()?),
-            Service(body) => RpDecl::Service(body.into_model()?),
+        let out = match self {
+            Type(body) => {
+                let (body, decls) = body.into_model()?;
+                (RpDecl::Type(body), decls)
+            }
+            Interface(body) => {
+                let (body, decls) = body.into_model()?;
+                (RpDecl::Interface(body), decls)
+            }
+            Enum(body) => {
+                let (body, decls) = body.into_model()?;
+                (RpDecl::Enum(body), decls)
+            }
+            Tuple(body) => {
+                let (body, decls) = body.into_model()?;
+                (RpDecl::Tuple(body), decls)
+            }
+            Service(body) => (RpDecl::Service(body.into_model()?), vec![]),
         };
 
-        Ok(decl)
+        Ok(out)
     }
 }
 
@@ -85,14 +97,14 @@ pub struct EnumBody<'input> {
 }
 
 impl<'input> IntoModel for EnumBody<'input> {
-    type Output = Rc<RpEnumBody>;
+    type Output = (Rc<RpEnumBody>, Vec<Loc<RpDecl>>);
 
-    fn into_model(self) -> Result<Rc<RpEnumBody>> {
+    fn into_model(self) -> Result<Self::Output> {
         let mut variants: Vec<Loc<Rc<RpEnumVariant>>> = Vec::new();
 
         let mut ordinals = OrdinalGenerator::new();
 
-        let (fields, codes, options, match_decl) = members_into_model(self.members)?;
+        let (fields, codes, options, match_decl, decls) = members_into_model(self.members)?;
 
         for variant in self.variants {
             let (variant, variant_pos) = variant.both();
@@ -145,7 +157,7 @@ impl<'input> IntoModel for EnumBody<'input> {
             serialized_as_name: serialized_as_name,
         };
 
-        Ok(Rc::new(en))
+        Ok((Rc::new(en), decls))
     }
 }
 
@@ -258,10 +270,19 @@ impl<'input> IntoModel for File<'input> {
     fn into_model(self) -> Result<RpFile> {
         let options = Options::new(self.options.into_model()?);
 
+        let mut decls = Vec::new();
+
+        for d in self.decls {
+            let ((d, inner_decls), pos) = d.into_model()?.both();
+
+            decls.push(Loc::new(d, pos));
+            decls.extend(inner_decls);
+        }
+
         let file = RpFile {
             options: options,
             uses: self.uses.into_model()?,
-            decls: self.decls.into_model()?,
+            decls: decls,
         };
 
         Ok(file)
@@ -305,16 +326,20 @@ pub struct InterfaceBody<'input> {
 }
 
 impl<'input> IntoModel for InterfaceBody<'input> {
-    type Output = Rc<RpInterfaceBody>;
+    type Output = (Rc<RpInterfaceBody>, Vec<Loc<RpDecl>>);
 
-    fn into_model(self) -> Result<Rc<RpInterfaceBody>> {
+    fn into_model(self) -> Result<Self::Output> {
         use std::collections::btree_map::Entry::*;
 
-        let (fields, codes, options, match_decl) = members_into_model(self.members)?;
+        let (fields, codes, options, match_decl, mut decls) = members_into_model(self.members)?;
 
         let mut sub_types: BTreeMap<String, Loc<Rc<RpSubType>>> = BTreeMap::new();
 
         for sub_type in self.sub_types.into_model()? {
+            let ((sub_type, inner_decls), pos) = sub_type.both();
+            let sub_type = Loc::new(sub_type, pos);
+            decls.extend(inner_decls);
+
             // key has to be owned by entry
             let key = sub_type.name.clone();
 
@@ -339,7 +364,7 @@ impl<'input> IntoModel for InterfaceBody<'input> {
             sub_types: sub_types,
         };
 
-        Ok(Rc::new(interface_body))
+        Ok((Rc::new(interface_body), decls))
     }
 }
 
@@ -532,6 +557,7 @@ pub enum Member<'input> {
     Code(&'input str, Vec<String>),
     Option(OptionDecl<'input>),
     Match(MatchMember<'input>),
+    InnerDecl(Decl<'input>),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -898,13 +924,14 @@ pub struct SubType<'input> {
 }
 
 impl<'input> IntoModel for SubType<'input> {
-    type Output = Rc<RpSubType>;
+    type Output = (Rc<RpSubType>, Vec<Loc<RpDecl>>);
 
-    fn into_model(self) -> Result<Rc<RpSubType>> {
+    fn into_model(self) -> Result<Self::Output> {
         let mut fields: Vec<Loc<RpField>> = Vec::new();
         let mut codes = Vec::new();
         let mut options = Vec::new();
         let mut match_decl = RpMatchDecl::new();
+        let mut decls = Vec::new();
 
         for member in self.members {
             let (member, pos) = member.both();
@@ -937,6 +964,11 @@ impl<'input> IntoModel for SubType<'input> {
                 Member::Match(m) => {
                     match_decl.push(Loc::new(m.into_model()?, pos))?;
                 }
+                Member::InnerDecl(decl) => {
+                    let (d, inner_decls) = decl.into_model()?;
+                    decls.push(Loc::new(d, pos));
+                    decls.extend(inner_decls);
+                }
             }
         }
 
@@ -953,7 +985,7 @@ impl<'input> IntoModel for SubType<'input> {
             match_decl: match_decl,
         };
 
-        Ok(Rc::new(sub_type))
+        Ok((Rc::new(sub_type), decls))
     }
 }
 
@@ -965,10 +997,10 @@ pub struct TupleBody<'input> {
 }
 
 impl<'input> IntoModel for TupleBody<'input> {
-    type Output = Rc<RpTupleBody>;
+    type Output = (Rc<RpTupleBody>, Vec<Loc<RpDecl>>);
 
-    fn into_model(self) -> Result<Rc<RpTupleBody>> {
-        let (fields, codes, options, match_decl) = members_into_model(self.members)?;
+    fn into_model(self) -> Result<Self::Output> {
+        let (fields, codes, options, match_decl, decls) = members_into_model(self.members)?;
 
         let _options = Options::new(options);
 
@@ -980,7 +1012,7 @@ impl<'input> IntoModel for TupleBody<'input> {
             match_decl: match_decl,
         };
 
-        Ok(Rc::new(tuple_body))
+        Ok((Rc::new(tuple_body), decls))
     }
 }
 
@@ -992,10 +1024,10 @@ pub struct TypeBody<'input> {
 }
 
 impl<'input> IntoModel for TypeBody<'input> {
-    type Output = Rc<RpTypeBody>;
+    type Output = (Rc<RpTypeBody>, Vec<Loc<RpDecl>>);
 
-    fn into_model(self) -> Result<Rc<RpTypeBody>> {
-        let (fields, codes, options, match_decl) = members_into_model(self.members)?;
+    fn into_model(self) -> Result<Self::Output> {
+        let (fields, codes, options, match_decl, decls) = members_into_model(self.members)?;
 
         let options = Options::new(options);
 
@@ -1013,7 +1045,7 @@ impl<'input> IntoModel for TypeBody<'input> {
             reserved: reserved,
         };
 
-        Ok(Rc::new(type_body))
+        Ok((Rc::new(type_body), decls))
     }
 }
 
@@ -1053,13 +1085,14 @@ pub fn code(pos: Pos, context: String, lines: Vec<String>) -> Loc<RpCode> {
 
 pub fn members_into_model(
     members: Vec<Loc<Member>>,
-) -> Result<(Fields, Codes, OptionVec, RpMatchDecl)> {
+) -> Result<(Fields, Codes, OptionVec, RpMatchDecl, Vec<Loc<RpDecl>>)> {
     use self::Member::*;
 
     let mut fields: Vec<Loc<RpField>> = Vec::new();
     let mut codes = Vec::new();
     let mut options: Vec<Loc<RpOptionDecl>> = Vec::new();
     let mut match_decl = RpMatchDecl::new();
+    let mut decls = Vec::new();
 
     for member in members {
         let (value, pos) = member.both();
@@ -1092,10 +1125,15 @@ pub fn members_into_model(
             Match(m) => {
                 match_decl.push(Loc::new(m.into_model()?, pos))?;
             }
+            InnerDecl(decl) => {
+                let (d, inner_decls) = decl.into_model()?;
+                decls.push(Loc::new(d, pos));
+                decls.extend(inner_decls);
+            }
         }
     }
 
-    Ok((fields, codes, options, match_decl))
+    Ok((fields, codes, options, match_decl, decls))
 }
 
 /// Generate ordinal values.

@@ -14,6 +14,7 @@ mod lexer;
 mod parser;
 mod token;
 mod utils;
+mod scope;
 
 use self::errors::*;
 use core::object;
@@ -136,7 +137,7 @@ mod tests {
         parser::parse_Member(&new_context(), parse(input)).unwrap()
     }
 
-    fn parse_type_spec(input: &'static str) -> RpType {
+    fn parse_type_spec(input: &'static str) -> Type {
         parser::parse_TypeSpec(&new_context(), parse(input)).unwrap()
     }
 
@@ -150,8 +151,8 @@ mod tests {
     fn test_array() {
         let ty = parse_type_spec("[string]");
 
-        if let RpType::Array { inner } = ty {
-            if let RpType::String = *inner {
+        if let Type::Array { inner } = ty {
+            if let Type::String = *inner {
                 return;
             }
         }
@@ -166,9 +167,9 @@ mod tests {
         // TODO: use #![feature(box_patterns)]:
         // if let Type::Map(box Type::String, box Type::Unsigned(size)) = ty {
         // }
-        if let RpType::Map { key, value } = ty {
-            if let RpType::String = *key {
-                if let RpType::Unsigned { size } = *value {
+        if let Type::Map { key, value } = ty {
+            if let Type::String = *key {
+                if let Type::Unsigned { size } = *value {
                     assert_eq!(Some(123usize), size);
                     return;
                 }
@@ -204,7 +205,7 @@ mod tests {
     fn test_instance() {
         let context = new_context();
 
-        let c = RpName {
+        let c = Name::Absolute {
             prefix: None,
             parts: vec!["Foo".to_owned(), "Bar".to_owned()],
         };
@@ -271,13 +272,13 @@ mod tests {
 
     #[test]
     fn test_type_spec() {
-        let c = RpName {
+        let c = Name::Absolute {
             prefix: None,
             parts: vec!["Hello".to_owned(), "World".to_owned()],
         };
 
-        assert_type_spec_eq!(RpType::String, "string");
-        assert_type_spec_eq!(RpType::Name { name: c }, "Hello::World");
+        assert_type_spec_eq!(Type::String, "string");
+        assert_type_spec_eq!(Type::Name { name: c }, "Hello::World");
     }
 
     #[test]
