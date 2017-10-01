@@ -43,7 +43,7 @@ Decl: Decl<'input> = {
 
 Enum: EnumBody<'input> =
     <comment:"///"?>
-    "enum" <name:TypeIdentifier> "{"
+    "enum" <name:TypeIdentifier> <ty:(":" Loc<TypeSpec>)?> "{"
       <variants:Loc<EnumVariant>*>
       <members:Loc<Member>*>
     "}" =>
@@ -51,6 +51,7 @@ Enum: EnumBody<'input> =
     EnumBody {
         name: name,
         comment: comment.unwrap_or_else(Vec::new),
+        ty: ty.map(|ty| ty.1),
         variants: variants,
         members: members,
     }
@@ -207,15 +208,13 @@ PathSegment: PathSegment<'input> = {
 EnumVariant: EnumVariant<'input> =
     <comment:"///"?>
     <name:Loc<TypeIdentifier>>
-    <arguments:("(" OneOrMore<",", Loc<Value>> ")")?>
-    <ordinal:("=" Loc<Value>)?>
+    <argument:("=" Loc<Value>)?>
     ";" =>
 {
     EnumVariant {
         name: name,
         comment: comment.unwrap_or_else(Vec::new),
-        arguments: arguments.map(|a| a.1).unwrap_or_else(|| vec![]),
-        ordinal: ordinal.map(|o| o.1),
+        argument: argument.map(|a| a.1),
     }
 };
 

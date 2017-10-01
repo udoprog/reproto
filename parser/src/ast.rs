@@ -42,6 +42,7 @@ impl<'input> Decl<'input> {
 pub struct EnumBody<'input> {
     pub name: &'input str,
     pub comment: Vec<&'input str>,
+    pub ty: Option<Loc<Type>>,
     pub variants: Vec<Loc<EnumVariant<'input>>>,
     pub members: Vec<Loc<Member<'input>>>,
 }
@@ -50,8 +51,7 @@ pub struct EnumBody<'input> {
 pub struct EnumVariant<'input> {
     pub name: Loc<&'input str>,
     pub comment: Vec<&'input str>,
-    pub arguments: Vec<Loc<Value<'input>>>,
-    pub ordinal: Option<Loc<Value<'input>>>,
+    pub argument: Option<Loc<Value<'input>>>,
 }
 
 #[derive(Debug, PartialEq, Eq)]

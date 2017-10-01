@@ -1,4 +1,5 @@
 use super::ErrorPos;
+use super::with_pos::WithPos;
 use extern_mime;
 
 error_chain! {
@@ -8,11 +9,6 @@ error_chain! {
     }
 
     errors {
-        MimeFromStrError(error: extern_mime::FromStrError) {
-            description("couldn't parse mime type")
-            display("{:?}", error)
-        }
-
         Pos(message: String, pos: ErrorPos) {
             description("position error")
             display("{}", message)
@@ -42,6 +38,14 @@ error_chain! {
             description("match conflict")
         }
 
+        MimeFromStrError(error: extern_mime::FromStrError) {
+            description("couldn't parse mime type")
+            display("{:?}", error)
+        }
+
+        InvalidOrdinal {
+        }
+
         /// Error thrown by Rc::get_mut
         RcGetMut {
         }
@@ -50,6 +54,25 @@ error_chain! {
         }
 
         Overflow {
+        }
+    }
+}
+
+impl WithPos for Error {
+    fn with_pos<E: Into<ErrorPos>>(self, pos: E) -> Self {
+        use self::ErrorKind::*;
+
+        match self.kind() {
+            &Pos(..) => self,
+            &DeclMerge(..) => self,
+            &FieldConflict(..) => self,
+            &ExtendEnum(..) => self,
+            &ReservedField(..) => self,
+            &MatchConflict(..) => self,
+            _ => {
+                let message = format!("{}", &self);
+                self.chain_err(|| ErrorKind::Pos(message, pos.into()))
+            }
         }
     }
 }

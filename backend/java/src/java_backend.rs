@@ -18,7 +18,6 @@ pub struct JavaBackend {
     string: ClassType,
     optional: ClassType,
     illegal_argument: ClassType,
-    immutable_list: ClassType,
     async_container: ClassType,
 }
 
@@ -49,7 +48,6 @@ impl JavaBackend {
             string: Type::class("java.lang", "String"),
             optional: Type::class("java.util", "Optional"),
             illegal_argument: Type::class("java.lang", "IllegalArgumentException"),
-            immutable_list: Type::class("com.google.common.collect", "ImmutableList"),
             async_container: async_container,
         }
     }
@@ -109,10 +107,12 @@ impl JavaBackend {
 
     /// Convert the given type to a java type.
     pub fn into_java_type(&self, ty: &RpType) -> Result<Type> {
+        use self::RpType::*;
+
         let ty: Type = match *ty {
-            RpType::String => self.string.clone().into(),
-            RpType::Signed { ref size } |
-            RpType::Unsigned { ref size } => {
+            String => self.string.clone().into(),
+            Signed { ref size } |
+            Unsigned { ref size } => {
                 // default to integer if unspecified.
                 // TODO: should we care about signedness?
                 // TODO: > 64 bits, use BitInteger?
@@ -122,20 +122,20 @@ impl JavaBackend {
                     LONG.into()
                 }
             }
-            RpType::Float => FLOAT.into(),
-            RpType::Double => DOUBLE.into(),
-            RpType::Boolean => BOOLEAN.into(),
-            RpType::Array { ref inner } => {
+            Float => FLOAT.into(),
+            Double => DOUBLE.into(),
+            Boolean => BOOLEAN.into(),
+            Array { ref inner } => {
                 let argument = self.into_java_type(inner)?;
                 self.list.with_arguments(vec![argument]).into()
             }
-            RpType::Name { ref name } => self.convert_type_id(name)?.into(),
-            RpType::Map { ref key, ref value } => {
+            Name { ref name } => self.convert_type_id(name)?.into(),
+            Map { ref key, ref value } => {
                 let key = self.into_java_type(key)?;
                 let value = self.into_java_type(value)?;
                 self.map.with_arguments(vec![key, value]).into()
             }
-            RpType::Any => self.object.clone().into(),
+            Any => self.object.clone().into(),
             ref t => {
                 return Err(format!("unsupported type: {:?}", t).into());
             }
@@ -556,22 +556,12 @@ impl JavaBackend {
             spec.push(code.take().lines);
         }
 
-        let variables = Variables::new();
-
         for variant in &body.variants {
             let mut enum_value = Elements::new();
             let mut enum_stmt = stmt![&*variant.local_name];
 
-            if !variant.arguments.is_empty() {
-                let mut value_arguments = Statement::new();
-
-                for (value, field) in variant.arguments.iter().zip(fields.iter()) {
-                    let ctx = ValueContext::new(&name.package, &variables, &value, Some(&field.ty));
-                    value_arguments.push(self.value(ctx)?);
-                }
-
-                enum_stmt.push(stmt!["(", value_arguments.join(", "), ")"]);
-            }
+            let value = self.ordinal(&variant.ordinal)?;
+            enum_stmt.push(stmt!["(", value, ")"]);
 
             enum_value.push(enum_stmt);
             spec.push_value(enum_value);
@@ -968,89 +958,12 @@ impl Converter for JavaBackend {
 
 /// Build values in python.
 impl ValueBuilder for JavaBackend {
-    fn env(&self) -> &Environment {
-        &self.env
-    }
-
-    fn identifier(&self, identifier: &str) -> Result<Self::Stmt> {
-        Ok(stmt![identifier])
-    }
-
-    fn optional_empty(&self) -> Result<Self::Stmt> {
-        Ok(stmt![&self.optional, ".empty()"])
-    }
-
-    fn optional_of(&self, value: Self::Stmt) -> Result<Self::Stmt> {
-        Ok(stmt![&self.optional, ".of(", value, ")"])
-    }
-
-    fn constant(&self, ty: Self::Type) -> Result<Self::Stmt> {
-        return Ok(stmt![ty]);
-    }
-
-    fn instance(&self, ty: Self::Type, arguments: Vec<Self::Stmt>) -> Result<Self::Stmt> {
-        let mut stmt = Statement::new();
-
-        for a in arguments {
-            stmt.push(a);
-        }
-
-        Ok(stmt!["new ", &ty, "(", stmt.join(", "), ")"])
-    }
-
-    fn number(&self, number: &RpNumber) -> Result<Self::Stmt> {
+    fn ordinal_number(&self, number: &u32) -> Result<Self::Stmt> {
         Ok(stmt![number.to_string()])
-    }
-
-    fn signed(&self, number: &RpNumber, size: &Option<usize>) -> Result<Self::Stmt> {
-        let ty: Variable = if size.map(|s| s <= 32usize).unwrap_or(true) {
-            format!("{}", number.to_string()).into()
-        } else {
-            format!("{}L", number.to_string()).into()
-        };
-
-        Ok(ty.into())
-    }
-
-    fn unsigned(&self, number: &RpNumber, size: &Option<usize>) -> Result<Self::Stmt> {
-        let ty: Variable = if size.map(|s| s <= 32usize).unwrap_or(true) {
-            format!("{}", number.to_string()).into()
-        } else {
-            format!("{}L", number.to_string()).into()
-        };
-
-        Ok(ty.into())
-    }
-
-    fn float(&self, number: &RpNumber) -> Result<Self::Stmt> {
-        Ok(stmt![format!("{}F", number.to_string())])
-    }
-
-    fn double(&self, number: &RpNumber) -> Result<Self::Stmt> {
-        Ok(stmt![format!("{}D", number.to_string())])
-    }
-
-    fn boolean(&self, boolean: &bool) -> Result<Self::Stmt> {
-        Ok(stmt![boolean.to_string()])
     }
 
     fn string(&self, string: &str) -> Result<Self::Stmt> {
         Ok(Variable::String(string.to_owned()).into())
-    }
-
-    fn array(&self, values: Vec<Self::Stmt>) -> Result<Self::Stmt> {
-        let mut arguments = Statement::new();
-
-        for v in values {
-            arguments.push(v);
-        }
-
-        Ok(stmt![
-            &self.immutable_list,
-            ".of(",
-            arguments.join(", "),
-            ")",
-        ])
     }
 }
 

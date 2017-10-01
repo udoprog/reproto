@@ -26,27 +26,9 @@ error_chain! {
             display("{}", message)
         }
 
-        Errors(errors: Vec<Error>) {
-            description("errors")
-            display("encountered {} error(s)", errors.len())
-        }
-
-        MissingBackend {
-        }
-
         /// An instance creation is missing a set of required fields.
         MissingRequired(names: Vec<String>, pos: ErrorPos, fields: Vec<ErrorPos>) {
             description("missing required")
-        }
-
-        RegisteredTypeConflict(name: RpName) {
-            description("registered type conflict")
-            display("registered type conflict with: {}", name)
-        }
-
-        MissingPrefix(prefix: String) {
-            description("missing prefix")
-            display("missing prefix: {}", prefix)
         }
 
         Overflow(pos: ErrorPos) {
@@ -59,6 +41,24 @@ error_chain! {
         FieldConflict(message: String, source: ErrorPos, target: ErrorPos) {
             description("field conflict")
             display("{}", message)
+        }
+
+        Errors(errors: Vec<Error>) {
+            description("errors")
+            display("encountered {} error(s)", errors.len())
+        }
+
+        MissingBackend {
+        }
+
+        RegisteredTypeConflict(name: RpName) {
+            description("registered type conflict")
+            display("registered type conflict with: {}", name)
+        }
+
+        MissingPrefix(prefix: String) {
+            description("missing prefix")
+            display("missing prefix: {}", prefix)
         }
     }
 }
@@ -74,12 +74,16 @@ impl WithPos for Error {
         use self::ErrorKind::*;
 
         match self.kind() {
-            // A more specific position is already known.
-            &Pos(_, _) |
-            &Errors(_) |
-            &MissingRequired(_, _, _) => self,
-            // Convert to positional error.
-            _ => ErrorKind::Pos(format!("{}", self), pos.into()).into(),
+            &Pos(..) => self,
+            &MissingRequired(..) => self,
+            &Overflow(..) => self,
+            &EnumVariantConflict(..) => self,
+            &FieldConflict(..) => self,
+            &Errors(..) => self,
+            _ => {
+                let message = format!("{}", self);
+                self.chain_err(|| ErrorKind::Pos(message, pos.into()))
+            }
         }
     }
 }

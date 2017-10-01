@@ -1,0 +1,4 @@
+enum Entry: string {
+    A = "foo";
+    B = "bar";
+}

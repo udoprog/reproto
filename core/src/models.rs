@@ -168,6 +168,7 @@ pub struct RpEnumBody {
     pub comment: Vec<String>,
     /// Inner declarations.
     pub decls: Vec<Rc<Loc<RpDecl>>>,
+    pub variant_type: RpEnumType,
     pub variants: Vec<Rc<Loc<RpEnumVariant>>>,
     pub fields: Vec<Loc<RpField>>,
     pub codes: Vec<Loc<RpCode>>,
@@ -180,8 +181,42 @@ pub struct RpEnumVariant {
     pub name: RpName,
     pub local_name: Loc<String>,
     pub comment: Vec<String>,
-    pub arguments: Vec<Loc<RpValue>>,
-    pub ordinal: u32,
+    pub ordinal: RpEnumOrdinal,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub enum RpEnumType {
+    String,
+    Number,
+}
+
+impl RpEnumType {
+    pub fn is_assignable_from(&self, value: &RpValue) -> bool {
+        use self::RpEnumType::*;
+
+        match (self, value) {
+            (&Number, &RpValue::Number(_)) => true,
+            (&String, &RpValue::String(_)) => true,
+            _ => false,
+        }
+    }
+}
+
+impl fmt::Display for RpEnumType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use self::RpEnumType::*;
+
+        match *self {
+            String => write!(f, "string"),
+            Number => write!(f, "number"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub enum RpEnumOrdinal {
+    String(String),
+    Number(u32),
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -329,6 +364,10 @@ impl RpName {
             package: package,
             parts: self.parts,
         }
+    }
+
+    pub fn is_same(&self, other: &RpName) -> bool {
+        self.package == other.package && self.parts == other.parts
     }
 }
 
@@ -648,30 +687,67 @@ pub enum RpType {
 
 impl fmt::Display for RpType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use self::RpType::*;
+
         match *self {
-            RpType::Double => write!(f, "double"),
-            RpType::Float => write!(f, "float"),
-            RpType::Signed { ref size } => {
+            Double => write!(f, "double"),
+            Float => write!(f, "float"),
+            Signed { ref size } => {
                 if let Some(size) = *size {
                     write!(f, "signed/{}", size)
                 } else {
                     write!(f, "signed")
                 }
             }
-            RpType::Unsigned { ref size } => {
+            Unsigned { ref size } => {
                 if let Some(size) = *size {
                     write!(f, "unsigned/{}", size)
                 } else {
                     write!(f, "unsigned")
                 }
             }
-            RpType::Boolean => write!(f, "boolean"),
-            RpType::String => write!(f, "string"),
-            RpType::Name { ref name } => write!(f, "{}", name),
-            RpType::Array { ref inner } => write!(f, "[{}]", inner),
-            RpType::Map { ref key, ref value } => write!(f, "{{{}: {}}}", key, value),
-            RpType::Any => write!(f, "any"),
-            RpType::Bytes => write!(f, "bytes"),
+            Boolean => write!(f, "boolean"),
+            String => write!(f, "string"),
+            Name { ref name } => write!(f, "{}", name),
+            Array { ref inner } => write!(f, "[{}]", inner),
+            Map { ref key, ref value } => write!(f, "{{{}: {}}}", key, value),
+            Any => write!(f, "any"),
+            Bytes => write!(f, "bytes"),
+        }
+    }
+}
+
+impl RpType {
+    /// Check if a given value is assignable to current type.
+    pub fn is_assignable_from(&self, value: &RpValue) -> bool {
+        use self::RpType::*;
+
+        match (self, value) {
+            (&Double, &RpValue::Number(_)) => true,
+            (&Float, &RpValue::Number(_)) => true,
+            (&Signed { .. }, &RpValue::Number(_)) => true,
+            (&Unsigned { .. }, &RpValue::Number(_)) => true,
+            (&Boolean, &RpValue::Boolean(_)) => true,
+            (&String, &RpValue::String(_)) => true,
+            (&Array { .. }, &RpValue::Array(_)) => true,
+            (&Name { name: ref expected, .. }, &RpValue::Creator(ref creator)) => {
+                match creator.value() {
+                    &RpCreator::Constant(ref name) => expected.is_same(&*name),
+                    &RpCreator::Instance(ref instance) => expected.is_same(&instance.name),
+                }
+            }
+            _ => false,
+        }
+    }
+
+    /// Convert to an enum variant type.
+    pub fn as_enum_type(&self) -> Option<RpEnumType> {
+        use self::RpType::*;
+
+        match *self {
+            Double | Float | Signed { .. } | Unsigned { .. } => Some(RpEnumType::Number),
+            String => Some(RpEnumType::String),
+            _ => None,
         }
     }
 }
@@ -705,6 +781,19 @@ impl RpValue {
             Identifier(ref identifier) => Ok(identifier),
             _ => Err("unsupported identifier kind".into()),
         }
+    }
+
+    pub fn to_ordinal(self) -> Result<RpEnumOrdinal> {
+        let ordinal = match self {
+            RpValue::String(value) => RpEnumOrdinal::String(value),
+            RpValue::Number(number) => {
+                let number = number.to_u32().ok_or_else(|| ErrorKind::InvalidOrdinal)?;
+                RpEnumOrdinal::Number(number)
+            }
+            _ => return Err(ErrorKind::InvalidOrdinal.into()),
+        };
+
+        Ok(ordinal)
     }
 }
 

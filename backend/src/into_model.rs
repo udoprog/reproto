@@ -3,9 +3,7 @@ use super::scope::Scope;
 pub use core::*;
 pub use parser::ast::*;
 use std::cell::RefCell;
-use std::collections::BTreeMap;
-use std::collections::HashMap;
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
@@ -74,22 +72,24 @@ impl<'input> IntoModel for EnumBody<'input> {
 
         let (fields, codes, options, decls) = members_into_model(scope, self.members)?;
 
+        let ty = self.ty.into_model(scope)?;
+
+        let variant_type = if let Some(ty) = ty {
+            ty.and_then(|ty| {
+                ty.as_enum_type().ok_or_else(
+                    || "expeced string or number".into(),
+                ) as Result<RpEnumType>
+            })?
+        } else {
+            RpEnumType::Number
+        };
+
         for variant in self.variants {
-            let (variant, variant_pos) = variant.take_pair();
-            let pos = &variant_pos;
+            let (variant, pos) = variant.take_pair();
 
-            let ordinal = ordinals.next(&variant.ordinal).chain_err(|| {
-                ErrorKind::Pos("failed to generate ordinal".to_owned(), pos.into())
-            })?;
-
-            if fields.len() != variant.arguments.len() {
-                return Err(
-                    ErrorKind::Pos(format!("expected {} arguments", fields.len()), pos.into())
-                        .into(),
-                );
-            }
-
-            let variant = Loc::new((variant, ordinal).into_model(scope)?, pos.clone());
+            let variant = (variant, &variant_type, &mut ordinals)
+                .into_model(scope)
+                .with_pos(&pos)?;
 
             if let Some(other) = variants.iter().find(
                 |v| *v.local_name == *variant.local_name,
@@ -103,7 +103,7 @@ impl<'input> IntoModel for EnumBody<'input> {
                 );
             }
 
-            variants.push(Rc::new(variant));
+            variants.push(Rc::new(Loc::new(variant, pos)));
         }
 
         let options = Options::new(options);
@@ -122,6 +122,7 @@ impl<'input> IntoModel for EnumBody<'input> {
             local_name: self.name.to_string(),
             comment: self.comment.into_iter().map(ToOwned::to_owned).collect(),
             decls: decls,
+            variant_type: variant_type,
             variants: variants,
             fields: fields,
             codes: codes,
@@ -132,17 +133,28 @@ impl<'input> IntoModel for EnumBody<'input> {
 }
 
 /// enum value with assigned ordinal
-impl<'input> IntoModel for (EnumVariant<'input>, u32) {
+impl<'input, 'a> IntoModel for (EnumVariant<'input>, &'a RpEnumType, &'a mut OrdinalGenerator) {
     type Output = RpEnumVariant;
 
     fn into_model(self, scope: &Scope) -> Result<Self::Output> {
-        let (value, ordinal) = self;
+        let (variant, ty, ordinals) = self;
+
+        let ordinal = if let Some(argument) = variant.argument.into_model(scope)? {
+            if !ty.is_assignable_from(&argument) {
+                return Err(
+                    format!("unexpected value {}, expected type {}", argument, ty).into(),
+                );
+            }
+
+            argument.and_then(|value| value.to_ordinal())?
+        } else {
+            RpEnumOrdinal::Number(ordinals.next()?)
+        };
 
         Ok(RpEnumVariant {
-            name: scope.as_name().push(value.name.to_string()),
-            local_name: value.name.clone().map(str::to_string),
-            comment: value.comment.into_iter().map(ToOwned::to_owned).collect(),
-            arguments: value.arguments.into_model(scope)?,
+            name: scope.as_name().push(variant.name.to_string()),
+            local_name: variant.name.clone().map(str::to_string),
+            comment: variant.comment.into_iter().map(ToOwned::to_owned).collect(),
             ordinal: ordinal,
         })
     }
@@ -830,55 +842,16 @@ pub fn members_into_model(
 /// Generate ordinal values.
 pub struct OrdinalGenerator {
     next_ordinal: u32,
-    ordinals: HashMap<u32, Pos>,
 }
 
 impl OrdinalGenerator {
     pub fn new() -> OrdinalGenerator {
-        OrdinalGenerator {
-            next_ordinal: 0,
-            ordinals: HashMap::new(),
-        }
+        OrdinalGenerator { next_ordinal: 0 }
     }
 
-    pub fn next(&mut self, ordinal: &Option<Loc<Value>>) -> Result<u32> {
-        if let Some(ref ordinal) = *ordinal {
-            let pos = ordinal.pos();
-
-            if let Value::Number(ref number) = *ordinal.value() {
-                let n: u32 = number.to_u32().ok_or_else(
-                    || ErrorKind::Overflow(pos.into()),
-                )?;
-
-                if let Some(other) = self.ordinals.get(&n) {
-                    return Err(
-                        ErrorKind::Pos("duplicate ordinal".to_owned(), other.into()).into(),
-                    );
-                }
-
-                self.ordinals.insert(n, pos.clone());
-                self.next_ordinal = n + 1;
-                return Ok(n);
-            }
-
-            return Err(
-                ErrorKind::Pos("must be a number".to_owned(), pos.into()).into(),
-            );
-        }
-
+    pub fn next(&mut self) -> Result<u32> {
         let o = self.next_ordinal;
-
         self.next_ordinal += 1;
-
-        if let Some(other) = self.ordinals.get(&o) {
-            return Err(
-                ErrorKind::Pos(
-                    format!("generated ordinal {} conflicts with existing", o),
-                    other.into(),
-                ).into(),
-            );
-        }
-
         Ok(o)
     }
 }

@@ -26,7 +26,6 @@ mod for_context;
 mod package_processor;
 mod package_utils;
 mod value_builder;
-mod variables;
 pub mod errors;
 pub mod naming;
 mod options;
