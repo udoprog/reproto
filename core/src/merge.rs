@@ -76,17 +76,6 @@ impl Merge for Loc<RpDecl> {
                         );
                     }
 
-                    if let Some(field) = other.fields.iter().next() {
-                        return Err(
-                            ErrorKind::ExtendEnum(
-                                "cannot extend enum with additional fields".to_owned(),
-                                field.pos().into(),
-                                dest_pos.into(),
-                            ).into(),
-                        );
-                    }
-
-
                     return body.merge(other.clone());
                 }
             }

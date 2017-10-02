@@ -55,12 +55,6 @@ pub struct EnumVariant<'input> {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct FieldInit<'input> {
-    pub name: Loc<&'input str>,
-    pub value: Loc<Value<'input>>,
-}
-
-#[derive(Debug, PartialEq, Eq)]
 pub struct Field<'input> {
     pub modifier: RpModifier,
     pub name: &'input str,
@@ -95,12 +89,6 @@ pub enum Name {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct Instance<'input> {
-    pub name: Name,
-    pub arguments: Loc<Vec<Loc<FieldInit<'input>>>>,
-}
-
-#[derive(Debug, PartialEq, Eq)]
 pub struct InterfaceBody<'input> {
     pub name: &'input str,
     pub comment: Vec<&'input str>,
@@ -114,12 +102,6 @@ pub enum Member<'input> {
     Code(&'input str, Vec<String>),
     Option(OptionDecl<'input>),
     InnerDecl(Decl<'input>),
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub enum Creator<'input> {
-    Instance(Loc<Instance<'input>>),
-    Constant(Loc<Name>),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -220,5 +202,4 @@ pub enum Value<'input> {
     Boolean(bool),
     Identifier(&'input str),
     Array(Vec<Loc<Value<'input>>>),
-    Creator(Loc<Creator<'input>>),
 }

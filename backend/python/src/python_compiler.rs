@@ -84,9 +84,7 @@ impl<'a> PackageProcessor<'a> for PythonCompiler<'a> {
 
         for (name, body) in enums {
             if let Some(ref mut file_spec) = files.get_mut(&name.package) {
-                file_spec.0.push(
-                    self.backend.enum_variants(name.as_ref(), &body)?,
-                );
+                file_spec.0.push(self.backend.enum_variants(&body)?);
             } else {
                 return Err(format!("no such package: {}", &name.package).into());
             }

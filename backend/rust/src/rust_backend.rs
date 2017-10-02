@@ -177,6 +177,26 @@ impl RustBackend {
             enum_spec.push(code.take().lines);
         }
 
+        let mut elements = Elements::new();
+
+        elements.push(stmt![body.local_name.as_str(), " {"]);
+
+        body.variants.for_each_loc(|variant| {
+            if let RpEnumOrdinal::String(ref s) = variant.ordinal {
+                if s != variant.local_name.value() {
+                    let rename = stmt!["#[serde(rename = ", Variable::String(s.to_owned()), ")]"];
+                    elements.push_nested(rename);
+                }
+            }
+
+            elements.push_nested(stmt![variant.local_name.value(), ","]);
+            Ok(()) as Result<()>
+        })?;
+
+        elements.push("}");
+
+        enum_spec.push(elements);
+
         out.0.push(enum_spec);
         Ok(())
     }

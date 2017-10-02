@@ -1,33 +1,22 @@
 //! # Helper trait to deal with value construction
-//!
-//! RpValue construction is when a literal value is encoded into the output.
-//!
-//! For example, when creating an instance of type `Foo(1, 2, 3)` in java could be translated to:
-//!
-//! ```java
-//! new Foo(1, 2F, 3D)
-//! ```
-//!
-//! In this example, the second field is a `float`, and the third field is a `double`.
 
 use converter::Converter;
-use core::RpEnumOrdinal;
+use core::{RpEnumOrdinal, RpEnumVariant};
 use errors::*;
 
 pub trait ValueBuilder
 where
     Self: Converter,
 {
+    /// Convert the string to a statement.
     fn string(&self, &str) -> Result<Self::Stmt>;
 
-    fn ordinal_number(&self, &u32) -> Result<Self::Stmt>;
-
-    fn ordinal(&self, ordinal: &RpEnumOrdinal) -> Result<Self::Stmt> {
+    fn ordinal(&self, variant: &RpEnumVariant) -> Result<Self::Stmt> {
         use self::RpEnumOrdinal::*;
 
-        match *ordinal {
+        match variant.ordinal {
             String(ref string) => self.string(string),
-            Number(ref number) => self.ordinal_number(number),
+            Generated => self.string(&variant.local_name),
         }
     }
 }

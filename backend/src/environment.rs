@@ -1,8 +1,7 @@
 use super::into_model::IntoModel;
 use super::scope::Scope;
-use core::{ErrorPos, Loc, Merge, Object, PathObject, RpDecl, RpField, RpFieldInit, RpFile,
-           RpInstance, RpModifier, RpName, RpPackage, RpRegistered, RpRequiredPackage, RpType,
-           RpVersionedPackage, Version, WithPos};
+use core::{Loc, Merge, Object, PathObject, RpDecl, RpFile, RpName, RpPackage, RpRegistered,
+           RpRequiredPackage, RpType, RpVersionedPackage, Version, WithPos};
 use errors::*;
 use linked_hash_map::LinkedHashMap;
 use parser;
@@ -11,8 +10,6 @@ use repository::Resolver;
 use std::collections::{BTreeMap, HashMap, LinkedList};
 use std::path::Path;
 use std::rc::Rc;
-
-pub type InitFields = HashMap<String, Loc<RpFieldInit>>;
 
 /// Scoped environment for evaluating ReProto IDLs.
 pub struct Environment {
@@ -88,99 +85,6 @@ impl Environment {
             }
             _ => Ok(false),
         }
-    }
-
-    /// Lookup registered constant.
-    pub fn constant<'a>(
-        &'a self,
-        constant: &'a RpName,
-        target: &'a RpName,
-    ) -> Result<&'a RpRegistered> {
-        let reg_constant = self.lookup(constant)?;
-        let reg_target = self.lookup(target)?;
-
-        if !reg_target.is_assignable_from(reg_constant) {
-            return Err(
-                format!(
-                    "expected instance of `{}` but found `{}`",
-                    reg_target.display(),
-                    reg_constant.display()
-                ).into(),
-            );
-        }
-
-        Ok(reg_constant)
-    }
-
-    /// Convert instance arguments to the known registered type of the instance, and a map
-    /// containing the arguments being instantiated.
-    pub fn instance<'a>(
-        &'a self,
-        instance: &'a RpInstance,
-        target: &'a RpName,
-    ) -> Result<(&'a RpRegistered, InitFields)> {
-        let reg_instance = self.lookup(&instance.name)?;
-
-        let reg_target = self.lookup(target)?;
-
-        if !reg_target.is_assignable_from(reg_instance) {
-            return Err(
-                format!(
-                    "expected instance of `{}` but found `{}`",
-                    reg_target.display(),
-                    reg_instance.display()
-                ).into(),
-            );
-        }
-
-        let all_fields: Vec<&Loc<RpField>> = match *reg_instance {
-            RpRegistered::Tuple(_) |
-            RpRegistered::Type(_) |
-            RpRegistered::SubType(_, _) => reg_instance.fields()?.collect(),
-            _ => return Err("expected instantiable type".into()),
-        };
-
-        // pick required fields.
-        let required_fields = all_fields.iter().cloned().filter(|f| {
-            f.modifier == RpModifier::Required
-        });
-
-        let mut known: HashMap<String, Loc<RpFieldInit>> = HashMap::new();
-
-        // check that all required fields are set.
-        let mut required: BTreeMap<String, Loc<RpField>> = required_fields
-            .map(Clone::clone)
-            .map(|f| (f.name().to_owned(), f))
-            .collect();
-
-        for init in &*instance.arguments {
-            if let Some(ref field) = all_fields.iter().find(|f| *f.name == *init.name) {
-                // TODO: map out init position, and check that required variables are set.
-                known.insert(field.ident().to_owned(), init.clone());
-                required.remove(field.name());
-            } else {
-                return Err("no such field".into()).with_pos(init.pos());
-            }
-        }
-
-        if !required.is_empty() {
-            let required: Vec<(String, Loc<RpField>)> = required.into_iter().collect();
-
-            let names: Vec<String> = required
-                .iter()
-                .map(|&(ref name, _)| name.to_owned())
-                .collect();
-
-            let positions: Vec<ErrorPos> =
-                required.iter().map(|&(_, ref t)| t.pos().into()).collect();
-
-            return Err(
-                ErrorKind::MissingRequired(names, instance.arguments.pos().into(), positions)
-                    .into(),
-            );
-        }
-
-        Ok((reg_instance, known))
     }
 
     /// Lookup the declaration matching the given name.

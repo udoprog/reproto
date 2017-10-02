@@ -44,20 +44,6 @@ impl JsBackend {
         Ok(())
     }
 
-    fn find_field<'b>(
-        &self,
-        fields: &'b [Loc<JsField>],
-        name: &str,
-    ) -> Option<(usize, &JsField<'b>)> {
-        for (i, field) in fields.iter().enumerate() {
-            if field.name == name {
-                return Some((i, field.value()));
-            }
-        }
-
-        None
-    }
-
     /// Build a function that throws an exception if the given value `stmt` is None.
     fn throw_if_null<S>(&self, stmt: S, field: &JsField) -> Elements
     where
@@ -278,7 +264,7 @@ impl JsBackend {
         ctor
     }
 
-    fn build_enum_constructor(&self, fields: &[Loc<JsField>]) -> ConstructorSpec {
+    fn build_enum_constructor(&self, field: &JsField) -> ConstructorSpec {
         let mut ctor = ConstructorSpec::new();
         let mut assignments = Elements::new();
 
@@ -294,49 +280,19 @@ impl JsBackend {
         ctor.push_argument(&self.enum_name);
         assignments.push(stmt!["this.", &self.enum_name, " = ", &self.enum_name, ";"]);
 
-        for field in fields {
-            ctor.push_argument(stmt![&field.ident]);
-            assignments.push(stmt!["this.", &field.ident, " = ", &field.ident, ";"]);
-        }
+        ctor.push_argument(stmt![&field.ident]);
+        assignments.push(stmt!["this.", &field.ident, " = ", &field.ident, ";"]);
 
         ctor.push(assignments);
         ctor
     }
 
-    fn enum_encode_decode(
-        &self,
-        body: &RpEnumBody,
-        fields: &[Loc<JsField>],
-        class: &ClassSpec,
-    ) -> Result<Element> {
-        // lookup serialized_as if specified.
-        if let Some(ref s) = body.serialized_as {
-            let mut elements = Elements::new();
-
-            if let Some((_, ref field)) = self.find_field(fields, s.value()) {
-                elements.push(self.encode_enum_method(&field.name)?);
-                let decode = self.decode_enum_method(&class, &field.name)?;
-                elements.push(decode);
-                return Ok(elements.into());
-            }
-
-            return Err(Error::pos(format!("no field named: {}", s), s.pos().into()));
-        }
-
-        if body.serialized_as_name {
-            let mut elements = Elements::new();
-
-            elements.push(self.encode_enum_method("name")?);
-            let decode = self.decode_enum_method(&class, "name")?;
-            elements.push(decode);
-            return Ok(elements.into());
-        }
-
+    fn enum_encode_decode(&self, field: &Loc<JsField>, class: &ClassSpec) -> Result<Element> {
         let mut elements = Elements::new();
-        elements.push(self.encode_enum_method("ordinal")?);
-        let decode = self.decode_enum_method(&class, "ordinal")?;
+        elements.push(self.encode_enum_method(&field.name)?);
+        let decode = self.decode_enum_method(&class, &field.name)?;
         elements.push(decode);
-        Ok(elements.into())
+        return Ok(elements.into());
     }
 
     fn build_getters(&self, fields: &[Loc<JsField>]) -> Result<Vec<MethodSpec>> {
@@ -421,6 +377,7 @@ impl JsBackend {
         Ok(())
     }
 
+    /// Convert enum to JavaScript.
     pub fn process_enum(
         &self,
         out: &mut JsFileSpec,
@@ -430,34 +387,24 @@ impl JsBackend {
         let mut class = ClassSpec::new(&name.join(TYPE_SEP));
         class.export();
 
-        let fields: Vec<Loc<JsField>> = body.fields
-            .iter()
-            .map(|f| self.into_js_field_with(f, Self::enum_ident))
-            .collect();
+        let variant_field = Loc::new(body.variant_type.as_field(), body.pos().clone());
+        let field = self.into_js_field_with(&variant_field, Self::enum_ident);
 
         let mut members = Statement::new();
 
-        class.push(self.build_enum_constructor(&fields));
-        let encode_decode = self.enum_encode_decode(&body, &fields, &class)?;
+        class.push(self.build_enum_constructor(&field));
+        let encode_decode = self.enum_encode_decode(&field, &class)?;
         class.push(encode_decode);
 
         let mut values = Elements::new();
-        let variables = Variables::new();
 
-        let variants = body.variants.iter().map(|l| l.loc_ref());
+        body.variants.for_each_loc(|variant| {
+            let mut arguments = Statement::new();
 
-        variants.for_each_loc(|variant| {
-            let mut value_arguments = Statement::new();
+            arguments.push(self.ordinal(variant)?);
+            arguments.push(string(variant.local_name.as_str()));
 
-            value_arguments.push(variant.ordinal.to_string());
-            value_arguments.push(string(variant.local_name.as_str()));
-
-            for (value, field) in variant.arguments.iter().zip(fields.iter()) {
-                let ctx = ValueContext::new(&name.package, &variables, &value, Some(&field.ty));
-                value_arguments.push(self.value(ctx)?);
-            }
-
-            let arguments = js![new & body.local_name, value_arguments];
+            let arguments = js![new & body.local_name, arguments];
             let member = stmt![&class.name, ".", variant.local_name.as_str()];
 
             values.push(js![= &member, arguments]);
@@ -637,56 +584,8 @@ impl Converter for JsBackend {
 
 /// Build values in js.
 impl ValueBuilder for JsBackend {
-    fn env(&self) -> &Environment {
-        &self.env
-    }
-
-    fn identifier(&self, identifier: &str) -> Result<Self::Stmt> {
-        Ok(stmt![identifier])
-    }
-
-    fn optional_empty(&self) -> Result<Self::Stmt> {
-        Ok(stmt!["null"])
-    }
-
-    fn optional_of(&self, value: Self::Stmt) -> Result<Self::Stmt> {
-        Ok(value)
-    }
-
-    fn constant(&self, ty: Self::Type) -> Result<Self::Stmt> {
-        return Ok(stmt![ty]);
-    }
-
-    fn instance(&self, ty: Self::Type, arguments: Vec<Self::Stmt>) -> Result<Self::Stmt> {
-        let mut stmt = Statement::new();
-
-        for a in arguments {
-            stmt.push(a);
-        }
-
-        Ok(stmt!["new ", &ty, "(", stmt.join(", "), ")"])
-    }
-
-    fn number(&self, number: &RpNumber) -> Result<Self::Stmt> {
-        Ok(stmt![number.to_string()])
-    }
-
-    fn boolean(&self, boolean: &bool) -> Result<Self::Stmt> {
-        Ok(stmt![boolean.to_string()])
-    }
-
     fn string(&self, string: &str) -> Result<Self::Stmt> {
         Ok(Variable::String(string.to_owned()).into())
-    }
-
-    fn array(&self, values: Vec<Self::Stmt>) -> Result<Self::Stmt> {
-        let mut arguments = Statement::new();
-
-        for v in values {
-            arguments.push(v);
-        }
-
-        Ok(stmt!["[", arguments.join(", "), "]"])
     }
 }
 

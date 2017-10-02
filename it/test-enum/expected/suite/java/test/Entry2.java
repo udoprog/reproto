@@ -2,21 +2,22 @@ package test;
 
 import java.util.Objects;
 
-public enum Entry {
-  A("foo"),
-  B("bar");
+public enum Entry2 {
+  A("A"),
+  B("B"),
+  C("C");
 
   private final String value;
 
-  private Entry(
+  private Entry2(
     final String value
   ) {
     Objects.requireNonNull(value, "value");
     this.value = value;
   }
 
-  public static Entry fromValue(final String value) {
-    for (final Entry value : values()) {
+  public static Entry2 fromValue(final String value) {
+    for (final Entry2 value : values()) {
       if (value.value.equals(value)) {
         return value;
       }

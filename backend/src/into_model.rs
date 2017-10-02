@@ -68,28 +68,28 @@ impl<'input> IntoModel for EnumBody<'input> {
     fn into_model(self, scope: &Scope) -> Result<Self::Output> {
         let mut variants: Vec<Rc<Loc<RpEnumVariant>>> = Vec::new();
 
-        let mut ordinals = OrdinalGenerator::new();
-
         let (fields, codes, options, decls) = members_into_model(scope, self.members)?;
+
+        if fields.len() > 0 {
+            return Err("enums can't have fields".into());
+        }
 
         let ty = self.ty.into_model(scope)?;
 
         let variant_type = if let Some(ty) = ty {
             ty.and_then(|ty| {
                 ty.as_enum_type().ok_or_else(
-                    || "expeced string or number".into(),
+                    || "expected string or absent".into(),
                 ) as Result<RpEnumType>
             })?
         } else {
-            RpEnumType::Number
+            RpEnumType::Generated
         };
 
         for variant in self.variants {
             let (variant, pos) = variant.take_pair();
 
-            let variant = (variant, &variant_type, &mut ordinals)
-                .into_model(scope)
-                .with_pos(&pos)?;
+            let variant = (variant, &variant_type).into_model(scope).with_pos(&pos)?;
 
             if let Some(other) = variants.iter().find(
                 |v| *v.local_name == *variant.local_name,
@@ -106,16 +106,7 @@ impl<'input> IntoModel for EnumBody<'input> {
             variants.push(Rc::new(Loc::new(variant, pos)));
         }
 
-        let options = Options::new(options);
-
-        let serialized_as: Option<Loc<String>> =
-            options.find_one_identifier("serialized_as")?.to_owned();
-
-        let serialized_as_name = options
-            .find_one_boolean("serialized_as_name")?
-            .to_owned()
-            .map(|t| t.take())
-            .unwrap_or(false);
+        let _options = Options::new(options);
 
         Ok(RpEnumBody {
             name: scope.as_name(),
@@ -124,20 +115,17 @@ impl<'input> IntoModel for EnumBody<'input> {
             decls: decls,
             variant_type: variant_type,
             variants: variants,
-            fields: fields,
             codes: codes,
-            serialized_as: serialized_as,
-            serialized_as_name: serialized_as_name,
         })
     }
 }
 
 /// enum value with assigned ordinal
-impl<'input, 'a> IntoModel for (EnumVariant<'input>, &'a RpEnumType, &'a mut OrdinalGenerator) {
+impl<'input, 'a> IntoModel for (EnumVariant<'input>, &'a RpEnumType) {
     type Output = RpEnumVariant;
 
     fn into_model(self, scope: &Scope) -> Result<Self::Output> {
-        let (variant, ty, ordinals) = self;
+        let (variant, ty) = self;
 
         let ordinal = if let Some(argument) = variant.argument.into_model(scope)? {
             if !ty.is_assignable_from(&argument) {
@@ -148,7 +136,7 @@ impl<'input, 'a> IntoModel for (EnumVariant<'input>, &'a RpEnumType, &'a mut Ord
 
             argument.and_then(|value| value.to_ordinal())?
         } else {
-            RpEnumOrdinal::Number(ordinals.next()?)
+            RpEnumOrdinal::Generated
         };
 
         Ok(RpEnumVariant {
@@ -157,19 +145,6 @@ impl<'input, 'a> IntoModel for (EnumVariant<'input>, &'a RpEnumType, &'a mut Ord
             comment: variant.comment.into_iter().map(ToOwned::to_owned).collect(),
             ordinal: ordinal,
         })
-    }
-}
-
-impl<'input> IntoModel for FieldInit<'input> {
-    type Output = RpFieldInit;
-
-    fn into_model(self, scope: &Scope) -> Result<RpFieldInit> {
-        let field_init = RpFieldInit {
-            name: self.name.into_model(scope)?,
-            value: self.value.into_model(scope)?,
-        };
-
-        Ok(field_init)
     }
 }
 
@@ -197,19 +172,6 @@ impl<'input> IntoModel for File<'input> {
             options: options,
             decls: self.decls.into_model(scope)?,
         })
-    }
-}
-
-impl<'input> IntoModel for Instance<'input> {
-    type Output = RpInstance;
-
-    fn into_model(self, scope: &Scope) -> Result<RpInstance> {
-        let instance = RpInstance {
-            name: self.name.into_model(scope)?,
-            arguments: self.arguments.into_model(scope)?,
-        };
-
-        Ok(instance)
     }
 }
 
@@ -371,21 +333,6 @@ impl<'input> IntoModel for (&'input Path, usize, usize) {
 
     fn into_model(self, _scope: &Scope) -> Result<Self::Output> {
         Ok((self.0.to_owned(), self.1, self.2))
-    }
-}
-
-impl<'input> IntoModel for Creator<'input> {
-    type Output = RpCreator;
-
-    fn into_model(self, scope: &Scope) -> Result<RpCreator> {
-        use self::Creator::*;
-
-        let out = match self {
-            Instance(instance) => RpCreator::Instance(instance.into_model(scope)?),
-            Constant(constant) => RpCreator::Constant(constant.into_model(scope)?),
-        };
-
-        Ok(out)
     }
 }
 
@@ -839,23 +786,6 @@ pub fn members_into_model(
     Ok((fields, codes, options, decls))
 }
 
-/// Generate ordinal values.
-pub struct OrdinalGenerator {
-    next_ordinal: u32,
-}
-
-impl OrdinalGenerator {
-    pub fn new() -> OrdinalGenerator {
-        OrdinalGenerator { next_ordinal: 0 }
-    }
-
-    pub fn next(&mut self) -> Result<u32> {
-        let o = self.next_ordinal;
-        self.next_ordinal += 1;
-        Ok(o)
-    }
-}
-
 impl<'input> IntoModel for Value<'input> {
     type Output = RpValue;
 
@@ -866,7 +796,6 @@ impl<'input> IntoModel for Value<'input> {
             Value::Boolean(boolean) => RpValue::Boolean(boolean),
             Value::Identifier(identifier) => RpValue::Identifier(identifier.to_owned()),
             Value::Array(inner) => RpValue::Array(inner.into_model(scope)?),
-            Value::Creator(creator) => RpValue::Creator(creator.into_model(scope)?),
         };
 
         Ok(out)

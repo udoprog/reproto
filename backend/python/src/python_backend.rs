@@ -1,4 +1,5 @@
 use super::*;
+use std::iter;
 use std::rc::Rc;
 
 const TYPE_SEP: &'static str = "_";
@@ -46,22 +47,8 @@ impl PythonBackend {
         Ok(())
     }
 
-    fn find_field<'a>(
-        &self,
-        fields: &'a Vec<Loc<Field>>,
-        name: &str,
-    ) -> Option<(usize, &Field<'a>)> {
-        for (i, field) in fields.iter().enumerate() {
-            if field.name == name {
-                return Some((i, field.value()));
-            }
-        }
-
-        None
-    }
-
     /// Build a function that raises an exception if the given value `stmt` is None.
-    fn raise_if_none(&self, stmt: &Statement, field: &Field) -> Elements {
+    fn raise_if_none(&self, stmt: &Statement, field: &PythonField) -> Elements {
         let mut raise_if_none = Elements::new();
         let required_error = Variable::String(format!("{}: is a required field", field.name));
 
@@ -74,7 +61,7 @@ impl PythonBackend {
     fn encode_method<E>(
         &self,
         name: &RpName,
-        fields: &[Loc<Field>],
+        fields: &[Loc<PythonField>],
         builder: &BuiltInName,
         extra: E,
     ) -> Result<MethodSpec>
@@ -126,7 +113,11 @@ impl PythonBackend {
         Ok(encode)
     }
 
-    fn encode_tuple_method(&self, name: &RpName, fields: &[Loc<Field>]) -> Result<MethodSpec> {
+    fn encode_tuple_method(
+        &self,
+        name: &RpName,
+        fields: &[Loc<PythonField>],
+    ) -> Result<MethodSpec> {
         let mut values = Statement::new();
 
         let mut encode = MethodSpec::new("encode");
@@ -148,7 +139,7 @@ impl PythonBackend {
         Ok(encode)
     }
 
-    fn encode_enum_method(&self, field: &Field) -> Result<MethodSpec> {
+    fn encode_enum_method(&self, field: &PythonField) -> Result<MethodSpec> {
         let mut encode = MethodSpec::new("encode");
         encode.push_argument(stmt!["self"]);
 
@@ -159,7 +150,7 @@ impl PythonBackend {
         Ok(encode)
     }
 
-    fn decode_enum_method(&self, field: &Field) -> Result<MethodSpec> {
+    fn decode_enum_method(&self, field: &PythonField) -> Result<MethodSpec> {
         let mut decode = MethodSpec::new("decode");
 
         let cls = stmt!["cls"];
@@ -198,7 +189,10 @@ impl PythonBackend {
         Ok(decode)
     }
 
-    fn repr_method(&self, name: &str, fields: &[Loc<Field>]) -> MethodSpec {
+    fn repr_method<'a, I>(&self, name: &str, fields: I) -> MethodSpec
+    where
+        I: IntoIterator<Item = &'a Loc<PythonField<'a>>>,
+    {
         let mut repr = MethodSpec::new("__repr__");
         repr.push_argument(stmt!["self"]);
 
@@ -249,11 +243,11 @@ impl PythonBackend {
     fn decode_method<F>(
         &self,
         name: &RpName,
-        fields: &[Loc<Field>],
+        fields: &[Loc<PythonField>],
         variable_fn: F,
     ) -> Result<MethodSpec>
     where
-        F: Fn(usize, &Field) -> Variable,
+        F: Fn(usize, &PythonField) -> Variable,
     {
         let data = stmt!["data"];
 
@@ -310,7 +304,10 @@ impl PythonBackend {
         self.ident(field.ident())
     }
 
-    fn build_constructor(&self, fields: &[Loc<Field>]) -> MethodSpec {
+    fn build_constructor<'a, I>(&self, fields: I) -> MethodSpec
+    where
+        I: IntoIterator<Item = &'a Loc<PythonField<'a>>>,
+    {
         let mut constructor = MethodSpec::new("__init__");
         constructor.push_argument(stmt!["self"]);
 
@@ -322,7 +319,10 @@ impl PythonBackend {
         constructor
     }
 
-    fn build_getters(&self, fields: &[Loc<Field>]) -> Result<Vec<MethodSpec>> {
+    fn build_getters<'a, I>(&self, fields: I) -> Result<Vec<MethodSpec>>
+    where
+        I: IntoIterator<Item = &'a Loc<PythonField<'a>>>,
+    {
         let mut result = Vec::new();
 
         for field in fields {
@@ -353,10 +353,8 @@ impl PythonBackend {
         Ok(Name::local(&local_name).into())
     }
 
-    pub fn enum_variants(&self, name: &RpName, body: &RpEnumBody) -> Result<Statement> {
+    pub fn enum_variants(&self, body: &RpEnumBody) -> Result<Statement> {
         let mut arguments = Statement::new();
-
-        let variables = Variables::new();
 
         let variants = body.variants.iter().map(|l| l.loc_ref());
 
@@ -366,19 +364,7 @@ impl PythonBackend {
             let mut enum_arguments = Statement::new();
 
             enum_arguments.push(var_name);
-
-            if !variant.arguments.is_empty() {
-                let mut value_arguments = Statement::new();
-
-                for (value, field) in variant.arguments.iter().zip(body.fields.iter()) {
-                    let ctx = ValueContext::new(&name.package, &variables, &value, Some(&field.ty));
-                    value_arguments.push(self.value(ctx)?);
-                }
-
-                enum_arguments.push(stmt!["(", value_arguments.join(", "), ")"]);
-            } else {
-                enum_arguments.push(variant.ordinal.to_string());
-            }
+            enum_arguments.push(self.ordinal(variant)?);
 
             arguments.push(stmt!["(", enum_arguments.join(", "), ")"]);
 
@@ -401,7 +387,7 @@ impl PythonBackend {
         ])
     }
 
-    fn enum_ident(field: Field) -> Field {
+    fn enum_ident(field: PythonField) -> PythonField {
         match field.ident.as_str() {
             "name" => field.with_ident("_name".to_owned()),
             "ordinal" => field.with_ident("_ordinal".to_owned()),
@@ -413,14 +399,14 @@ impl PythonBackend {
         &self,
         field: &'a Loc<RpField>,
         python_field_f: F,
-    ) -> Loc<Field<'a>>
+    ) -> Loc<PythonField<'a>>
     where
-        F: Fn(Field<'a>) -> Field<'a>,
+        F: Fn(PythonField<'a>) -> PythonField<'a>,
     {
         let ident = self.field_ident(field);
 
         field.as_ref().map(|f| {
-            python_field_f(Field {
+            python_field_f(PythonField {
                 modifier: &f.modifier,
                 ty: &f.ty,
                 name: f.name(),
@@ -429,7 +415,7 @@ impl PythonBackend {
         })
     }
 
-    fn into_python_field<'a>(&self, field: &'a Loc<RpField>) -> Loc<Field<'a>> {
+    fn into_python_field<'a>(&self, field: &'a Loc<RpField>) -> Loc<PythonField<'a>> {
         self.into_python_field_with(field, |ident| ident)
     }
 
@@ -445,7 +431,7 @@ impl PythonBackend {
     ) -> Result<()> {
         let mut class = self.as_class(name);
 
-        let fields: Vec<Loc<Field>> = body.fields
+        let fields: Vec<Loc<PythonField>> = body.fields
             .iter()
             .map(|f| self.into_python_field(f))
             .collect();
@@ -480,6 +466,7 @@ impl PythonBackend {
         Ok(())
     }
 
+    /// Process an enum for Python.
     pub fn process_enum(
         &self,
         out: &mut PythonFileSpec,
@@ -488,18 +475,15 @@ impl PythonBackend {
     ) -> Result<()> {
         let mut class = self.as_class(name);
 
-        let fields: Vec<Loc<Field>> = body.fields
-            .iter()
-            .map(|f| self.into_python_field_with(f, Self::enum_ident))
-            .collect();
+        let variant_field = body.variant_type.as_field();
+        let field = Loc::new(variant_field, body.pos().clone());
+        let field = self.into_python_field_with(&field, Self::enum_ident);
 
-        if !fields.is_empty() {
-            class.push(self.build_constructor(&fields));
-        }
+        class.push(self.build_constructor(iter::once(&field)));
 
         // TODO: make configurable
         if false {
-            for getter in self.build_getters(&fields)? {
+            for getter in self.build_getters(iter::once(&field))? {
                 class.push(&getter);
             }
         }
@@ -508,16 +492,10 @@ impl PythonBackend {
             class.push(code.take().lines);
         }
 
-        if let Some(ref s) = body.serialized_as {
-            if let Some((_, ref field)) = self.find_field(&fields, s.value()) {
-                class.push(self.encode_enum_method(field)?);
-                class.push(self.decode_enum_method(field)?);
-            } else {
-                return Err(format!("no field named: {}", s).into());
-            }
-        }
+        class.push(self.encode_enum_method(&field)?);
+        class.push(self.decode_enum_method(&field)?);
 
-        let repr_method = self.repr_method(&class.name, &fields);
+        let repr_method = self.repr_method(&class.name, iter::once(&field));
         class.push(repr_method);
 
         out.0.push(class);
@@ -532,7 +510,7 @@ impl PythonBackend {
     ) -> Result<()> {
         let mut class = self.as_class(name);
 
-        let fields: Vec<Loc<Field>> = body.fields
+        let fields: Vec<Loc<PythonField>> = body.fields
             .iter()
             .map(|f| self.into_python_field(f))
             .collect();
@@ -599,7 +577,7 @@ impl PythonBackend {
                 Variable::String(sub_type.name().to_owned()),
             ]);
 
-            let fields: Vec<Loc<Field>> = body.fields
+            let fields: Vec<Loc<PythonField>> = body.fields
                 .iter()
                 .chain(sub_type.fields.iter())
                 .map(|f| self.into_python_field(f))
@@ -685,56 +663,8 @@ impl Converter for PythonBackend {
 
 /// Build values in python.
 impl ValueBuilder for PythonBackend {
-    fn env(&self) -> &Environment {
-        &self.env
-    }
-
-    fn identifier(&self, identifier: &str) -> Result<Self::Stmt> {
-        Ok(stmt![identifier])
-    }
-
-    fn optional_empty(&self) -> Result<Self::Stmt> {
-        Ok(stmt!["None"])
-    }
-
-    fn optional_of(&self, value: Self::Stmt) -> Result<Self::Stmt> {
-        Ok(value)
-    }
-
-    fn constant(&self, ty: Self::Type) -> Result<Self::Stmt> {
-        return Ok(stmt![ty]);
-    }
-
-    fn instance(&self, ty: Self::Type, arguments: Vec<Self::Stmt>) -> Result<Self::Stmt> {
-        let mut stmt = Statement::new();
-
-        for a in arguments {
-            stmt.push(a);
-        }
-
-        Ok(stmt![&ty, "(", stmt.join(", "), ")"])
-    }
-
-    fn number(&self, number: &RpNumber) -> Result<Self::Stmt> {
-        Ok(stmt![number.to_string()])
-    }
-
-    fn boolean(&self, boolean: &bool) -> Result<Self::Stmt> {
-        Ok(stmt![boolean.to_string()])
-    }
-
     fn string(&self, string: &str) -> Result<Self::Stmt> {
         Ok(Variable::String(string.to_owned()).into())
-    }
-
-    fn array(&self, values: Vec<Self::Stmt>) -> Result<Self::Stmt> {
-        let mut arguments = Statement::new();
-
-        for v in values {
-            arguments.push(v);
-        }
-
-        Ok(stmt!["[", arguments.join(", "), "]"])
     }
 }
 

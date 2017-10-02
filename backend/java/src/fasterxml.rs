@@ -366,14 +366,8 @@ impl Listeners for Module {
     }
 
     fn enum_added(&self, event: &mut EnumAdded) -> Result<()> {
-        if let Some(ref mut from_value) = *event.from_value {
-            from_value.push_annotation(&self.creator);
-        }
-
-        if let Some(ref mut to_value) = *event.to_value {
-            to_value.push_annotation(&self.value);
-        }
-
+        event.from_value.push_annotation(&self.creator);
+        event.to_value.push_annotation(&self.value);
         Ok(())
     }
 

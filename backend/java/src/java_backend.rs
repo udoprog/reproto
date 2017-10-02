@@ -458,16 +458,6 @@ impl JavaBackend {
         constructor
     }
 
-    fn find_field<'a>(&self, fields: &[JavaField<'a>], name: &str) -> Option<JavaField<'a>> {
-        for field in fields {
-            if field.name == name {
-                return Some(field.clone());
-            }
-        }
-
-        None
-    }
-
     fn enum_from_value_method(
         &self,
         field: &JavaField,
@@ -532,74 +522,61 @@ impl JavaBackend {
         Ok(to_value)
     }
 
+    fn enum_type_to_java(&self, ty: &RpEnumType) -> Result<Type> {
+        use self::RpEnumType::*;
+
+        match *ty {
+            String => Ok(self.string.clone().into()),
+            Generated => Ok(self.string.clone().into()),
+        }
+    }
+
     fn process_enum(&self, name: &RpName, body: &RpEnumBody) -> Result<EnumSpec> {
         let class_type = Type::class(&self.java_package_name(&name.package), &body.local_name);
 
         let mut spec = EnumSpec::new(mods![Modifier::Public], &body.local_name);
-        let fields = self.convert_fields(&body.fields)?;
+        let enum_type = self.enum_type_to_java(&body.variant_type)?;
+        let value_field = self.new_field_spec(&enum_type, "value");
 
-        for field in &fields {
-            spec.push_field(&field.java_spec);
-
-            if self.options.build_getters {
-                spec.push(field.getter()?);
-            }
-
-            if self.options.build_setters {
-                if let Some(setter) = field.setter()? {
-                    spec.push(setter);
-                }
-            }
-        }
-
-        for code in body.codes.for_context(JAVA_CONTEXT) {
-            spec.push(code.take().lines);
-        }
+        spec.push_field(&value_field);
 
         for variant in &body.variants {
             let mut enum_value = Elements::new();
             let mut enum_stmt = stmt![&*variant.local_name];
 
-            let value = self.ordinal(&variant.ordinal)?;
+            let value = self.ordinal(variant)?;
             enum_stmt.push(stmt!["(", value, ")"]);
 
             enum_value.push(enum_stmt);
             spec.push_value(enum_value);
         }
 
-        if !fields.is_empty() {
-            let constructor = self.build_enum_constructor(&spec);
-            spec.push_constructor(constructor);
+        let constructor = self.build_enum_constructor(&spec);
+        spec.push_constructor(constructor);
+
+        for code in body.codes.for_context(JAVA_CONTEXT) {
+            spec.push(code.take().lines);
         }
 
-        let mut from_value: Option<MethodSpec> = None;
-        let mut to_value: Option<MethodSpec> = None;
+        let variant_field = body.variant_type.as_field();
+        let variant_java_field = self.convert_field(&variant_field)?;
 
-        if let Some(ref s) = body.serialized_as {
-            if let Some(field) = self.find_field(&fields, s.value()) {
-                from_value = Some(self.enum_from_value_method(&field, &class_type)?);
-                to_value = Some(self.enum_to_value_method(&field)?);
-            } else {
-                return Err(Error::pos(format!("no field named: {}", s), s.pos().into()));
-            }
-        }
+        let mut from_value: MethodSpec = self.enum_from_value_method(
+            &variant_java_field,
+            &class_type,
+        )?;
+        let mut to_value: MethodSpec = self.enum_to_value_method(&variant_java_field)?;
 
         self.listeners.enum_added(&mut EnumAdded {
             body: body,
-            fields: &fields,
             class_type: &class_type,
             from_value: &mut from_value,
             to_value: &mut to_value,
             spec: &mut spec,
         })?;
 
-        if let Some(from_value) = from_value {
-            spec.push(from_value);
-        }
-
-        if let Some(to_value) = to_value {
-            spec.push(to_value);
-        }
+        spec.push(from_value);
+        spec.push(to_value);
 
         Ok(spec)
     }
@@ -958,10 +935,6 @@ impl Converter for JavaBackend {
 
 /// Build values in python.
 impl ValueBuilder for JavaBackend {
-    fn ordinal_number(&self, number: &u32) -> Result<Self::Stmt> {
-        Ok(stmt![number.to_string()])
-    }
-
     fn string(&self, string: &str) -> Result<Self::Stmt> {
         Ok(Variable::String(string.to_owned()).into())
     }

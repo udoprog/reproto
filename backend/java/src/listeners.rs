@@ -16,10 +16,9 @@ pub struct TupleAdded<'a> {
 
 pub struct EnumAdded<'a> {
     pub body: &'a RpEnumBody,
-    pub fields: &'a Vec<JavaField<'a>>,
     pub class_type: &'a ClassType,
-    pub from_value: &'a mut Option<MethodSpec>,
-    pub to_value: &'a mut Option<MethodSpec>,
+    pub from_value: &'a mut MethodSpec,
+    pub to_value: &'a mut MethodSpec,
     pub spec: &'a mut EnumSpec,
 }
 

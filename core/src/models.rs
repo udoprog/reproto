@@ -168,12 +168,10 @@ pub struct RpEnumBody {
     pub comment: Vec<String>,
     /// Inner declarations.
     pub decls: Vec<Rc<Loc<RpDecl>>>,
+    /// The type of the variant.
     pub variant_type: RpEnumType,
     pub variants: Vec<Rc<Loc<RpEnumVariant>>>,
-    pub fields: Vec<Loc<RpField>>,
     pub codes: Vec<Loc<RpCode>>,
-    pub serialized_as: Option<Loc<String>>,
-    pub serialized_as_name: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -187,7 +185,7 @@ pub struct RpEnumVariant {
 #[derive(Debug, Clone, Serialize)]
 pub enum RpEnumType {
     String,
-    Number,
+    Generated,
 }
 
 impl RpEnumType {
@@ -195,10 +193,28 @@ impl RpEnumType {
         use self::RpEnumType::*;
 
         match (self, value) {
-            (&Number, &RpValue::Number(_)) => true,
             (&String, &RpValue::String(_)) => true,
             _ => false,
         }
+    }
+
+    pub fn as_type(&self) -> RpType {
+        use self::RpEnumType::*;
+
+        match *self {
+            String => RpType::String,
+            Generated => RpType::String,
+        }
+    }
+
+    pub fn as_field(&self) -> RpField {
+        RpField::new(
+            RpModifier::Required,
+            String::from("value"),
+            vec![],
+            self.as_type(),
+            None,
+        )
     }
 }
 
@@ -208,21 +224,17 @@ impl fmt::Display for RpEnumType {
 
         match *self {
             String => write!(f, "string"),
-            Number => write!(f, "number"),
+            Generated => write!(f, "generated"),
         }
     }
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub enum RpEnumOrdinal {
+    /// Value is specified expliticly.
     String(String),
-    Number(u32),
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct RpFieldInit {
-    pub name: Loc<String>,
-    pub value: Loc<RpValue>,
+    /// Value is automatically derived from the name of the variant.
+    Generated,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -276,12 +288,6 @@ impl RpField {
 pub struct RpFile {
     pub options: Options,
     pub decls: Vec<Loc<RpDecl>>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct RpInstance {
-    pub name: RpName,
-    pub arguments: Loc<Vec<Loc<RpFieldInit>>>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -382,12 +388,6 @@ impl fmt::Display for RpName {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub enum RpCreator {
-    Instance(Loc<RpInstance>),
-    Constant(Loc<RpName>),
-}
-
-#[derive(Debug, Clone, Serialize)]
 pub struct RpOptionDecl {
     pub name: String,
     pub values: Vec<Loc<RpValue>>,
@@ -480,10 +480,9 @@ impl RpRegistered {
             Type(ref target) => Box::new(target.fields.iter()),
             Tuple(ref target) => Box::new(target.fields.iter()),
             Interface(ref target) => Box::new(target.fields.iter()),
-            Enum(ref target) => Box::new(target.fields.iter()),
-            SubType(ref parent, ref target) => Box::new(
-                parent.fields.iter().chain(target.fields.iter()),
-            ),
+            SubType(ref parent, ref target) => {
+                Box::new(parent.fields.iter().chain(target.fields.iter()))
+            }
             _ => {
                 return Err(
                     format!("{}: type doesn't have fields", self.display()).into(),
@@ -730,12 +729,6 @@ impl RpType {
             (&Boolean, &RpValue::Boolean(_)) => true,
             (&String, &RpValue::String(_)) => true,
             (&Array { .. }, &RpValue::Array(_)) => true,
-            (&Name { name: ref expected, .. }, &RpValue::Creator(ref creator)) => {
-                match creator.value() {
-                    &RpCreator::Constant(ref name) => expected.is_same(&*name),
-                    &RpCreator::Instance(ref instance) => expected.is_same(&instance.name),
-                }
-            }
             _ => false,
         }
     }
@@ -745,7 +738,6 @@ impl RpType {
         use self::RpType::*;
 
         match *self {
-            Double | Float | Signed { .. } | Unsigned { .. } => Some(RpEnumType::Number),
             String => Some(RpEnumType::String),
             _ => None,
         }
@@ -760,7 +752,6 @@ pub enum RpValue {
     Boolean(bool),
     Identifier(String),
     Array(Vec<Loc<RpValue>>),
-    Creator(Loc<RpCreator>),
 }
 
 impl RpValue {
@@ -786,10 +777,6 @@ impl RpValue {
     pub fn to_ordinal(self) -> Result<RpEnumOrdinal> {
         let ordinal = match self {
             RpValue::String(value) => RpEnumOrdinal::String(value),
-            RpValue::Number(number) => {
-                let number = number.to_u32().ok_or_else(|| ErrorKind::InvalidOrdinal)?;
-                RpEnumOrdinal::Number(number)
-            }
             _ => return Err(ErrorKind::InvalidOrdinal.into()),
         };
 
@@ -805,7 +792,6 @@ impl fmt::Display for RpValue {
             RpValue::Boolean(_) => "<boolean>",
             RpValue::Identifier(_) => "<identifier>",
             RpValue::Array(_) => "<array>",
-            RpValue::Creator(_) => "<creator>",
         };
 
         write!(f, "{}", out)

@@ -251,11 +251,6 @@ OptionDecl: OptionDecl<'input> = <name:Identifier> <values:OneOrMore<",", Loc<Va
     values: values,
 };
 
-Creator: Creator<'input> = {
-    <instance:Loc<Instance>> => Creator::Instance(instance),
-    <name:Loc<Name>> => Creator::Constant(name),
-};
-
 SubType: SubType<'input> = {
     <comment:"///"?>
     <name:TypeIdentifier> "{"
@@ -276,21 +271,6 @@ pub Value: Value<'input> = {
     <true> => Value::Boolean(true),
     <false> => Value::Boolean(false),
     <identifier:Identifier> => Value::Identifier(identifier),
-    <creator:Loc<Creator>> => Value::Creator(creator),
-};
-
-Instance: Instance<'input> = {
-    <name:Name> "(" <arguments:Loc<ZeroOrMore<",", Loc<FieldInit>>>> ")" => Instance {
-        name: name,
-        arguments: arguments,
-    },
-};
-
-FieldInit: FieldInit<'input> = {
-    <name:Loc<Identifier>> ":" <value:Loc<Value>> => FieldInit {
-        name: name,
-        value: value,
-    },
 };
 
 pub TypeSpec: Type = {

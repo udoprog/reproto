@@ -5,17 +5,17 @@ extern crate codeviz_macros;
 extern crate codeviz_python;
 extern crate reproto_backend as backend;
 
-mod field;
 mod listeners;
 mod python_backend;
 mod python_compiler;
+mod python_field;
 mod python_file_spec;
 mod python_options;
 
-pub(crate) use self::field::*;
 pub(crate) use self::listeners::*;
 pub(crate) use self::python_backend::*;
 pub(crate) use self::python_compiler::*;
+pub(crate) use self::python_field::*;
 pub(crate) use self::python_file_spec::*;
 pub(crate) use self::python_options::*;
 pub(crate) use backend::errors::*;

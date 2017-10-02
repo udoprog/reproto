@@ -1,4 +1,12 @@
+/// Explicitly assigned strings
 enum Entry: string {
     A = "foo";
     B = "bar";
+}
+
+/// Implicit naming depending on the variant
+enum Entry2 {
+    A;
+    B;
+    C;
 }
