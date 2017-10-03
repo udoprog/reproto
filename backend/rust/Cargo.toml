@@ -15,5 +15,5 @@ Rethinking Protocol Generators
 reproto-backend = {path = "..", version = "0.1"}
 
 log = "0.3"
-codeviz_rust = "0.2"
-codeviz_macros = "0.2"
+codeviz_rust = {version = "0.2", path = "../../../codeviz/rust"}
+codeviz_macros = {version = "0.2", path = "../../../codeviz/macros"}

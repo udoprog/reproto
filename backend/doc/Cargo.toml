@@ -17,7 +17,7 @@ reproto-backend = {path = "..", version = "0.1"}
 
 log = "0.3"
 pulldown-cmark = "0.0.14"
-codeviz_common = "0.2"
+codeviz_common = {version = "0.2", path = "../../../codeviz/common"}
 
 [build-dependencies]
 toml = "0.4"

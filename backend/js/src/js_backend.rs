@@ -138,7 +138,7 @@ impl JsBackend {
         let l = stmt!["l"];
         let member = stmt!["member"];
 
-        decode.push_argument(&data);
+        decode.push_argument("data");
 
         let mut member_loop = Elements::new();
 

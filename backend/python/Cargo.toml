@@ -16,5 +16,5 @@ reproto-backend = {path = "..", version = "0.1"}
 reproto-core = {path = "../../core", version = "0.1"}
 
 log = "0.3"
-codeviz_python = "0.2"
-codeviz_macros = "0.2"
+codeviz_python = {version = "0.2", path = "../../../codeviz/python"}
+codeviz_macros = {version = "0.2", path = "../../../codeviz/macros"}

@@ -14,5 +14,5 @@ Rethinking Protocol Generators
 [dependencies]
 reproto-backend = {path = "..", version = "0.1"}
 
-codeviz_js = "0.2"
-codeviz_macros = "0.2"
+codeviz_js = {version = "0.2", path = "../../../codeviz/js"}
+codeviz_macros = {version = "0.2", path = "../../../codeviz/macros"}
