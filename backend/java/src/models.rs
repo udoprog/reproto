@@ -24,7 +24,7 @@ impl<'a> JavaField<'a> {
 
         let argument = ArgumentSpec::new(mods![Modifier::Final], &self.java_type, &self.ident);
 
-        setter.push_argument(&argument);
+        setter.push_argument(argument.clone());
         setter.returns(VOID);
 
         let mut method_body = Elements::new();

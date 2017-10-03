@@ -72,9 +72,9 @@ impl Module {
 
         let mut serialize = MethodSpec::new(mods![Modifier::Public], "serialize");
         serialize.throws(&self.io_exception);
-        serialize.push_argument(&value);
-        serialize.push_argument(&jgen);
-        serialize.push_argument(&provider);
+        serialize.push_argument(value.clone());
+        serialize.push_argument(jgen.clone());
+        serialize.push_argument(provider.clone());
         serialize.push_annotation(&self.override_);
 
         let mut body = Elements::new();
@@ -223,8 +223,8 @@ impl Module {
 
         let mut deserialize = MethodSpec::new(mods![Modifier::Public], "deserialize");
         deserialize.throws(&self.io_exception);
-        deserialize.push_argument(&parser);
-        deserialize.push_argument(&ctxt);
+        deserialize.push_argument(parser.clone());
+        deserialize.push_argument(ctxt.clone());
         deserialize.push_annotation(&self.override_);
         deserialize.returns(&class_type);
 

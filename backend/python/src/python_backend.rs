@@ -156,9 +156,9 @@ impl PythonBackend {
         let cls = stmt!["cls"];
         let data = stmt!["data"];
 
-        decode.push_decorator(&self.classmethod);
-        decode.push_argument(&cls);
-        decode.push_argument(&data);
+        decode.push_decorator(self.classmethod.clone());
+        decode.push_argument(cls.clone());
+        decode.push_argument(data.clone());
 
         let mut decode_body = Elements::new();
 
@@ -253,7 +253,7 @@ impl PythonBackend {
 
         let mut decode = MethodSpec::new("decode");
         decode.push_decorator(&self.staticmethod);
-        decode.push_argument(&data);
+        decode.push_argument(data.clone());
 
         let mut decode_body = Elements::new();
 
@@ -769,7 +769,7 @@ impl DynamicDecode for PythonBackend {
     fn new_decode_method(&self, data: &Self::Stmt, body: Self::Elements) -> Self::Method {
         let mut decode = MethodSpec::new("decode");
         decode.push_decorator(&self.staticmethod);
-        decode.push_argument(&data);
+        decode.push_argument(data.clone());
         decode.push(body);
         decode
     }

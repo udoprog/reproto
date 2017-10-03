@@ -112,7 +112,7 @@ impl JsBackend {
 
         fields.for_each_loc(|field| {
             let stmt = stmt!["this.", &field.ident];
-            encode_body.push(self.throw_if_null(&stmt, field));
+            encode_body.push(self.throw_if_null(stmt.clone(), field));
             values.push(self.dynamic_encode(type_id, &field.ty, &stmt)?);
             Ok(()) as Result<()>
         })?;
@@ -179,7 +179,7 @@ impl JsBackend {
         let mut decode = MethodSpec::with_static("decode");
         let data = stmt!["data"];
 
-        decode.push_argument(&data);
+        decode.push_argument(data.clone());
 
         let mut arguments = Statement::new();
         let mut assign = Elements::new();
@@ -268,7 +268,7 @@ impl JsBackend {
         let mut ctor = ConstructorSpec::new();
         let mut assignments = Elements::new();
 
-        ctor.push_argument(&self.enum_name);
+        ctor.push_argument(self.enum_name.clone());
         assignments.push(stmt!["this.", &self.enum_name, " = ", &self.enum_name, ";"]);
 
         ctor.push_argument(stmt![&field.ident]);
@@ -663,7 +663,7 @@ impl DynamicDecode for JsBackend {
 
     fn new_decode_method(&self, data: &Self::Stmt, body: Self::Elements) -> Self::Method {
         let mut decode = MethodSpec::with_static("decode");
-        decode.push_argument(&data);
+        decode.push_argument(data.clone());
         decode.push(body);
         decode
     }

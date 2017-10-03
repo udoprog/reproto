@@ -152,7 +152,7 @@ impl JavaBackend {
 
         for field in class.fields() {
             let argument = ArgumentSpec::new(mods![Modifier::Final], &field.ty, &field.name);
-            constructor.push_argument(&argument);
+            constructor.push_argument(argument.clone());
 
             if !self.options.nullable {
                 if let Some(non_null) = self.require_non_null(&field, &argument) {
@@ -235,7 +235,7 @@ impl JavaBackend {
 
         let argument = ArgumentSpec::new(mods![Modifier::Final], &self.object, "other");
 
-        equals.push_argument(&argument);
+        equals.push_argument(argument.clone());
 
         // check if argument is null.
         {
@@ -444,7 +444,7 @@ impl JavaBackend {
 
         for field in &en.fields {
             let argument = ArgumentSpec::new(mods![Modifier::Final], &field.ty, &field.name);
-            constructor.push_argument(&argument);
+            constructor.push_argument(argument.clone());
 
             if !self.options.nullable {
                 if let Some(non_null) = self.require_non_null(&field, &argument) {
@@ -492,7 +492,8 @@ impl JavaBackend {
             MethodSpec::new(mods![Modifier::Public, Modifier::Static], "fromValue");
 
         let argument_name = Variable::String(argument.name.clone());
-        let throw = stmt![
+        let throw =
+            stmt![
             "throw new ",
             &self.illegal_argument,
             "(",
