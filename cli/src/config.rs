@@ -1,3 +1,6 @@
+//! Utilities for loading configuration files.
+
+use core::{FileManifest, Manifest, load_manifest};
 use errors::*;
 use std::fs::File;
 use std::io::Read;
@@ -42,4 +45,21 @@ pub fn read_config<P: AsRef<Path>>(path: P) -> Result<Config> {
         format!("{}: bad config: {}", path.display(), e)
     })?;
     Ok(config)
+}
+
+pub fn read_manifest<P: AsRef<Path>>(path: P) -> Result<Manifest> {
+    let path = path.as_ref();
+    let mut f = File::open(path)?;
+    let mut content = String::new();
+    f.read_to_string(&mut content)?;
+    let manifest: FileManifest = toml::from_str(content.as_str()).map_err(|e| {
+        format!("{}: bad manifest: {}", path.display(), e)
+    })?;
+
+    let parent = path.parent().ok_or_else(
+        || format!("missing parent directory"),
+    )?;
+
+    let manifest = load_manifest(parent, manifest)?;
+    Ok(manifest)
 }

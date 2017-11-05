@@ -2,6 +2,7 @@ pub(crate) use super::{compiler_base, path_base, setup_env, setup_options, setup
                        setup_path_resolver, setup_repository};
 pub(crate) use backend::{CompilerOptions, Environment, Options};
 pub(crate) use clap::{App, Arg, ArgMatches, SubCommand};
+pub(crate) use config::read_manifest;
 pub(crate) use core::{RpPackage, RpRequiredPackage, VersionReq};
 pub(crate) use errors::*;
 pub(crate) use reproto_backend_doc as doc;

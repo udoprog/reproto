@@ -1,12 +1,13 @@
 #![recursion_limit = "1000"]
 
-extern crate mime as extern_mime;
-extern crate num;
-extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 #[macro_use]
 extern crate error_chain;
+extern crate mime as extern_mime;
+extern crate num;
+extern crate serde;
+extern crate relative_path;
 pub extern crate semver;
 
 mod as_loc;
@@ -32,7 +33,7 @@ pub mod errors;
 pub use self::error_pos::ErrorPos;
 pub use self::for_each_loc::ForEachLoc;
 pub use self::loc::Loc;
-pub use self::manifest::{load_manifest, FileManifest};
+pub use self::manifest::{FileManifest, Manifest, load_manifest};
 pub use self::merge::Merge;
 pub use self::mime::Mime;
 pub use self::models::*;

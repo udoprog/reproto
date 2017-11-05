@@ -1,10 +1,11 @@
-mod verify;
 mod compile;
-mod publish;
-mod update;
-mod repo;
-mod imports;
 mod config_env;
+mod imports;
+mod manifest;
+mod publish;
+mod repo;
+mod update;
+mod verify;
 
 use self::config_env::ConfigEnv;
 use self::imports::*;
@@ -328,6 +329,7 @@ pub fn options<'a, 'b>(out: App<'a, 'b>) -> App<'a, 'b> {
     let out = out.subcommand(publish::options());
     let out = out.subcommand(update::options());
     let out = out.subcommand(repo::options());
+    let out = out.subcommand(manifest::options());
     out
 }
 
@@ -341,6 +343,7 @@ pub fn entry(matches: &ArgMatches) -> Result<()> {
         "publish" => self::publish::entry(matches),
         "update" => self::update::entry(matches),
         "repo" => self::repo::entry(matches),
+        "manifest" => self::manifest::entry(matches),
         _ => Err(format!("No such command: {}", name).into()),
     }
 }
