@@ -1,5 +1,5 @@
 [package]
-name = "reproto-parser"
+name = "reproto-path-parser"
 version = "0.3.8"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 license = "MIT/Apache-2.0"
@@ -8,21 +8,12 @@ repository = "https://github.com/reproto/reproto"
 homepage = "https://github.com/reproto/reproto"
 documentation = "https://docs.rs/reproto-parser"
 description = """
-reproto parser
+reproto path parser
 """
 
-[features]
-# Enable to emit very detailed tracing, potentially performance sensitive.
-tracing = []
+[lib]
+path = "lib.rs"
 
 [dependencies]
-reproto-core = {path = "../core", version = "0.3"}
 reproto-ast = {path = "../ast", version = "0.3"}
 reproto-lexer = {path = "../lexer", version = "0.3"}
-
-error-chain = "0.11"
-lalrpop-util = "0.13.1"
-num = "0.1"
-
-[build-dependencies]
-lalrpop = "0.13.1"

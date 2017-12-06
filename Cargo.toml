@@ -14,6 +14,7 @@ members = [
   "lib/core",
   "lib/manifest",
   "lib/parser",
+  "lib/path-parser",
   "lib/repository",
   "lib/semck",
   "tools/pack",
