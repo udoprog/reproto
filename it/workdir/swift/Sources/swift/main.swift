@@ -2,7 +2,10 @@ import Foundation
 import Models
 
 let decoder = JSONDecoder()
+decoder.dateDecodingStrategy = .iso8601
+
 let encoder = JSONEncoder()
+encoder.dateEncodingStrategy = .iso8601
 
 while let line = readLine() {
     let json = line.data(using: String.Encoding.utf8)!

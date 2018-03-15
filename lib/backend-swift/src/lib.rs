@@ -20,12 +20,13 @@ mod swift;
 
 use backend::{Initializer, IntoBytes};
 use compiler::Compiler;
-use core::Context;
+use core::{Context, RpField, RpVersionedPackage};
 use core::errors::Result;
 use genco::Tokens;
 use manifest::{Lang, Manifest, NoModule, TryFromToml};
 use naming::Naming;
 use std::any::Any;
+use std::collections::BTreeMap;
 use std::path::Path;
 use std::rc::Rc;
 use swift::Swift;
@@ -162,15 +163,31 @@ impl TryFromToml for SwiftModule {
 }
 
 pub struct Options {
-    pub simple: bool,
-    pub codable: bool,
+    /// All types that the struct model should extend.
+    pub struct_model_extends: Tokens<'static, Swift<'static>>,
+    pub type_gens: Vec<Box<TypeCodegen>>,
+    pub tuple_gens: Vec<Box<TupleCodegen>>,
+    pub struct_model_gens: Vec<Box<StructModelCodegen>>,
+    pub enum_gens: Vec<Box<EnumCodegen>>,
+    pub interface_gens: Vec<Box<InterfaceCodegen>>,
+    pub interface_model_gens: Vec<Box<InterfaceModelCodegen>>,
+    pub package_gens: Vec<Box<PackageCodegen>>,
+    /// The provided Any type that should be used in structs.
+    pub any_type: Vec<(&'static str, Tokens<'static, Swift<'static>>)>,
 }
 
 impl Options {
     pub fn new() -> Options {
         Options {
-            simple: false,
-            codable: false,
+            struct_model_extends: Tokens::new(),
+            type_gens: Vec::new(),
+            tuple_gens: Vec::new(),
+            struct_model_gens: Vec::new(),
+            interface_gens: Vec::new(),
+            interface_model_gens: Vec::new(),
+            enum_gens: Vec::new(),
+            package_gens: Vec::new(),
+            any_type: Vec::new(),
         }
     }
 }
@@ -210,9 +227,86 @@ impl<'el> IntoBytes<Compiler<'el>> for FileSpec<'el> {
     }
 }
 
+/// Build codegen hooks.
+macro_rules! codegen {
+    ($c:tt, $e:ty) => {
+        pub trait $c {
+            fn generate(&self, e: $e) -> Result<()>;
+        }
+
+        impl<T> $c for Rc<T> where T: $c {
+            fn generate(&self, e: $e) -> Result<()> {
+                self.as_ref().generate(e)
+            }
+        }
+    }
+}
+
+/// Event emitted when a struct has been added.
+pub struct TypeAdded<'a, 'c: 'a, 'el: 'a> {
+    pub container: &'a mut Tokens<'el, Swift<'el>>,
+    pub compiler: &'a Compiler<'c>,
+    pub name: &'a Tokens<'el, Swift<'el>>,
+    pub fields: &'a [&'el RpField],
+}
+
+codegen!(TypeCodegen, TypeAdded);
+
+/// Event emitted when a struct has been added.
+pub struct TupleAdded<'a, 'c: 'a, 'el: 'a> {
+    pub container: &'a mut Tokens<'el, Swift<'el>>,
+    pub compiler: &'a Compiler<'c>,
+    pub name: &'a Tokens<'el, Swift<'el>>,
+    pub fields: &'a [&'el RpField],
+}
+
+codegen!(TupleCodegen, TupleAdded);
+
+/// Event emitted when a struct has been added.
+pub struct StructModelAdded<'a, 'el: 'a> {
+    pub container: &'a mut Tokens<'el, Swift<'el>>,
+    pub fields: &'a [&'el RpField],
+}
+
+codegen!(StructModelCodegen, StructModelAdded);
+
+/// Event emitted when an enum has been added.
+pub struct EnumAdded<'a, 'el: 'a> {
+    pub container: &'a mut Tokens<'el, Swift<'el>>,
+    pub name: &'a Tokens<'el, Swift<'el>>,
+    pub body: &'el core::RpEnumBody,
+}
+
+codegen!(EnumCodegen, EnumAdded);
+
+/// Event emitted when an interface has been added.
+pub struct InterfaceAdded<'a, 'c: 'a, 'el: 'a> {
+    pub container: &'a mut Tokens<'el, Swift<'el>>,
+    pub compiler: &'a Compiler<'c>,
+    pub name: &'a Tokens<'el, Swift<'el>>,
+    pub body: &'el core::RpInterfaceBody,
+}
+
+codegen!(InterfaceCodegen, InterfaceAdded);
+
+/// Event emitted when an interface model has been added.
+pub struct InterfaceModelAdded<'a, 'el: 'a> {
+    pub container: &'a mut Tokens<'el, Swift<'el>>,
+    pub body: &'el core::RpInterfaceBody,
+}
+
+codegen!(InterfaceModelCodegen, InterfaceModelAdded);
+
+/// Event emitted when an interface model has been added.
+pub struct PackageAdded<'a, 'el: 'a> {
+    pub files: &'a mut BTreeMap<RpVersionedPackage, FileSpec<'el>>,
+}
+
+codegen!(PackageCodegen, PackageAdded);
+
 fn compile(ctx: Rc<Context>, env: Environment, manifest: Manifest) -> Result<()> {
     let modules = manifest::checked_modules(manifest.modules)?;
     let options = options(modules)?;
     let handle = ctx.filesystem(manifest.output.as_ref().map(AsRef::as_ref))?;
-    Compiler::new(&env, options, handle.as_ref()).compile()
+    Compiler::new(&env, options, handle.as_ref())?.compile()
 }
