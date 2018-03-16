@@ -227,6 +227,7 @@ impl Reproto {
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum Language {
     Csharp,
+    Go,
     Java,
     JavaScript,
     Json,
@@ -254,6 +255,7 @@ impl Language {
 
         match *self {
             Csharp => "csharp",
+            Go => "go",
             Java => "java",
             JavaScript => "js",
             Json => "json",
@@ -271,6 +273,7 @@ impl Language {
 
         match *self {
             Csharp => "csharp",
+            Go => "go",
             Java => "java",
             JavaScript => "js",
             Json => "json",
@@ -293,6 +296,7 @@ impl Language {
             Python3 => RelativePath::new("generated"),
             Rust => RelativePath::new("src"),
             Swift => RelativePath::new("Sources/Models"),
+            Go => RelativePath::new("models"),
             _ => RelativePath::new("."),
         }
     }
@@ -430,7 +434,7 @@ impl<'a> ProjectRunner<'a> {
         let mut child = Command::new(script)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::null())
+            .stderr(Stdio::inherit())
             .spawn()?;
 
         let mut errors = Vec::new();

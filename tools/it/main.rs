@@ -53,6 +53,10 @@ fn detect() -> Vec<Language> {
         out.push(Language::Swift);
     }
 
+    if test("go", &["version"]) {
+        out.push(Language::Go);
+    }
+
     out
 }
 
@@ -99,6 +103,7 @@ fn try_main() -> Result<()> {
 
     let mut project = Project::new(&languages, &reproto, do_suite, do_project, action);
 
+    project.arg(Language::Go, &["-m", "encoding/json"]);
     project.arg(Language::Java, &["-m", "builder", "-m", "jackson"]);
     project.arg(Language::Csharp, &["-m", "Json.NET"]);
 

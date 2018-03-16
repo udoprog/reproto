@@ -209,9 +209,6 @@ pub fn diff_recursive(src: &Path, dst: &Path, errors: &mut Vec<Diff>) -> Result<
 pub fn copy_dir(source: &Path, target: &Path) -> Result<()> {
     use io::ErrorKind::NotFound;
 
-    // whether we should attempt to hard link or not.
-    let mut hard_link = true;
-
     for entry in WalkDir::new(source) {
         let entry = entry?;
 
@@ -238,14 +235,6 @@ pub fn copy_dir(source: &Path, target: &Path) -> Result<()> {
                 fs::remove_file(&dst)?;
             }
             _ => bail!("failed to copy {} to {}", src.display(), dst.display()),
-        }
-
-        if hard_link {
-            match fs::hard_link(&src, &dst) {
-                Ok(_) => continue,
-                // only try to hard link once
-                Err(_) => hard_link = false,
-            }
         }
 
         fs::copy(&src, &dst)?;

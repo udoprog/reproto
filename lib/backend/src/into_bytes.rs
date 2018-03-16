@@ -1,5 +1,6 @@
 use core::errors::*;
+use core::RpPackage;
 
 pub trait IntoBytes<Processor> {
-    fn into_bytes(self, processor: &Processor) -> Result<Vec<u8>>;
+    fn into_bytes(self, processor: &Processor, package: &RpPackage) -> Result<Vec<u8>>;
 }

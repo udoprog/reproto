@@ -17,6 +17,7 @@ pub struct Root {
     keywords: Rc<HashMap<String, String>>,
     safe_packages: bool,
     package_naming: Option<Box<Naming>>,
+    field_ident_naming: Option<Box<Naming>>,
 }
 
 impl Root {
@@ -59,6 +60,7 @@ impl Scope {
         keywords: Rc<HashMap<String, String>>,
         safe_packages: bool,
         package_naming: Option<Box<Naming>>,
+        field_ident_naming: Option<Box<Naming>>,
     ) -> Scope {
         let root = Rc::new(Root {
             ctx,
@@ -70,6 +72,7 @@ impl Scope {
             keywords,
             safe_packages,
             package_naming,
+            field_ident_naming,
         });
 
         Scope(Rc::new(Inner::Root(root)))
@@ -156,6 +159,11 @@ impl Scope {
         self.root().field_naming.as_ref().map(AsRef::as_ref)
     }
 
+    /// Access field identifier naming.
+    pub fn field_ident_naming(&self) -> Option<&Naming> {
+        self.root().field_ident_naming.as_ref().map(AsRef::as_ref)
+    }
+
     /// Lookup if the given identifier matches a language keyword.
     pub fn keyword(&self, identifier: &str) -> Option<&str> {
         self.root().keywords.get(identifier).map(|s| s.as_str())
@@ -202,7 +210,7 @@ mod tests {
         let package = RpVersionedPackage::new(RpPackage::empty(), None);
         let prefixes = HashMap::new();
         let keywords = Rc::new(HashMap::new());
-        let s = Scope::new(ctx, None, package, prefixes, keywords, false, None);
+        let s = Scope::new(ctx, None, package, prefixes, keywords, false, None, None);
 
         let s2 = s.child("foo");
         let s3 = s2.child("bar");

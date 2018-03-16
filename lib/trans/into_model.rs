@@ -278,27 +278,37 @@ fn build_item_name(
     ident: &str,
     name: Option<&str>,
     default_naming: Option<&Naming>,
+    default_ident_naming: Option<&Naming>,
 ) -> (String, Option<String>, Option<String>) {
-    let ident = ident.to_string();
+    let converted_ident = if let Some(ident_naming) = default_ident_naming {
+        ident_naming.convert(ident)
+    } else {
+        ident.to_string()
+    };
 
     // Identifier would translate to a language-specific keyword, introduce replacement
     // here.
-    let safe_ident = scope.keyword(ident.as_str()).map(|s| s.to_string());
+    let safe_ident = scope
+        .keyword(converted_ident.as_str())
+        .map(|s| s.to_string());
 
     // Apply specification-wide naming convention unless field name explicitly specified.
     let name = name.map(|s| s.to_string())
-        .or_else(|| default_naming.map(|n| n.convert(ident.as_str())));
+        .or_else(|| default_naming.map(|n| n.convert(ident)));
 
     // Don't include field alias if same as name.
     let name = match name {
         // Explicit alias, but it's exactly the same as translated field.
-        Some(ref name) if name == ident.as_str() => None,
+        Some(ref name) if name == converted_ident.as_str() => None,
         // Explicit alias that differs from field.
         Some(name) => Some(name),
+        // Name needs to be set if identifier does not match converted.
+        _ if ident != converted_ident.as_str() => Some(ident.to_string()),
+        // Name matches converted_ident
         _ => None,
     };
 
-    (ident, safe_ident, name)
+    (converted_ident, safe_ident, name)
 }
 
 impl<'input> IntoModel for Item<'input, Field<'input>> {
@@ -313,6 +323,7 @@ impl<'input> IntoModel for Item<'input, Field<'input>> {
                 item.name.as_ref(),
                 field_as.as_ref().map(|s| s.as_str()),
                 scope.field_naming(),
+                scope.field_ident_naming(),
             );
 
             let attributes = attributes.into_model(scope)?;
@@ -562,6 +573,7 @@ impl<'input> IntoModel for Item<'input, Endpoint<'input>> {
                 id.as_str(),
                 alias.as_ref().map(|s| s.as_str()),
                 scope.endpoint_naming(),
+                None,
             );
 
             let mut arguments = LinkedHashMap::new();

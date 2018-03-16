@@ -608,6 +608,7 @@ pub fn convert_lang(input: Language) -> Box<Lang> {
 
     match input {
         Csharp => Box::new(::csharp::CsharpLang),
+        Go => Box::new(::go::GoLang),
         Java => Box::new(::java::JavaLang),
         Js => Box::new(::js::JsLang),
         Json => Box::new(::json::JsonLang),

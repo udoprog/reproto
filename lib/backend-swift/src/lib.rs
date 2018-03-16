@@ -20,7 +20,7 @@ mod swift;
 
 use backend::{Initializer, IntoBytes};
 use compiler::Compiler;
-use core::{Context, RpField, RpVersionedPackage};
+use core::{Context, RpField, RpPackage, RpVersionedPackage};
 use core::errors::Result;
 use genco::Tokens;
 use manifest::{Lang, Manifest, NoModule, TryFromToml};
@@ -221,7 +221,7 @@ impl<'el> Default for FileSpec<'el> {
 }
 
 impl<'el> IntoBytes<Compiler<'el>> for FileSpec<'el> {
-    fn into_bytes(self, _: &Compiler<'el>) -> Result<Vec<u8>> {
+    fn into_bytes(self, _: &Compiler<'el>, _: &RpPackage) -> Result<Vec<u8>> {
         let out = self.0.join_line_spacing().to_file()?;
         Ok(out.into_bytes())
     }

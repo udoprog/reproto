@@ -7,6 +7,7 @@ extern crate stdweb;
 
 extern crate reproto_ast as ast;
 extern crate reproto_backend_csharp as csharp;
+extern crate reproto_backend_go as go;
 extern crate reproto_backend_java as java;
 extern crate reproto_backend_js as js;
 extern crate reproto_backend_json as json;
@@ -44,6 +45,8 @@ enum Output {
     Java,
     #[serde(rename = "csharp")]
     Csharp,
+    #[serde(rename = "go")]
+    Go,
     #[serde(rename = "swift")]
     Swift,
     #[serde(rename = "python")]
@@ -78,6 +81,13 @@ impl Output {
                 }
 
                 Box::new(csharp::CsharpLang)
+            }
+            Output::Go => {
+                if settings.go.encoding_json {
+                    modules.push(Box::new(go::GoModule::EncodingJson));
+                }
+
+                Box::new(go::GoLang)
             }
             Output::Swift => {
                 if settings.swift.codable {
@@ -122,6 +132,14 @@ js_serializable!(CsharpSettings);
 js_deserializable!(CsharpSettings);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+struct GoSettings {
+    encoding_json: bool,
+}
+
+js_serializable!(GoSettings);
+js_deserializable!(GoSettings);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct SwiftSettings {
     codable: bool,
     simple: bool,
@@ -144,6 +162,7 @@ struct Settings {
     swift: SwiftSettings,
     rust: RustSettings,
     csharp: CsharpSettings,
+    go: GoSettings,
 }
 
 js_serializable!(Settings);
@@ -415,14 +434,19 @@ fn derive(derive: Derive) -> DeriveResult {
 
         let mut files = Vec::new();
 
-        compile::simple_compile(|path, content| {
-            files.push(DeriveFile {
-                path: path.display().to_string(),
-                content: content.to_string(),
-            });
+        compile::simple_compile(
+            |path, content| {
+                files.push(DeriveFile {
+                    path: path.display().to_string(),
+                    content: content.to_string(),
+                });
 
-            Ok(())
-        }, simple_compile, modules, lang.as_ref())?;
+                Ok(())
+            },
+            simple_compile,
+            modules,
+            lang.as_ref(),
+        )?;
 
         Ok(files)
     }

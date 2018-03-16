@@ -1,4 +1,4 @@
-use super::into_bytes::IntoBytes;
+use IntoBytes;
 use core::{Handle, RelativePath, RelativePathBuf, RpDecl, RpEnumBody, RpInterfaceBody, RpName,
            RpPackage, RpServiceBody, RpTupleBody, RpTypeBody, RpVersionedPackage, WithPos};
 use core::errors::*;
@@ -118,7 +118,7 @@ where
             debug!("+module: {}", full_path.display());
 
             let mut f = handle.create(&full_path)?;
-            let bytes = out.into_bytes(self)?;
+            let bytes = out.into_bytes(self, &package)?;
             f.write_all(&bytes)?;
             f.flush()?;
         }

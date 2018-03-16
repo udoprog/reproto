@@ -7,6 +7,7 @@
  * [`presets` section](#presets-section)
    * [`maven` preset](#maven-preset)
    * [`swift` preset](#swift-preset)
+   * [`go` preset](#go-preset)
  * [`doc` section](#doc)
 
 You tell `reproto` what to do by writing build manifests.
@@ -179,6 +180,25 @@ This preset is equivalent to the following manifest:
 
 paths = ["proto"]
 output = "Sources/Modules"
+```
+
+### `go` preset
+
+Sets default options suitable for building a Go project.
+
+```toml
+# File: reproto.toml
+
+[presets.go]
+```
+
+This preset is equivalent to the following manifest:
+
+```toml
+# File: reproto.toml
+
+paths = ["reproto"]
+output = "modules"
 ```
 
 ## `doc`

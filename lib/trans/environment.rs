@@ -76,6 +76,8 @@ pub struct Environment {
     safe_packages: bool,
     /// Package naming to apply.
     package_naming: Option<Box<Naming>>,
+    /// Field naming to apply.
+    field_ident_naming: Option<Box<Naming>>,
 }
 
 /// Environment containing all loaded declarations.
@@ -96,6 +98,7 @@ impl Environment {
             keywords: Rc::new(HashMap::new()),
             safe_packages: false,
             package_naming: None,
+            field_ident_naming: None,
         }
     }
 
@@ -119,6 +122,14 @@ impl Environment {
     pub fn with_package_naming(self, package_naming: Box<Naming>) -> Self {
         Self {
             package_naming: Some(package_naming),
+            ..self
+        }
+    }
+
+    /// Set field naming policy.
+    pub fn with_field_ident_naming(self, field_ident_naming: Box<Naming>) -> Self {
+        Self {
+            field_ident_naming: Some(field_ident_naming),
             ..self
         }
     }
@@ -295,6 +306,7 @@ impl Environment {
             self.keywords.clone(),
             self.safe_packages,
             self.package_naming.as_ref().map(|n| n.copy()),
+            self.field_ident_naming.as_ref().map(|n| n.copy()),
         );
 
         let attributes = file.attributes.drain(..).collect::<Vec<_>>();

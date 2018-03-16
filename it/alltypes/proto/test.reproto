@@ -11,5 +11,6 @@ type Entry {
     bytes_type?: bytes;
     any_type?: any;
     array_type?: [Entry];
+    array_of_array_type?: [[Entry]];
     map_type?: {string: Entry};
 }

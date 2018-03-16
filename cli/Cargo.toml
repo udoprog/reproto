@@ -27,14 +27,15 @@ reproto-parser = {path = "../lib/parser", version = "0.3"}
 reproto-repository = {path = "../lib/repository", version = "0.3"}
 reproto-repository-http = {path = "../lib/repository-http", version = "0.3"}
 reproto-backend = {path = "../lib/backend", version = "0.3"}
-reproto-backend-doc = {path = "../lib/backend-doc", version = "0.3"}
-reproto-backend-java = {path = "../lib/backend-java", version = "0.3"}
 reproto-backend-csharp = {path = "../lib/backend-csharp", version = "0.3"}
+reproto-backend-doc = {path = "../lib/backend-doc", version = "0.3"}
+reproto-backend-go = {path = "../lib/backend-go", version = "0.3"}
+reproto-backend-java = {path = "../lib/backend-java", version = "0.3"}
 reproto-backend-js = {path = "../lib/backend-js", version = "0.3"}
 reproto-backend-json = {path = "../lib/backend-json", version = "0.3"}
 reproto-backend-python = {path = "../lib/backend-python", version = "0.3"}
-reproto-backend-rust = {path = "../lib/backend-rust", version = "0.3"}
 reproto-backend-reproto = {path = "../lib/backend-reproto", version = "0.3"}
+reproto-backend-rust = {path = "../lib/backend-rust", version = "0.3"}
 reproto-backend-swift = {path = "../lib/backend-swift", version = "0.3"}
 
 ansi_term = "0.9"

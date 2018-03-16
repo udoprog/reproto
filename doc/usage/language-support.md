@@ -17,6 +17,8 @@
 * [Swift](#swift)
   * [`codable` module](#modulescodable)
   * [`simple` module](#modulessimple)
+* [Go](#go)
+  * [`encoding/json` module](#modulesencodingjson)
 
 This section details the how each language behaves, and which modules and options are available to
 tweak this behavior.
@@ -792,3 +794,81 @@ func decode_map<T>(_ map: Any, name: String, value: (Any) throws -> T) throws ->
 
 func encode_map<T>(_ map: [String: T], name: String, value: (T) throws -> Any) throws -> [String: Any];
 ```
+
+## Go
+
+```toml
+# File: reproto.toml
+
+language = "go"
+
+[modules."encoding/json"]
+
+[presets.go]
+
+[packages]
+"io.reproto.example" = "*"
+```
+
+In Go it is recommended to use the [`go` preset], and import the models relative to your project:
+
+```go
+package main
+
+import "./models/io_reproto_example"
+
+func main() {
+    // do something with io_reproto_example.Foo
+}
+```
+
+Generated types are put into individual modules corresponding to their package, and the type
+hierarchy is flattened.
+
+For example:
+
+```reproto
+// File: src/io/reproto/example.reproto
+
+type Foo {
+  name: string;
+
+  type Bar {
+    // skipped
+  }
+}
+```
+
+Becomes:
+
+```swift
+// File: models/io_reproto_example.go
+package io_reproto_example
+
+type Foo struct {
+  // skipped
+}
+
+type Foo_Bar struct {
+  // skipped
+}
+```
+
+[`go` preset]: ../manifest.md#go-preset
+
+### `[modules."encoding/json"]`
+
+```toml
+# reproto.toml
+
+[modules."encoding/json"]
+```
+
+This module makes use of Go's built-in [`encoding/json`] module.
+
+Types use the existing struct serialization, optional fields are pointers (`*`) with the
+`omitempty` option set.
+Tuples are also structs, but have custom marshal/unmarshal implementations.
+Enums are encoded as type aliases with a number of constants corresponding to the variants.
+
+[`encoding/json`]: https://golang.org/pkg/encoding/json/

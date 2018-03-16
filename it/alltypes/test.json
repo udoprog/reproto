@@ -29,4 +29,5 @@
 {"any_type": 42}
 
 {"array_type": [{"string_type": "foo"}]}
+{"array_of_array_type": [[{"string_type": "foo"}], [{"string_type": "bar"}]]}
 {"map_type": {"foo": {"string_type": "foo"}}}

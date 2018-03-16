@@ -21,6 +21,7 @@ reproto-derive = {path = "../lib/derive", version = "0.3"}
 reproto-manifest = {path = "../lib/manifest", version = "0.3"}
 reproto-parser = {path = "../lib/parser", version = "0.3"}
 reproto-backend-csharp = {path = "../lib/backend-csharp", version = "0.3"}
+reproto-backend-go = {path = "../lib/backend-go", version = "0.3"}
 reproto-backend-java = {path = "../lib/backend-java", version = "0.3"}
 reproto-backend-js = {path = "../lib/backend-js", version = "0.3"}
 reproto-backend-json = {path = "../lib/backend-json", version = "0.3"}

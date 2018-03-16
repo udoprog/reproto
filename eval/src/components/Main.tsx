@@ -3,6 +3,7 @@ import {Input} from "./Input";
 import {OutputEditor} from "./OutputEditor";
 import {JavaSettings, JavaSettingsForm} from "./JavaSettings";
 import {CsharpSettings, CsharpSettingsForm} from "./CsharpSettings";
+import {GoSettings, GoSettingsForm} from "./GoSettings";
 import {RustSettings, RustSettingsForm} from "./RustSettings";
 import {SwiftSettings, SwiftSettingsForm} from "./SwiftSettings";
 import * as WebAssembly from "webassembly";
@@ -14,14 +15,15 @@ const wasm = require("rust/reproto-wasm.js");
 const deepEqual = require("deep-equal");
 
 const languages = [
-  "yaml",
-  "json",
-  "java",
   "csharp",
-  "swift",
-  "rust",
-  "python",
+  "golang",
+  "java",
   "javascript",
+  "json",
+  "python",
+  "rust",
+  "swift",
+  "yaml",
 ]
 
 const themes = [
@@ -30,15 +32,16 @@ const themes = [
 ]
 
 const FORMAT_LANGUAGE_MAP: {[key: string]: string} = {
-  yaml: "yaml",
-  json: "json",
-  java: "java",
   csharp: "csharp",
-  swift: "swift",
-  rust: "rust",
-  python: "python",
+  go: "golang",
+  java: "java",
   js: "javascript",
+  json: "json",
+  python: "python",
   reproto: "reproto",
+  rust: "rust",
+  swift: "swift",
+  yaml: "yaml",
 };
 
 // modes in local_modules
@@ -107,6 +110,7 @@ enum Output {
   Reproto = "reproto",
   Java = "java",
   Csharp = "csharp",
+  Go = "go",
   Swift = "swift",
   Rust = "rust",
   Python = "python",
@@ -130,6 +134,7 @@ interface File {
 interface Settings {
   java: JavaSettings;
   csharp: CsharpSettings;
+  go: GoSettings;
   rust: RustSettings;
   swift: SwiftSettings;
 }
@@ -208,6 +213,9 @@ export class Main extends React.Component<MainProps, MainState> {
         },
         csharp: {
           json_net: true,
+        },
+        go: {
+          encoding_json: true,
         },
         swift: {
           codable: true,
@@ -484,6 +492,9 @@ export class Main extends React.Component<MainProps, MainState> {
       case "csharp":
         output = "csharp" as Output;
         break;
+      case "go":
+        output = "go" as Output;
+        break;
       case "swift":
         output = "swift" as Output;
         break;
@@ -552,6 +563,15 @@ export class Main extends React.Component<MainProps, MainState> {
       let settings = {...state.settings};
       settings.csharp = {...settings.csharp};
       cb(settings.csharp);
+      return {settings: settings};
+    }, () => this.recompile());
+  }
+
+  updateGo(cb: (settings: GoSettings) => void) {
+    this.setState((state: MainState, props: MainProps) => {
+      let settings = {...state.settings};
+      settings.go = {...settings.go};
+      cb(settings.go);
       return {settings: settings};
     }, () => this.recompile());
   }
@@ -783,6 +803,11 @@ export class Main extends React.Component<MainProps, MainState> {
             onJsonNet={update => this.updateCsharp(csharp => csharp.json_net = update)}
             />;
           break;
+        case "go":
+          settingsForm = <GoSettingsForm settings={settings.go}
+            onEncodingJson={update => this.updateGo(go => go.encoding_json = update)}
+            />;
+          break;
         case "swift":
           settingsForm = <SwiftSettingsForm settings={settings.swift}
             onCodable={update => this.updateSwift(swift => swift.codable = update)}
@@ -888,6 +913,7 @@ export class Main extends React.Component<MainProps, MainState> {
                         value={output}
                         onChange={e => this.setOutput(e.target.value)}>
                         <option value="csharp">C#</option>
+                        <option value="go">Go (WIP)</option>
                         <option value="java">Java</option>
                         <option value="js">JavaScript</option>
                         <option value="json">JSON (RpIR)</option>

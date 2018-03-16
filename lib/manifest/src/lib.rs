@@ -117,11 +117,22 @@ pub trait Lang: fmt::Debug {
             e
         };
 
+        let e = if let Some(field_ident_naming) = self.field_ident_naming() {
+            e.with_field_ident_naming(field_ident_naming)
+        } else {
+            e
+        };
+
         e
     }
 
     /// Rename packages according to the given naming convention.
     fn package_naming(&self) -> Option<Box<Naming>> {
+        None
+    }
+
+    /// Rename fields according to the given naming convention.
+    fn field_ident_naming(&self) -> Option<Box<Naming>> {
         None
     }
 }
@@ -256,6 +267,7 @@ impl TryFromToml for RpRequiredPackage {
 #[serde(rename_all = "lowercase")]
 pub enum Language {
     Csharp,
+    Go,
     Java,
     Js,
     Json,
@@ -271,6 +283,7 @@ impl Language {
 
         let language = match input {
             "csharp" => Csharp,
+            "go" => Go,
             "java" => Java,
             "js" => Js,
             "json" => Json,
@@ -368,6 +381,7 @@ pub fn checked_modules<M: Any>(modules: Vec<Box<Any>>) -> Result<Vec<M>> {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Preset {
+    Go {},
     Maven {},
     Swift {},
 }
@@ -375,6 +389,7 @@ pub enum Preset {
 impl TryFromToml for Preset {
     fn try_from_string(path: &Path, id: &str, value: String) -> Result<Self> {
         let preset = match id {
+            "go" => Preset::Go {},
             "maven" => Preset::Maven {},
             "swift" => Preset::Swift {},
             _ => return NoModule::illegal(path, id, value),
@@ -385,6 +400,7 @@ impl TryFromToml for Preset {
 
     fn try_from_value(path: &Path, id: &str, value: toml::Value) -> Result<Self> {
         let preset = match id {
+            "go" => Preset::Go {},
             "maven" => Preset::Maven {},
             "swift" => Preset::Swift {},
             _ => return NoModule::illegal(path, id, value),
@@ -607,6 +623,7 @@ pub fn load_common_manifest(
         use self::Preset::*;
 
         match preset {
+            Go { .. } => go_apply_to(manifest, base)?,
             Maven { .. } => maven_apply_to(manifest, base)?,
             Swift { .. } => swift_apply_to(manifest, base)?,
         }
@@ -636,6 +653,16 @@ pub fn load_common_manifest(
 
             // output directory
             manifest.output = Some(base.join("Sources").join("Modules"));
+
+            Ok(())
+        }
+
+        fn go_apply_to(manifest: &mut Manifest, base: &Path) -> Result<()> {
+            // default path
+            manifest.paths.push(base.join("reproto"));
+
+            // output directory
+            manifest.output = Some(base.join("models"));
 
             Ok(())
         }
