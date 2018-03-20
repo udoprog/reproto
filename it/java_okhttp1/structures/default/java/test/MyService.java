@@ -2,6 +2,7 @@ package test;
 
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import okhttp3.HttpUrl;
 import okhttp3.OkHttpClient;
 
 public interface MyService {
@@ -56,11 +57,11 @@ public interface MyService {
 
   public class OkHttp implements MyService {
     private final OkHttpClient client;
-    private final Optional<String> baseUrl;
+    private final HttpUrl baseUrl;
 
     public OkHttp(
       final OkHttpClient client,
-      final Optional<String> baseUrl
+      final HttpUrl baseUrl
     ) {
       this.client = client;
       this.baseUrl = baseUrl;
@@ -103,7 +104,7 @@ public interface MyService {
   }
 
   public static class OkHttpBuilder {
-    private Optional<String> baseUrl = Optional.empty();
+    private Optional<HttpUrl> baseUrl = Optional.empty();
     private final OkHttpClient client;
 
     public OkHttpBuilder(
@@ -112,13 +113,14 @@ public interface MyService {
       this.client = client;
     }
 
-    public OkHttpBuilder baseUrl(final String baseUrl) {
+    public OkHttpBuilder baseUrl(final HttpUrl baseUrl) {
       this.baseUrl = Optional.of(baseUrl);
       return this;
     }
 
     public OkHttp build() {
-      return new OkHttp(client, this.baseUrl);
+      final HttpUrl baseUrl = this.baseUrl.orElseThrow(() -> new RuntimeException("baseUrl: is a required field"));
+      return new OkHttp(client, baseUrl);
     }
   }
 }
