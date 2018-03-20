@@ -26,10 +26,10 @@ where
     pub fn process(self, handle: &Handle) -> Result<()> {
         let parts = self.package.split('.').collect::<Vec<_>>();
 
-        let path = parts
-            .iter()
-            .cloned()
-            .fold(RelativePathBuf::new(), |p, part| p.join(part));
+        let path = parts.iter().cloned().fold(
+            RelativePathBuf::new(),
+            |p, part| p.join(part),
+        );
 
         if !handle.is_dir(&path) {
             debug!("+dir: {}", path.display());
@@ -45,7 +45,10 @@ where
         extra.package(self.package);
 
         debug!("+class: {}", path.display());
-        IoFmt(&mut handle.create(&path)?.as_mut()).write_file(file, &mut extra)?;
+        IoFmt(&mut handle.create(&path)?.as_mut()).write_file(
+            file,
+            &mut extra,
+        )?;
 
         Ok(())
     }

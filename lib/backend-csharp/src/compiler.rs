@@ -1,11 +1,11 @@
 //! C# backend for reproto
 
-use {CSHARP_CONTEXT, Options};
-use backend::{Code, Converter};
+use Options;
+use backend::Converter;
 use codegen::{ClassAdded, EndpointExtra, EnumAdded, InterfaceAdded, ServiceAdded, TupleAdded,
               TypeField, TypeFieldAdded};
-use core::{ForEachLoc, Handle, Loc, RpDecl, RpEnumBody, RpField, RpInterfaceBody, RpName,
-           RpServiceBody, RpSubTypeStrategy, RpTupleBody, RpTypeBody, WithPos};
+use core::{ForEachLoc, Handle, Loc, RpContext, RpDecl, RpEnumBody, RpField, RpInterfaceBody,
+           RpName, RpServiceBody, RpSubTypeStrategy, RpTupleBody, RpTypeBody, WithPos};
 use core::errors::*;
 use csharp_field::CsharpField;
 use csharp_file::CsharpFile;
@@ -284,7 +284,7 @@ impl Compiler {
             })?;
         }
 
-        /*spec.body.push_unless_empty(Code(&body.codes, CSHARP_CONTEXT));*/
+        /*spec.body.push_unless_empty(code!(&body.codes, RpContext::Csharp));*/
 
         Ok(spec)
     }
@@ -306,7 +306,7 @@ impl Compiler {
         }
 
         spec.body.push_unless_empty(
-            Code(&body.codes, CSHARP_CONTEXT),
+            code!(&body.codes, RpContext::Csharp),
         );
 
         for generator in &self.options.tuple_generators {
@@ -326,7 +326,7 @@ impl Compiler {
         }
 
         spec.body.push_unless_empty(
-            Code(&body.codes, CSHARP_CONTEXT),
+            code!(&body.codes, RpContext::Csharp),
         );
 
         self.add_class(
@@ -398,7 +398,7 @@ impl Compiler {
         });
 
         spec.body.push_unless_empty(
-            Code(&body.codes, CSHARP_CONTEXT),
+            code!(&body.codes, RpContext::Csharp),
         );
 
         body.sub_types.iter().for_each_loc(|sub_type| {
@@ -408,7 +408,7 @@ impl Compiler {
             let sub_type_fields = self.fields(&sub_type.fields)?;
 
             class.body.push_unless_empty(
-                Code(&sub_type.codes, CSHARP_CONTEXT),
+                code!(&sub_type.codes, RpContext::Csharp),
             );
 
             class.implements = vec![local(spec.name())];

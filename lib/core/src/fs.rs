@@ -82,16 +82,12 @@ pub struct CapturingFilesystem {
 
 impl CapturingFilesystem {
     pub fn new() -> CapturingFilesystem {
-        Self {
-            files: Rc::new(RefCell::new(LinkedHashMap::new())),
-        }
+        Self { files: Rc::new(RefCell::new(LinkedHashMap::new())) }
     }
 
     /// Create a new filesystem handle that can be passed into `Context`.
     pub fn filesystem(&self) -> Box<Filesystem> {
-        Box::new(CapturingFilesystem {
-            files: self.files.clone(),
-        })
+        Box::new(CapturingFilesystem { files: self.files.clone() })
     }
 
     /// Access the underlying captured files.
@@ -102,9 +98,7 @@ impl CapturingFilesystem {
 
 impl Filesystem for CapturingFilesystem {
     fn open_root(&self, _root: Option<&Path>) -> Result<Box<Handle>> {
-        return Ok(Box::new(CapturingHandle {
-            files: self.files.clone(),
-        }));
+        return Ok(Box::new(CapturingHandle { files: self.files.clone() }));
     }
 }
 

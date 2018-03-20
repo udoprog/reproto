@@ -1,11 +1,11 @@
 //! Java backend for reproto
 
-use {JAVA_CONTEXT, Options};
-use backend::{Code, Converter};
+use Options;
+use backend::Converter;
 use codegen::{ClassAdded, EndpointExtra, EnumAdded, GetterAdded, InterfaceAdded, ServiceAdded,
               TupleAdded};
-use core::{ForEachLoc, Handle, Loc, RpDecl, RpEnumBody, RpEnumType, RpField, RpInterfaceBody,
-           RpName, RpServiceBody, RpTupleBody, RpTypeBody, WithPos};
+use core::{ForEachLoc, Handle, Loc, RpContext, RpDecl, RpEnumBody, RpEnumType, RpField,
+           RpInterfaceBody, RpName, RpServiceBody, RpTupleBody, RpTypeBody, WithPos, RpCode};
 use core::errors::*;
 use genco::{Cons, Element, Java, Quoted, Tokens};
 use genco::java::{Argument, BOOLEAN, Class, Constructor, Enum, Field, INTEGER, Interface, Method,
@@ -17,6 +17,29 @@ use processor::Processor;
 use std::rc::Rc;
 use trans::Environment;
 use utils::{Override, Utils};
+
+/// Helper macro to implement listeners opt loop.
+fn code<'el>(codes: &'el [Loc<RpCode>]) -> Tokens<'el, Java<'el>> {
+    let mut t = Tokens::new();
+
+    for c in codes {
+        if let RpContext::Java { imports: _, .. } = c.context {
+            // TODO: explicitly include imports through genco. Tokens::opaque?
+
+            t.append({
+                let mut t = Tokens::new();
+
+                for line in &c.lines {
+                    t.push(line.as_str());
+                }
+
+                t
+            });
+        }
+    }
+
+    t
+}
 
 macro_rules! call_codegen {
     ($source:expr, $event:expr) => {
@@ -536,7 +559,7 @@ impl<'el> Compiler<'el> {
 
         spec.methods.push(from_value);
         spec.methods.push(to_value);
-        spec.body.push_unless_empty(Code(&body.codes, JAVA_CONTEXT));
+        spec.body.push_unless_empty(code(&body.codes));
 
         Ok(spec)
     }
@@ -577,7 +600,7 @@ impl<'el> Compiler<'el> {
             spec.fields.push(field.spec);
         }
 
-        spec.body.push_unless_empty(Code(&body.codes, JAVA_CONTEXT));
+        spec.body.push_unless_empty(code(&body.codes));
 
         call_codegen!(
             &self.options.tuple_generators,
@@ -616,7 +639,7 @@ impl<'el> Compiler<'el> {
             }
         }
 
-        spec.body.push_unless_empty(Code(&body.codes, JAVA_CONTEXT));
+        spec.body.push_unless_empty(code(&body.codes));
 
         self.add_class(
             spec.name(),
@@ -650,7 +673,7 @@ impl<'el> Compiler<'el> {
             spec.methods.push(m);
         }
 
-        spec.body.push_unless_empty(Code(&body.codes, JAVA_CONTEXT));
+        spec.body.push_unless_empty(code(&body.codes));
 
         body.sub_types.iter().for_each_loc(|sub_type| {
             let mut class = Class::new(sub_type.ident.clone());
@@ -658,9 +681,7 @@ impl<'el> Compiler<'el> {
 
             let sub_type_fields = self.fields(&sub_type.fields)?;
 
-            class.body.push_unless_empty(
-                Code(&sub_type.codes, JAVA_CONTEXT),
-            );
+            class.body.push_unless_empty(code(&sub_type.codes));
 
             class.implements = vec![local(spec.name())];
 

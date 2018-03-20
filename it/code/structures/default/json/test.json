@@ -33,28 +33,37 @@
       "fields": [],
       "codes": [
         {
-          "context": "rust",
+          "context": {
+            "type": "rust"
+          },
           "lines": [
             "pub fn type_method(&self) {",
             "}"
           ]
         },
         {
-          "context": "java",
+          "context": {
+            "type": "java",
+            "imports": []
+          },
           "lines": [
             "public void typeMethod() {",
             "}"
           ]
         },
         {
-          "context": "js",
+          "context": {
+            "type": "js"
+          },
           "lines": [
             "typeMethod() {",
             "}"
           ]
         },
         {
-          "context": "python",
+          "context": {
+            "type": "python"
+          },
           "lines": [
             "def type_method(self):",
             "  pass"
@@ -78,27 +87,36 @@
       "fields": [],
       "codes": [
         {
-          "context": "rust",
+          "context": {
+            "type": "rust"
+          },
           "lines": [
             "pub fn interface_method(&self) {",
             "}"
           ]
         },
         {
-          "context": "java",
+          "context": {
+            "type": "java",
+            "imports": []
+          },
           "lines": [
             "public void interfaceMethod();"
           ]
         },
         {
-          "context": "js",
+          "context": {
+            "type": "js"
+          },
           "lines": [
             "interfaceMethod() {",
             "}"
           ]
         },
         {
-          "context": "python",
+          "context": {
+            "type": "python"
+          },
           "lines": [
             "def interface_method(self):",
             "  pass"
@@ -122,14 +140,19 @@
           "fields": [],
           "codes": [
             {
-              "context": "rust",
+              "context": {
+                "type": "rust"
+              },
               "lines": [
                 "pub fn subtype_method(&self) {",
                 "}"
               ]
             },
             {
-              "context": "java",
+              "context": {
+                "type": "java",
+                "imports": []
+              },
               "lines": [
                 "@Override",
                 "public void interfaceMethod() {",
@@ -137,14 +160,18 @@
               ]
             },
             {
-              "context": "js",
+              "context": {
+                "type": "js"
+              },
               "lines": [
                 "subtypeMethod() {",
                 "}"
               ]
             },
             {
-              "context": "python",
+              "context": {
+                "type": "python"
+              },
               "lines": [
                 "def subtype_method(self):",
                 "  pass"
@@ -190,28 +217,37 @@
       ],
       "codes": [
         {
-          "context": "rust",
+          "context": {
+            "type": "rust"
+          },
           "lines": [
             "pub fn enum_method(&self) {",
             "}"
           ]
         },
         {
-          "context": "java",
+          "context": {
+            "type": "java",
+            "imports": []
+          },
           "lines": [
             "public void enumMethod() {",
             "}"
           ]
         },
         {
-          "context": "js",
+          "context": {
+            "type": "js"
+          },
           "lines": [
             "enumMethod() {",
             "}"
           ]
         },
         {
-          "context": "python",
+          "context": {
+            "type": "python"
+          },
           "lines": [
             "def enum_method(self):",
             "  pass"
@@ -235,28 +271,37 @@
       "fields": [],
       "codes": [
         {
-          "context": "rust",
+          "context": {
+            "type": "rust"
+          },
           "lines": [
             "pub fn tuple_method(&self) {",
             "}"
           ]
         },
         {
-          "context": "java",
+          "context": {
+            "type": "java",
+            "imports": []
+          },
           "lines": [
             "public void tupleMethod() {",
             "}"
           ]
         },
         {
-          "context": "js",
+          "context": {
+            "type": "js"
+          },
           "lines": [
             "tupleMethod() {",
             "}"
           ]
         },
         {
-          "context": "python",
+          "context": {
+            "type": "python"
+          },
           "lines": [
             "def tuple_method(self):",
             "  pass"

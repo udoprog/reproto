@@ -60,10 +60,9 @@ impl RpPackage {
             return false;
         }
 
-        self.parts
-            .iter()
-            .zip(other.parts.iter())
-            .all(|(a, b)| a == b)
+        self.parts.iter().zip(other.parts.iter()).all(
+            |(a, b)| a == b,
+        )
     }
 
     /// Replace all keyword components in this package.

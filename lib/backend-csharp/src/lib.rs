@@ -2,6 +2,7 @@
 extern crate genco;
 #[macro_use]
 extern crate log;
+#[macro_use]
 extern crate reproto_backend as backend;
 extern crate reproto_core as core;
 #[macro_use]
@@ -27,7 +28,7 @@ use codegen::Configure;
 use compiler::Compiler;
 use core::Context;
 use core::errors::Result;
-use manifest::{checked_modules, Lang, Manifest, NoModule, TryFromToml};
+use manifest::{Lang, Manifest, NoModule, TryFromToml, checked_modules};
 use naming::Naming;
 use options::Options;
 use std::any::Any;
@@ -35,8 +36,6 @@ use std::path::Path;
 use std::rc::Rc;
 use trans::Environment;
 use utils::Utils;
-
-pub const CSHARP_CONTEXT: &str = "csharp";
 
 #[derive(Clone, Copy, Default, Debug)]
 pub struct CsharpLang;

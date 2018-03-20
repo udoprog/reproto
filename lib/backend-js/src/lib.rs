@@ -1,5 +1,6 @@
 #[macro_use]
 extern crate genco;
+#[macro_use]
 extern crate reproto_backend as backend;
 extern crate reproto_core as core;
 #[macro_use]
@@ -18,8 +19,8 @@ mod compiler;
 
 use backend::IntoBytes;
 use compiler::Compiler;
-use core::errors::Result;
 use core::{Context, Loc, Pos, RpField, RpPackage, RpType};
+use core::errors::Result;
 use genco::{JavaScript, Tokens};
 use manifest::{Lang, Manifest, NoModule, TryFromToml};
 use std::any::Any;
@@ -29,7 +30,6 @@ use trans::Environment;
 
 const TYPE_SEP: &str = "_";
 const EXT: &str = "js";
-const JS_CONTEXT: &str = "js";
 
 #[derive(Clone, Copy, Default, Debug)]
 pub struct JsLang;

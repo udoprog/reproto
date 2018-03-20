@@ -2,6 +2,7 @@
 extern crate genco;
 #[macro_use]
 extern crate log;
+#[macro_use]
 extern crate reproto_backend as backend;
 extern crate reproto_core as core;
 #[macro_use]
@@ -21,9 +22,9 @@ mod utils;
 use backend::{Initializer, IntoBytes};
 use codegen::ServiceCodegen;
 use compiler::Compiler;
+use core::{Context, Loc, Pos, RpField, RpType};
 use core::RpPackage;
 use core::errors::Result;
-use core::{Context, Loc, Pos, RpField, RpType};
 use genco::{Python, Tokens};
 use manifest::{Lang, Manifest, NoModule, TryFromToml};
 use std::any::Any;
@@ -34,7 +35,6 @@ use trans::Environment;
 const TYPE_SEP: &str = "_";
 const INIT_PY: &str = "__init__.py";
 const EXT: &str = "py";
-const PYTHON_CONTEXT: &str = "python";
 
 #[derive(Clone, Copy, Default, Debug)]
 pub struct PythonLang;

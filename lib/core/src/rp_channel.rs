@@ -17,7 +17,8 @@ impl RpChannel {
         use self::RpChannel::*;
 
         match *self {
-            Unary { ref ty, .. } | Streaming { ref ty, .. } => ty,
+            Unary { ref ty, .. } |
+            Streaming { ref ty, .. } => ty,
         }
     }
 

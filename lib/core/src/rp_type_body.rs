@@ -23,8 +23,6 @@ impl<'a> Iterator for Fields<'a> {
 
 impl RpTypeBody {
     pub fn fields(&self) -> Fields {
-        Fields {
-            iter: self.fields.iter(),
-        }
+        Fields { iter: self.fields.iter() }
     }
 }

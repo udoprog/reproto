@@ -171,9 +171,7 @@ impl Error {
     ///
     /// WARNING: drops error information. Only use if absolutely necessary!
     pub fn display(self) -> Display {
-        Display {
-            message: self.message,
-        }
+        Display { message: self.message }
     }
 
     /// Get backtrace.
@@ -203,9 +201,7 @@ impl Error {
 
     /// Iterate over all causes.
     pub fn causes(&self) -> Causes {
-        Causes {
-            current: Some(self),
-        }
+        Causes { current: Some(self) }
     }
 }
 

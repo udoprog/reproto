@@ -1,49 +1,23 @@
-/// Helper macro for default vector implementation.
-#[macro_export]
-macro_rules! listeners_vec_default {
-    ($fn:ident, $event:ident) => {
-        fn $fn(&self, _: &mut $event) -> Result<()> {
-            Ok(())
-        }
-    }
-}
-
-/// Helper macro for default option implementation.
-#[macro_export]
-macro_rules! listeners_opt_default {
-    ($fn:ident, $event:ident, $output:ty) => {
-        fn $fn(&self, _: &mut $event) -> Result<Option<$output>> {
-            Ok(None)
-        }
-    }
-}
-
-/// Helper macro to implement listeners vec loop.
-#[macro_export]
-macro_rules! listeners_vec {
-    ($fn:ident, $event:ident) => {
-        fn $fn(&self, e: &mut $event) -> Result<()> {
-            for i in self {
-                i.$fn(e)?;
-            }
-
-            Ok(())
-        }
-    }
-}
-
 /// Helper macro to implement listeners opt loop.
 #[macro_export]
-macro_rules! listeners_opt {
-    ($fn:ident, $event:ident, $output:ty) => {
-        fn $fn(&self, e: &mut $event) -> Result<Option<$output>> {
-            for i in self {
-                if let Some(value) = i.$fn(e)? {
-                    return Ok(Some(value));
-                }
-            }
+macro_rules! code {
+    ($codes:expr, $context:path) => {{
+        let mut t = Tokens::new();
 
-            Ok(None)
+        for c in $codes {
+            if let $context { .. } = c.context {
+                t.append({
+                    let mut t = Tokens::new();
+
+                    for line in &c.lines {
+                        t.push(line.as_str());
+                    }
+
+                    t
+                });
+            }
         }
-    }
+
+        t
+    }}
 }

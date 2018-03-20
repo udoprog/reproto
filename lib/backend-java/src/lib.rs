@@ -26,15 +26,13 @@ use codegen::Configure;
 use compiler::Compiler;
 use core::{Context, Loc, Pos, RpField, RpType};
 use core::errors::Result;
-use manifest::{checked_modules, Lang, Manifest, NoModule, TryFromToml};
+use manifest::{Lang, Manifest, NoModule, TryFromToml, checked_modules};
 use options::Options;
 use std::any::Any;
 use std::path::Path;
 use std::rc::Rc;
 use trans::Environment;
 use utils::Utils;
-
-pub const JAVA_CONTEXT: &str = "java";
 
 #[derive(Clone, Copy, Default, Debug)]
 pub struct JavaLang;

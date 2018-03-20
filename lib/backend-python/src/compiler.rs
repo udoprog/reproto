@@ -1,12 +1,12 @@
 //! Python Compiler
 
-use {EXT, FileSpec, INIT_PY, Options, PYTHON_CONTEXT, TYPE_SEP};
-use backend::{Code, Converter, DynamicConverter, DynamicDecode, DynamicEncode, PackageProcessor,
+use {EXT, FileSpec, INIT_PY, Options, TYPE_SEP};
+use backend::{Converter, DynamicConverter, DynamicDecode, DynamicEncode, PackageProcessor,
               PackageUtils};
 use codegen::{EndpointExtra, ServiceAdded, ServiceCodegen};
-use core::{ForEachLoc, Handle, Loc, RelativePathBuf, RpDecl, RpEnumBody, RpField, RpInterfaceBody,
-           RpName, RpPackage, RpServiceBody, RpSubTypeStrategy, RpTupleBody, RpType, RpTypeBody,
-           RpVersionedPackage, WithPos};
+use core::{ForEachLoc, Handle, Loc, RelativePathBuf, RpContext, RpDecl, RpEnumBody, RpField,
+           RpInterfaceBody, RpName, RpPackage, RpServiceBody, RpSubTypeStrategy, RpTupleBody,
+           RpType, RpTypeBody, RpVersionedPackage, WithPos};
 use core::errors::*;
 use genco::{Element, Quoted, Tokens};
 use genco::python::{Python, imported};
@@ -588,7 +588,7 @@ impl<'el> PackageProcessor<'el> for Compiler<'el> {
             tuple_body.push(getter);
         }
 
-        tuple_body.push_unless_empty(Code(&body.codes, PYTHON_CONTEXT));
+        tuple_body.push_unless_empty(code!(&body.codes, RpContext::Python));
 
         let decode = self.decode_method(
             &body.name,
@@ -619,7 +619,7 @@ impl<'el> PackageProcessor<'el> for Compiler<'el> {
             class_body.push(getter);
         }
 
-        class_body.push_unless_empty(Code(&body.codes, PYTHON_CONTEXT));
+        class_body.push_unless_empty(code!(&body.codes, RpContext::Python));
 
         class_body.push(encode_method(self.variant_field)?);
         class_body.push(decode_method(self.variant_field)?);
@@ -692,7 +692,7 @@ impl<'el> PackageProcessor<'el> for Compiler<'el> {
 
         let repr_method = self.repr_method(type_name.clone(), &body.fields);
         class_body.push(repr_method);
-        class_body.push_unless_empty(Code(&body.codes, PYTHON_CONTEXT));
+        class_body.push_unless_empty(code!(&body.codes, RpContext::Python));
 
         out.0.push(self.as_class(type_name, class_body));
         Ok(())
@@ -709,7 +709,7 @@ impl<'el> PackageProcessor<'el> for Compiler<'el> {
             }
         }
 
-        type_body.push_unless_empty(Code(&body.codes, PYTHON_CONTEXT));
+        type_body.push_unless_empty(code!(&body.codes, RpContext::Python));
 
         out.0.push(self.as_class(type_name, type_body));
 
@@ -758,7 +758,7 @@ impl<'el> PackageProcessor<'el> for Compiler<'el> {
 
             let repr_method = self.repr_method(sub_type_name.clone(), fields.iter().cloned());
             sub_type_body.push(repr_method);
-            sub_type_body.push_unless_empty(Code(&sub_type.codes, PYTHON_CONTEXT));
+            sub_type_body.push_unless_empty(code!(&sub_type.codes, RpContext::Python));
 
             out.0.push(self.as_class(sub_type_name, sub_type_body));
             Ok(()) as Result<()>

@@ -65,9 +65,9 @@ where
         for decl in self.decl_iter() {
             callback(decl)
                 .and_then(|_| {
-                    let mut out = files
-                        .entry(decl.name().package.clone())
-                        .or_insert_with(Self::Out::default);
+                    let mut out = files.entry(decl.name().package.clone()).or_insert_with(
+                        Self::Out::default,
+                    );
 
                     match *decl {
                         Interface(ref b) => self.process_interface(&mut out, b),
@@ -84,10 +84,10 @@ where
     }
 
     fn resolve_full_path(&self, package: &RpPackage) -> Result<RelativePathBuf> {
-        let mut full_path = package
-            .parts
-            .iter()
-            .fold(RelativePathBuf::new(), |a, b| a.join(b));
+        let mut full_path = package.parts.iter().fold(
+            RelativePathBuf::new(),
+            |a, b| a.join(b),
+        );
         full_path.set_extension(self.ext());
         Ok(full_path)
     }

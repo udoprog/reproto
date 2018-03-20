@@ -1,7 +1,7 @@
 use core::{RpName, RpType, RpVersionedPackage};
 use core::errors::*;
 use genco::{IntoTokens, Java, Tokens};
-use genco::java::{imported, BOOLEAN, DOUBLE, FLOAT, INTEGER, LONG};
+use genco::java::{BOOLEAN, DOUBLE, FLOAT, INTEGER, LONG, imported};
 use processor::Processor;
 use std::rc::Rc;
 use trans::Environment;

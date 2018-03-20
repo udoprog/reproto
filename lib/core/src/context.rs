@@ -38,15 +38,19 @@ pub struct Reporter<'a> {
 
 impl<'a> Reporter<'a> {
     pub fn err<P: Into<ErrorPos>, E: fmt::Display>(mut self, pos: P, error: E) -> Self {
-        self.errors
-            .push(ContextItem::ErrorPos(pos.into(), error.to_string()));
+        self.errors.push(ContextItem::ErrorPos(
+            pos.into(),
+            error.to_string(),
+        ));
 
         self
     }
 
     pub fn info<P: Into<ErrorPos>, I: fmt::Display>(mut self, pos: P, info: I) -> Self {
-        self.errors
-            .push(ContextItem::InfoPos(pos.into(), info.to_string()));
+        self.errors.push(ContextItem::InfoPos(
+            pos.into(),
+            info.to_string(),
+        ));
 
         self
     }
@@ -59,9 +63,9 @@ impl<'a> Reporter<'a> {
 
         let ctx = self.ctx;
 
-        let mut errors = ctx.errors
-            .try_borrow_mut()
-            .expect("exclusive mutable access");
+        let mut errors = ctx.errors.try_borrow_mut().expect(
+            "exclusive mutable access",
+        );
 
         errors.extend(self.errors);
         Some(Error::new("Error in Context"))

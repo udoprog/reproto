@@ -16,9 +16,7 @@ pub enum RpSubTypeStrategy {
 
 impl Default for RpSubTypeStrategy {
     fn default() -> Self {
-        RpSubTypeStrategy::Tagged {
-            tag: DEFAULT_TAG.to_string(),
-        }
+        RpSubTypeStrategy::Tagged { tag: DEFAULT_TAG.to_string() }
     }
 }
 
@@ -44,8 +42,6 @@ impl<'a> Iterator for Fields<'a> {
 
 impl RpInterfaceBody {
     pub fn fields(&self) -> Fields {
-        Fields {
-            iter: self.fields.iter(),
-        }
+        Fields { iter: self.fields.iter() }
     }
 }

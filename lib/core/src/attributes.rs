@@ -67,22 +67,20 @@ impl Selection {
         let mut positions = Vec::new();
         positions.extend(self.words.iter().map(|v| Loc::pos(v)));
         positions.extend(self.values.values().map(|v| Loc::pos(&v.0)));
-        Unused {
-            iter: positions.into_iter(),
-        }
+        Unused { iter: positions.into_iter() }
     }
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Attributes {
     words: HashMap<String, Pos>,
-    selections: HashMap<String, Loc<Selection>>,
+    selections: HashMap<String, Vec<Loc<Selection>>>,
 }
 
 impl Attributes {
     pub fn new(
         words: HashMap<String, Pos>,
-        selections: HashMap<String, Loc<Selection>>,
+        selections: HashMap<String, Vec<Loc<Selection>>>,
     ) -> Attributes {
         Attributes {
             words: words,
@@ -99,8 +97,22 @@ impl Attributes {
         self.words.remove(key).is_some()
     }
 
-    /// Take the given selection, removing it in the process.
+    /// Take the given selection, removing the first value in the process.
     pub fn take_selection<Q: ?Sized>(&mut self, key: &Q) -> Option<Loc<Selection>>
+    where
+        String: Borrow<Q>,
+        Q: Hash + Eq,
+    {
+        if let Some(values) = self.selections.get_mut(key) {
+            let out = values.split_off(1);
+            return out.into_iter().next();
+        }
+
+        None
+    }
+
+    /// Take the given selection, removing all values in the process.
+    pub fn take_all_selections<Q: ?Sized>(&mut self, key: &Q) -> Option<Vec<Loc<Selection>>>
     where
         String: Borrow<Q>,
         Q: Hash + Eq,
@@ -112,9 +124,9 @@ impl Attributes {
     pub fn unused(&self) -> Unused {
         let mut positions = Vec::new();
         positions.extend(self.words.values());
-        positions.extend(self.selections.values().map(Loc::pos));
-        Unused {
-            iter: positions.into_iter(),
-        }
+        positions.extend(self.selections.values().flat_map(|v| v.into_iter()).map(
+            Loc::pos,
+        ));
+        Unused { iter: positions.into_iter() }
     }
 }

@@ -5,7 +5,7 @@ use core::errors::{Error, Result};
 use naming::Naming;
 use scope::Scope;
 use std::borrow::Cow;
-use std::collections::{HashMap, hash_map};
+use std::collections::HashMap;
 use std::option;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -961,8 +961,41 @@ impl<'input> IntoModel for Code<'input> {
     type Output = RpCode;
 
     fn into_model(self, scope: &Scope) -> Result<Self::Output> {
+        let mut attributes = self.attributes.into_model(scope)?;
+        let context = self.context.into_model(scope)?;
+
+        // Context-specific settings.
+        let context = {
+            let (context, pos) = Loc::take_pair(context);
+
+            match context.as_str() {
+                "csharp" => RpContext::Csharp {},
+                "go" => RpContext::Go {},
+                "java" => {
+                    let imports = attributes::import(scope, &mut attributes)?;
+                    RpContext::Java { imports: imports }
+                }
+                "js" => RpContext::Js {},
+                "python" => RpContext::Python {},
+                "reproto" => RpContext::Reproto {},
+                "rust" => RpContext::Rust {},
+                "swift" => RpContext::Swift {},
+                context => {
+                    return Err(
+                        scope
+                            .ctx()
+                            .report()
+                            .err(pos, format!("context `{}` not recognized", context))
+                            .into(),
+                    )
+                }
+            }
+        };
+
+        check_attributes!(scope.ctx(), attributes);
+
         Ok(RpCode {
-            context: self.context.into_model(scope)?,
+            context: context,
             lines: self.content.into_iter().map(|s| s.to_string()).collect(),
         })
     }
@@ -1015,36 +1048,26 @@ impl<'input> IntoModel for Vec<Loc<Attribute<'input>>> {
                 List(key, name_values) => {
                     let key = Loc::take(key.into_model(scope)?);
 
-                    match selections.entry(key) {
-                        hash_map::Entry::Vacant(entry) => {
-                            let mut words = Vec::new();
-                            let mut values = HashMap::new();
+                    let selections = selections.entry(key).or_insert_with(Vec::new);
 
-                            for name_value in name_values {
-                                match name_value {
-                                    AttributeItem::Word(word) => {
-                                        words.push(word.into_model(scope)?);
-                                    }
-                                    AttributeItem::NameValue { name, value } => {
-                                        let name = name.into_model(scope)?;
-                                        let value = value.into_model(scope)?;
-                                        values.insert(Loc::value(&name).clone(), (name, value));
-                                    }
-                                }
+                    let mut words = Vec::new();
+                    let mut values = HashMap::new();
+
+                    for name_value in name_values {
+                        match name_value {
+                            AttributeItem::Word(word) => {
+                                words.push(word.into_model(scope)?);
                             }
-
-                            let selection = Selection::new(words, values);
-                            entry.insert(Loc::new(selection, attr_pos));
-                        }
-                        hash_map::Entry::Occupied(entry) => {
-                            return Err(
-                                ctx.report()
-                                    .err(attr_pos, "attribute already present")
-                                    .info(Loc::pos(entry.get()), "attribute here")
-                                    .into(),
-                            );
+                            AttributeItem::NameValue { name, value } => {
+                                let name = name.into_model(scope)?;
+                                let value = value.into_model(scope)?;
+                                values.insert(Loc::value(&name).clone(), (name, value));
+                            }
                         }
                     }
+
+                    let selection = Selection::new(words, values);
+                    selections.push(Loc::new(selection, attr_pos));
                 }
             }
         }

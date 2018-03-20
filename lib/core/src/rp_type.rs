@@ -8,24 +8,16 @@ use std::fmt;
 pub enum RpType {
     Double,
     Float,
-    Signed {
-        size: usize,
-    },
-    Unsigned {
-        size: usize,
-    },
+    Signed { size: usize },
+    Unsigned { size: usize },
     Boolean,
     String,
     /// ISO-8601 datetime
     DateTime,
     Bytes,
     Any,
-    Name {
-        name: RpName,
-    },
-    Array {
-        inner: Box<RpType>,
-    },
+    Name { name: RpName },
+    Array { inner: Box<RpType> },
     Map {
         key: Box<RpType>,
         value: Box<RpType>,
@@ -64,9 +56,7 @@ impl RpType {
 
         match self {
             Name { name } => Name { name: f(name) },
-            Array { inner } => Array {
-                inner: Box::new(inner.with_name(f)),
-            },
+            Array { inner } => Array { inner: Box::new(inner.with_name(f)) },
             Map { key, value } => Map {
                 key: Box::new(key.with_name(f.clone())),
                 value: Box::new(value.with_name(f.clone())),

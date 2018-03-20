@@ -110,7 +110,7 @@ impl<'el> IntoTokens<'el, Csharp<'el>> for DataMember<'el> {
         args.append(toks!["Name = ", self.name.quoted()]);
         args.append(toks![
             "EmitDefaultValue = ",
-            self.emit_default_value.to_string()
+            self.emit_default_value.to_string(),
         ]);
 
         toks!["[", data_member, "(", args.join(", "), ")]"]

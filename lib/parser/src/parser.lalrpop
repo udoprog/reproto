@@ -190,8 +190,10 @@ pub TypeMember: TypeMember<'input> = {
 };
 
 Code: Code<'input> =
-    <context:Ident> "{{" <content:code> "}}" =>
+    <attributes:Loc<Attribute>*>
+    <context:Loc<Ident>> "{{" <content:code> "}}" =>
     Code {
+        attributes: attributes,
         context: context,
         content: strip_code_block(content),
     };

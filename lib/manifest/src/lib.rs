@@ -218,8 +218,9 @@ impl TryFromToml for ManifestFile {
 impl TryFromToml for Publish {
     fn try_from_string(_: &Path, id: &str, value: String) -> Result<Self> {
         let package = RpPackage::parse(id);
-        let version =
-            Version::parse(value.as_str()).map_err(|e| format!("bad version: {}: {}", e, value))?;
+        let version = Version::parse(value.as_str()).map_err(|e| {
+            format!("bad version: {}: {}", e, value)
+        })?;
 
         Ok(Publish {
             package: package,
@@ -247,8 +248,9 @@ impl TryFromToml for RpRequiredPackage {
     fn try_from_string(_: &Path, id: &str, value: String) -> Result<Self> {
         let package = RpPackage::parse(id);
 
-        let range =
-            Range::parse(value.as_str()).map_err(|e| format!("bad version: {}: {}", e, value))?;
+        let range = Range::parse(value.as_str()).map_err(|e| {
+            format!("bad version: {}: {}", e, value)
+        })?;
 
         Ok(RpRequiredPackage::new(package, range))
     }
@@ -350,10 +352,12 @@ pub fn parse_section_any<T: 'static>(
 where
     T: TryFromToml,
 {
-    Ok(parse_section::<T>(base, value)?
-        .into_iter()
-        .map(|b| Box::new(b) as Box<Any>)
-        .collect())
+    Ok(
+        parse_section::<T>(base, value)?
+            .into_iter()
+            .map(|b| Box::new(b) as Box<Any>)
+            .collect(),
+    )
 }
 
 /// Parse the given string as a module.
@@ -370,8 +374,9 @@ pub fn checked_modules<M: Any>(modules: Vec<Box<Any>>) -> Result<Vec<M>> {
     let mut out = Vec::new();
 
     for m in modules {
-        out.push(*m.downcast::<M>()
-            .map_err(|m| format!("Failed to downcast module: {:?}", m))?);
+        out.push(*m.downcast::<M>().map_err(|m| {
+            format!("Failed to downcast module: {:?}", m)
+        })?);
     }
 
     Ok(out)
@@ -527,9 +532,9 @@ where
     T: Default + serde::Deserialize<'de>,
 {
     if let Some(field) = value.remove(name) {
-        field
-            .try_into()
-            .map_err(|e| format!("{}: {}", name, e).into())
+        field.try_into().map_err(
+            |e| format!("{}: {}", name, e).into(),
+        )
     } else {
         Ok(T::default())
     }
@@ -539,7 +544,9 @@ fn check_empty(value: &toml::value::Table) -> Result<()> {
     let unexpected: Vec<String> = value.keys().map(Clone::clone).collect();
 
     if unexpected.len() > 0 {
-        return Err(format!("unexpected entries: {}", unexpected.join(", ")).into());
+        return Err(
+            format!("unexpected entries: {}", unexpected.join(", ")).into(),
+        );
     }
 
     Ok(())
@@ -551,7 +558,9 @@ where
 {
     let mut inner = take_field::<toml::value::Table>(value, "repository")?;
     func(&mut inner)?;
-    check_empty(&inner).map_err(|e| format!("{}: {}", name, e.display()))?;
+    check_empty(&inner).map_err(
+        |e| format!("{}: {}", name, e.display()),
+    )?;
     Ok(())
 }
 
@@ -564,15 +573,18 @@ pub fn load_common_manifest(
     base: &Path,
     value: &mut toml::value::Table,
 ) -> Result<()> {
-    manifest
-        .packages
-        .extend(parse_section(base, take_field(value, "packages")?)?);
-    manifest
-        .files
-        .extend(parse_section(base, take_field(value, "files")?)?);
-    manifest
-        .publish
-        .extend(parse_section(base, take_field(value, "publish")?)?);
+    manifest.packages.extend(parse_section(
+        base,
+        take_field(value, "packages")?,
+    )?);
+    manifest.files.extend(parse_section(
+        base,
+        take_field(value, "files")?,
+    )?);
+    manifest.publish.extend(parse_section(
+        base,
+        take_field(value, "publish")?,
+    )?);
 
     manifest.paths.extend(
         take_field::<Vec<RelativePathBuf>>(value, "paths")?
@@ -632,17 +644,14 @@ pub fn load_common_manifest(
 
         fn maven_apply_to(manifest: &mut Manifest, base: &Path) -> Result<()> {
             // default path
-            manifest
-                .paths
-                .push(base.join("src").join("main").join("reproto"));
+            manifest.paths.push(
+                base.join("src").join("main").join("reproto"),
+            );
 
             // output directory
-            manifest.output = Some(
-                base.join("target")
-                    .join("generated")
-                    .join("reproto")
-                    .join("java"),
-            );
+            manifest.output = Some(base.join("target").join("generated").join("reproto").join(
+                "java",
+            ));
 
             Ok(())
         }
@@ -679,8 +688,9 @@ pub fn read_manifest_preamble<'a, P: AsRef<Path>, R: Read>(
     let mut content = String::new();
     reader.read_to_string(&mut content)?;
 
-    let mut value: toml::value::Table = toml::from_str(content.as_str())
-        .map_err(|e| format!("{}: bad manifest: {}", path.display(), e))?;
+    let mut value: toml::value::Table = toml::from_str(content.as_str()).map_err(|e| {
+        format!("{}: bad manifest: {}", path.display(), e)
+    })?;
 
     let language = take_field::<Option<Language>>(&mut value, "language")?;
 

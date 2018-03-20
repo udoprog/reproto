@@ -8,7 +8,9 @@ pub trait Processor {
     ///
     /// This includes the prefixed configured in `self.options`, if specified.
     fn csharp_package(&self, pkg: &RpVersionedPackage) -> RpPackage {
-        pkg.as_package(|version| format!("_{}", version).replace(".", "_").replace("-", "_"))
+        pkg.as_package(|version| {
+            format!("_{}", version).replace(".", "_").replace("-", "_")
+        })
     }
 
     /// Extract endpoint request.

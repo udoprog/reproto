@@ -46,9 +46,9 @@ impl RpNumber {
 
         base.to_f64().and_then(|base| {
             decimal.to_f64().and_then(|decimal| {
-                multiple
-                    .to_f64()
-                    .map(|multiple| base + (decimal / multiple))
+                multiple.to_f64().map(
+                    |multiple| base + (decimal / multiple),
+                )
             })
         })
     }

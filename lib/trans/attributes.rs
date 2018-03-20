@@ -3,10 +3,10 @@
 use core::{Attributes, Context, Loc, Pos, RpAccept, RpChannel, RpEndpointArgument, RpEndpointHttp,
            RpHttpMethod, RpPathSpec, RpType, RpValue, WithPos};
 use core::errors::Result;
+use into_model::IntoModel;
+use path_parser;
 use scope::Scope;
 use std::collections::HashMap;
-use path_parser;
-use into_model::IntoModel;
 
 /// `#[reserved(..)]` attribute.
 pub fn reserved(scope: &Scope, attributes: &mut Attributes) -> Result<HashMap<String, Pos>> {
@@ -64,12 +64,14 @@ pub fn endpoint_http(
         let body = body.as_identifier().with_pos(&pos)?;
 
         if unused_args.remove(body).is_none() {
-            return Err(ctx.report()
-                .err(
-                    pos,
-                    format!("body `{}` is not an argument to endpoint", body),
-                )
-                .into());
+            return Err(
+                ctx.report()
+                    .err(
+                        pos,
+                        format!("body `{}` is not an argument to endpoint", body),
+                    )
+                    .into(),
+            );
         }
 
         http.body = Some(body.to_string());
@@ -114,8 +116,9 @@ pub fn endpoint_http(
         unused_args: &mut HashMap<&str, &Pos>,
     ) -> Result<RpPathSpec> {
         let path = path.as_string()?;
-        let path =
-            path_parser::parse(path).map_err(|e| format!("Bad path: {}: {}", path, e.display()))?;
+        let path = path_parser::parse(path).map_err(|e| {
+            format!("Bad path: {}: {}", path, e.display())
+        })?;
         let path = path.into_model(scope)?;
 
         for var in path.vars() {
@@ -168,14 +171,38 @@ pub fn endpoint_http(
                     return Ok(());
                 }
 
-                return Err(ctx.report()
-                    .err(
-                        Loc::pos(response),
-                        "Only `string` responses are supported for the given `accept`",
-                    )
-                    .info(pos, "Specified here")
-                    .into());
+                return Err(
+                    ctx.report()
+                        .err(
+                            Loc::pos(response),
+                            "Only `string` responses are supported for the given `accept`",
+                        )
+                        .info(pos, "Specified here")
+                        .into(),
+                );
             }
         }
     }
+}
+
+/// `#[import(..)]` attributes
+pub fn import(scope: &Scope, attributes: &mut Attributes) -> Result<Vec<Loc<String>>> {
+    let mut out = Vec::new();
+
+    if let Some(imports) = attributes.take_all_selections("import") {
+        let ctx = scope.ctx();
+
+        for mut import in imports {
+            for word in import.take_words() {
+                out.push(Loc::and_then(
+                    word,
+                    |w| w.as_str().map(ToString::to_string),
+                )?);
+            }
+
+            check_selection!(ctx, import);
+        }
+    }
+
+    Ok(out)
 }

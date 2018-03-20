@@ -22,12 +22,14 @@ impl RpRequiredPackage {
     pub fn parse(input: &str) -> Result<RpRequiredPackage> {
         let mut it = input.splitn(2, '@').into_iter();
 
-        let package = it.next()
-            .map(RpPackage::parse)
-            .unwrap_or_else(RpPackage::empty);
+        let package = it.next().map(RpPackage::parse).unwrap_or_else(
+            RpPackage::empty,
+        );
 
         let range = if let Some(version) = it.next() {
-            Range::parse(version).map_err(|e| format!("bad version: {}: {}", e, version))?
+            Range::parse(version).map_err(|e| {
+                format!("bad version: {}: {}", e, version)
+            })?
         } else {
             Range::any()
         };

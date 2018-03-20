@@ -1,10 +1,10 @@
 //! Backend for Rust
 
-use {EXT, MOD, Options, RUST_CONTEXT};
-use backend::{Code, PackageProcessor, PackageUtils};
-use core::{ForEachLoc, Handle, Loc, RelativePath, RelativePathBuf, RpEnumBody, RpEnumOrdinal,
-           RpField, RpInterfaceBody, RpName, RpPackage, RpServiceBody, RpSubTypeStrategy,
-           RpTupleBody, RpType, RpTypeBody, RpVersionedPackage};
+use {EXT, MOD, Options};
+use backend::{PackageProcessor, PackageUtils};
+use core::{ForEachLoc, Handle, Loc, RelativePath, RelativePathBuf, RpContext, RpEnumBody,
+           RpEnumOrdinal, RpField, RpInterfaceBody, RpName, RpPackage, RpServiceBody,
+           RpSubTypeStrategy, RpTupleBody, RpType, RpTypeBody, RpVersionedPackage};
 use core::errors::*;
 use genco::{Element, IntoTokens, Quoted, Rust, Tokens};
 use genco::rust::{imported, imported_alias};
@@ -370,7 +370,7 @@ impl<'el> PackageProcessor<'el> for Compiler<'el> {
             t.nested({
                 let mut t = Tokens::new();
                 t.push(self.enum_value_fn(name.clone(), match_body));
-                t.push_unless_empty(Code(&body.codes, RUST_CONTEXT));
+                t.push_unless_empty(code!(&body.codes, RpContext::Rust));
                 t
             });
 
@@ -408,7 +408,7 @@ impl<'el> PackageProcessor<'el> for Compiler<'el> {
         out.0.push(t);
 
         // if custom code is present, punt it into an impl.
-        let impl_body = Code(&body.codes, RUST_CONTEXT).into_tokens();
+        let impl_body = code!(&body.codes, RpContext::Rust).into_tokens();
 
         if !impl_body.is_empty() {
             out.0.push(self.build_impl(name.clone(), impl_body));
@@ -467,7 +467,7 @@ impl<'el> PackageProcessor<'el> for Compiler<'el> {
 
         out.0.push(t);
 
-        let impl_body = Code(&body.codes, RUST_CONTEXT).into_tokens();
+        let impl_body = code!(&body.codes, RpContext::Rust).into_tokens();
 
         if !impl_body.is_empty() {
             out.0.push(self.build_impl(name.clone(), impl_body));
