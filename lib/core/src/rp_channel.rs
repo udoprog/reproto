@@ -3,7 +3,7 @@
 use super::RpType;
 use std::fmt;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub enum RpChannel {
     /// Single send.
     Unary { ty: RpType },

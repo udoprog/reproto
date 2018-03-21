@@ -7,6 +7,7 @@ use into_model::IntoModel;
 use path_parser;
 use scope::Scope;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 /// `#[reserved(..)]` attribute.
 pub fn reserved(scope: &Scope, attributes: &mut Attributes) -> Result<HashMap<String, Pos>> {
@@ -35,7 +36,7 @@ pub fn endpoint_http(
     scope: &Scope,
     attributes: &mut Attributes,
     response: Option<&Loc<RpChannel>>,
-    arguments: &Vec<RpEndpointArgument>,
+    arguments: &Vec<Rc<RpEndpointArgument>>,
 ) -> Result<RpEndpointHttp> {
     let mut http = RpEndpointHttp::default();
 
@@ -49,30 +50,33 @@ pub fn endpoint_http(
     let (mut selection, _pos) = Loc::take_pair(selection);
 
     // Keep track of used variables.
-    let mut unused_args = arguments
+    let mut args = arguments
         .iter()
-        .map(|a| (a.ident.as_str(), Loc::pos(&a.ident)))
+        .map(|a| (a.ident(), a))
         .collect::<HashMap<_, _>>();
 
     if let Some(path) = selection.take("path") {
         let (path, pos) = Loc::take_pair(path);
-        http.path = Some(parse_path(scope, path, &mut unused_args).with_pos(pos)?);
+        http.path = Some(parse_path(scope, path, &mut args).with_pos(pos)?);
     }
 
     if let Some(body) = selection.take("body") {
         let (body, pos) = Loc::take_pair(body);
         let body = body.as_identifier().with_pos(&pos)?;
 
-        if unused_args.remove(body).is_none() {
-            return Err(ctx.report()
-                .err(
-                    pos,
-                    format!("body `{}` is not an argument to endpoint", body),
-                )
-                .into());
+        match args.remove(body) {
+            Some(arg) => {
+                http.body = Some(Rc::clone(arg));
+            }
+            None => {
+                return Err(ctx.report()
+                    .err(
+                        pos,
+                        format!("body `{}` is not an argument to endpoint", body),
+                    )
+                    .into());
+            }
         }
-
-        http.body = Some(body.to_string());
     }
 
     if let Some(method) = selection.take("method") {
@@ -94,11 +98,14 @@ pub fn endpoint_http(
     }
 
     // Assert that all arguments are used somehow.
-    if !unused_args.is_empty() {
+    if !args.is_empty() {
         let mut report = ctx.report();
 
-        for pos in unused_args.values() {
-            report = report.err(*pos, "Argument not used in #[http(...)] attribute");
+        for arg in args.values() {
+            report = report.err(
+                Loc::pos(&arg.ident),
+                "Argument not used in #[http(...)] attribute",
+            );
         }
 
         return Err(report.into());
@@ -108,24 +115,15 @@ pub fn endpoint_http(
     return Ok(http);
 
     /// Parse a path specification.
-    fn parse_path(
+    fn parse_path<'a, 'b: 'a>(
         scope: &Scope,
         path: RpValue,
-        unused_args: &mut HashMap<&str, &Pos>,
+        args: &'a mut HashMap<&'b str, &'b Rc<RpEndpointArgument>>,
     ) -> Result<RpPathSpec> {
         let path = path.as_string()?;
         let path =
             path_parser::parse(path).map_err(|e| format!("Bad path: {}: {}", path, e.display()))?;
-        let path = path.into_model(scope)?;
-
-        for var in path.vars() {
-            if unused_args.remove(var).is_none() {
-                return Err(
-                    format!("path variable `{}` is not an argument to endpoint", var).into(),
-                );
-            }
-        }
-
+        let path = (args, path).into_model(scope)?;
         Ok(path)
     }
 

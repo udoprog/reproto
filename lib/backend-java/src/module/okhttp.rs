@@ -327,18 +327,13 @@ impl OkHttpServiceCodegen {
 
             for part in &step.parts {
                 match *part {
-                    RpPathPart::Variable(ref s) => {
-                        let arg = arguments
-                            .iter()
-                            .find(|a| a.var().as_ref() == s)
-                            .ok_or_else(|| format!("Missing argument: {}", s))?;
-
-                        let ty = arg.ty();
+                    RpPathPart::Variable(ref arg) => {
+                        let ty = arg.channel.ty();
 
                         if ty.is_primitive() {
-                            args.append(toks![ty.as_boxed(), ".toString(", s.as_str(), ")"]);
+                            args.append(toks![ty.as_boxed(), ".toString(", arg.safe_ident(), ")"]);
                         } else {
-                            args.append(s.as_str());
+                            args.append(arg.safe_ident());
                         }
                     }
                     RpPathPart::Segment(ref s) => {

@@ -2,6 +2,7 @@
 
 use {Attributes, Loc, RpChannel, RpPathSpec};
 use std::default;
+use std::rc::Rc;
 
 #[derive(Debug, Clone, Serialize)]
 pub enum RpHttpMethod {
@@ -52,7 +53,7 @@ pub struct RpEndpointHttp {
     pub path: Option<RpPathSpec>,
     /// Argument that is the body of the request.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub body: Option<String>,
+    pub body: Option<Rc<RpEndpointArgument>>,
     /// HTTP method.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub method: Option<RpHttpMethod>,
@@ -61,7 +62,7 @@ pub struct RpEndpointHttp {
 }
 
 /// An argument to an endpont.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct RpEndpointArgument {
     /// Identifier of the argument.
     pub ident: Loc<String>,
@@ -101,7 +102,7 @@ pub struct RpEndpoint {
     /// Attributes associated with the endpoint.
     pub attributes: Attributes,
     /// Request type that this endpoint expects.
-    pub arguments: Vec<RpEndpointArgument>,
+    pub arguments: Vec<Rc<RpEndpointArgument>>,
     /// Response type that this endpoint responds with.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub response: Option<Loc<RpChannel>>,

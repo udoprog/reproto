@@ -1,12 +1,14 @@
 //! Path specifications
 
+use RpEndpointArgument;
+use std::rc::Rc;
 use std::vec;
 
 /// A part of a step.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum RpPathPart {
-    Variable(String),
+    Variable(Rc<RpEndpointArgument>),
     Segment(String),
 }
 
@@ -24,11 +26,11 @@ pub struct RpPathSpec {
 
 #[derive(Debug)]
 pub struct Vars<'a> {
-    iter: vec::IntoIter<&'a str>,
+    iter: vec::IntoIter<&'a RpEndpointArgument>,
 }
 
 impl<'a> Iterator for Vars<'a> {
-    type Item = &'a str;
+    type Item = &'a RpEndpointArgument;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.iter.next()
@@ -43,7 +45,7 @@ impl RpPathSpec {
         for step in &self.steps {
             for part in &step.parts {
                 if let RpPathPart::Variable(ref var) = *part {
-                    vars.push(var.as_str());
+                    vars.push(Rc::as_ref(var));
                 }
             }
         }

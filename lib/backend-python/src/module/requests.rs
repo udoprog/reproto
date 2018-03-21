@@ -132,7 +132,9 @@ impl ServiceCodegen for RequestsServiceCodegen {
 
                             for part in &step.parts {
                                 let var = match *part {
-                                    RpPathPart::Variable(ref s) => toks!["str(", s.as_str(), ")"],
+                                    RpPathPart::Variable(ref arg) => {
+                                        toks!["str(", arg.safe_ident(), ")"]
+                                    }
                                     RpPathPart::Segment(ref s) => toks![s.to_string().quoted()],
                                 };
 
@@ -183,7 +185,7 @@ impl ServiceCodegen for RequestsServiceCodegen {
                         };
 
                         if let Some(ref body) = endpoint.http.body {
-                            args.append(toks!["json=", body.as_str(), ".encode()"]);
+                            args.append(toks!["json=", body.safe_ident(), ".encode()"]);
                         }
 
                         t.push(toks!["r = self.session.request(", args.join(", "), ")"]);

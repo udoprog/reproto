@@ -50,6 +50,7 @@ pub struct InterfaceAdded<'a, 'el: 'a> {
 pub struct EndpointExtra<'el> {
     pub name: Cons<'el>,
     pub response_ty: Java<'el>,
+    pub request_ty: Java<'el>,
     pub arguments: Vec<Argument<'el>>,
 }
 
