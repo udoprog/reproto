@@ -1,8 +1,8 @@
 //! A package requirement
 
-use {Range, RpPackage};
 use errors::Result;
 use std::fmt;
+use {Range, RpPackage};
 
 #[derive(Debug, Serialize, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RpRequiredPackage {

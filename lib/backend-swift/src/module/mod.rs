@@ -1,6 +1,6 @@
+mod codable;
 mod grpc;
 mod simple;
-mod codable;
 
 pub use self::codable::Module as Codable;
 pub use self::grpc::Module as Grpc;

@@ -1,5 +1,5 @@
-use genco::{IntoTokens, Java, Tokens};
 use genco::java::{imported, local, Argument, Interface, Method};
+use genco::{IntoTokens, Java, Tokens};
 
 /// @Override annotation
 pub struct Override;

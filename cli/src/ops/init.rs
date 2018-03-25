@@ -1,8 +1,8 @@
 //! Initialize a new project.
 
 use clap::{App, Arg, ArgMatches, SubCommand};
-use core::{Context, RelativePath};
 use core::errors::*;
+use core::{Context, RelativePath};
 use std::env;
 use std::path::Path;
 use std::rc::Rc;

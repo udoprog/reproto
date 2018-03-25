@@ -1,6 +1,6 @@
 use super::{LockableWrite, Output};
-use core::{self, ErrorPos};
 use core::errors::*;
+use core::{self, ErrorPos};
 use log;
 use std::io;
 

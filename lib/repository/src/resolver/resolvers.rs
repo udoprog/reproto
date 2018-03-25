@@ -1,5 +1,5 @@
-use core::{Resolved, ResolvedByPrefix, Resolver, RpPackage, RpRequiredPackage};
 use core::errors::Result;
+use core::{Resolved, ResolvedByPrefix, Resolver, RpPackage, RpRequiredPackage};
 
 pub struct Resolvers {
     resolvers: Vec<Box<Resolver>>,

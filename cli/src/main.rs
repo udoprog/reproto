@@ -5,8 +5,8 @@ extern crate reproto;
 extern crate reproto_core as core;
 
 use clap::{App, Arg, ArgMatches};
-use core::{Context, RealFilesystem};
 use core::errors::Result;
+use core::{Context, RealFilesystem};
 use reproto::ops;
 use reproto::output;
 use std::io;

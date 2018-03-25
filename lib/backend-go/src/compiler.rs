@@ -1,14 +1,14 @@
 //! Backend for Go
 
-use {EnumAdded, FieldAdded, FileSpec, InterfaceAdded, Options, Tags, TupleAdded, EXT};
 use backend::{PackageProcessor, PackageUtils};
-use core::{CoreFlavor, Handle, Loc, RelativePathBuf, Version};
 use core::errors::*;
 use core::flavored::{RpEnumBody, RpField, RpInterfaceBody, RpName, RpPackage, RpTupleBody, RpType,
                      RpTypeBody, RpVersionedPackage};
-use genco::{IntoTokens, Tokens};
+use core::{CoreFlavor, Handle, Loc, RelativePathBuf, Version};
 use genco::go::{imported, local, Go};
+use genco::{IntoTokens, Tokens};
 use trans::{self, Translated};
+use {EnumAdded, FieldAdded, FileSpec, InterfaceAdded, Options, Tags, TupleAdded, EXT};
 
 /// Documentation comments.
 pub struct Comments<'el, S: 'el>(pub &'el [S]);

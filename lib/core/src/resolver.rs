@@ -1,6 +1,6 @@
-use {Object, RpPackage, RpRequiredPackage, Version};
 use errors::Result;
 use std::fmt;
+use {Object, RpPackage, RpRequiredPackage, Version};
 
 /// A resolved package.
 #[derive(Debug)]

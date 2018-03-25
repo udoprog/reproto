@@ -19,9 +19,9 @@ mod module;
 
 use backend::{Initializer, IntoBytes};
 use compiler::Compiler;
-use core::{Context, CoreFlavor};
 use core::errors::Result;
 use core::flavored::{RpEnumBody, RpField, RpInterfaceBody, RpPackage, RpVersionedPackage};
+use core::{Context, CoreFlavor};
 use genco::Tokens;
 use genco::swift::Swift;
 use manifest::{Lang, Manifest, NoModule, TryFromToml};

@@ -1,5 +1,5 @@
-use core::{Flavor, RpDecl, RpFile, RpName, RpReg, RpVersionedPackage};
 use core::errors::Result;
+use core::{Flavor, RpDecl, RpFile, RpName, RpReg, RpVersionedPackage};
 use linked_hash_map::LinkedHashMap;
 use std::collections::{btree_map, BTreeMap, LinkedList};
 use std::vec;

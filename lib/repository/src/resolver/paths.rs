@@ -9,9 +9,9 @@
 //!
 //! The second form is only used when a version requirement is present.
 
+use core::errors::{Result, ResultExt};
 use core::{Object, PathObject, Range, Resolved, ResolvedByPrefix, Resolver, RpPackage,
            RpRequiredPackage, Version};
-use core::errors::{Result, ResultExt};
 use std::collections::{BTreeMap, HashMap, LinkedList};
 use std::ffi::OsStr;
 use std::fs;

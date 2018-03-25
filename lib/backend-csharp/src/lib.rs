@@ -15,19 +15,19 @@ extern crate serde;
 extern crate serde_derive;
 extern crate toml;
 
-mod processor;
-mod compiler;
-mod options;
-mod csharp_file;
-mod csharp_field;
 mod codegen;
-mod utils;
+mod compiler;
+mod csharp_field;
+mod csharp_file;
 mod module;
+mod options;
+mod processor;
+mod utils;
 
 use codegen::Configure;
 use compiler::Compiler;
-use core::{Context, CoreFlavor};
 use core::errors::Result;
+use core::{Context, CoreFlavor};
 use manifest::{checked_modules, Lang, Manifest, NoModule, TryFromToml};
 use naming::Naming;
 use options::Options;

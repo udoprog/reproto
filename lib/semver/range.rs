@@ -448,8 +448,8 @@ impl fmt::Display for Op {
 
 #[cfg(test)]
 mod test {
-    use super::{Op, Range};
     use super::super::version::Version;
+    use super::{Op, Range};
     use std::hash::{Hash, Hasher};
 
     fn range(s: &str) -> Range {

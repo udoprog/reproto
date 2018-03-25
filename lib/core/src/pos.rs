@@ -1,5 +1,5 @@
-use {EmptyObject, Object};
 use std::rc::Rc;
+use {EmptyObject, Object};
 
 #[derive(Clone, Debug, Serialize)]
 pub struct Pos {

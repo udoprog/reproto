@@ -1,7 +1,7 @@
 //! Propagates scope-specific information to `into_model` transformations.
 
-use core::{Context, RpName, RpPackage, RpVersionedPackage};
 use core::errors::{Error, Result};
+use core::{Context, RpName, RpPackage, RpVersionedPackage};
 use naming::Naming;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -198,9 +198,9 @@ impl Iterator for ScopeWalker {
 
 #[cfg(test)]
 mod tests {
-    use core::{RpPackage, RpVersionedPackage};
     use core::CapturingFilesystem;
     use core::Context;
+    use core::{RpPackage, RpVersionedPackage};
     use scope::Scope;
     use std::collections::HashMap;
     use std::rc::Rc;

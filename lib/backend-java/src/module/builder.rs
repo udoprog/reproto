@@ -2,8 +2,8 @@
 
 use codegen::{ClassAdded, ClassCodegen, Configure};
 use core::errors::*;
-use genco::{Java, Quoted, Tokens};
 use genco::java::{imported, local, Argument, Class, Field, Method, Modifier};
+use genco::{Java, Quoted, Tokens};
 use std::rc::Rc;
 
 pub struct Module;

@@ -5,8 +5,8 @@ use backend::Initializer;
 use codegen::{EndpointExtra, ServiceAdded, ServiceCodegen};
 use core;
 use core::errors::Result;
-use genco::{Python, Quoted, Tokens};
 use genco::python::imported;
+use genco::{Python, Quoted, Tokens};
 use utils::{BlockComment, IfNoneRaise, IfNoneThen};
 
 #[derive(Debug, Deserialize)]

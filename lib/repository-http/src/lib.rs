@@ -7,12 +7,12 @@ extern crate reproto_repository as repository;
 extern crate tokio_core;
 extern crate url;
 
-use core::{BytesObject, Object};
 use core::errors::{Error, Result};
-use futures::{Future, Stream};
+use core::{BytesObject, Object};
 use futures::future::{err, ok};
-use hyper::{Client, Method, Request, StatusCode};
+use futures::{Future, Stream};
 use hyper::header::ContentLength;
+use hyper::{Client, Method, Request, StatusCode};
 use repository::{CachedObjects, Checksum, HexSlice, Objects, ObjectsConfig};
 use std::io::Read;
 use std::sync::Arc;

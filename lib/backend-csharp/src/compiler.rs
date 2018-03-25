@@ -4,15 +4,15 @@ use Options;
 use backend::Converter;
 use codegen::{ClassAdded, EndpointExtra, EnumAdded, InterfaceAdded, ServiceAdded, TupleAdded,
               TypeField, TypeFieldAdded};
-use core::{self, CoreFlavor, ForEachLoc, Handle, Loc, RpContext, WithPos};
 use core::errors::*;
 use core::flavored::{RpDecl, RpEnumBody, RpField, RpInterfaceBody, RpName, RpServiceBody,
                      RpTupleBody, RpTypeBody};
+use core::{self, CoreFlavor, ForEachLoc, Handle, Loc, RpContext, WithPos};
 use csharp_field::CsharpField;
 use csharp_file::CsharpFile;
-use genco::{Cons, Csharp, Element, Quoted, Tokens};
 use genco::csharp::{local, optional, using, Argument, Class, Constructor, Enum, Field, INT32,
                     Method, Modifier, BOOLEAN};
+use genco::{Cons, Csharp, Element, Quoted, Tokens};
 use naming::{self, Naming};
 use processor::Processor;
 use std::rc::Rc;

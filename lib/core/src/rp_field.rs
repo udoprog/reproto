@@ -1,7 +1,7 @@
 //! Data Models for fields
 
-use {Flavor, Translate, Translator};
 use errors::Result;
+use {Flavor, Translate, Translator};
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct RpField<F: 'static>

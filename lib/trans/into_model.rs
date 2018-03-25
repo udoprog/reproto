@@ -1,8 +1,8 @@
 use ast::*;
 use attributes;
-use core::{self, Attributes, Context, Loc, Pos, Selection, WithPos};
 use core::errors::{Error, Result};
 use core::flavored::*;
+use core::{self, Attributes, Context, Loc, Pos, Selection, WithPos};
 use naming::Naming;
 use scope::Scope;
 use std::borrow::Cow;

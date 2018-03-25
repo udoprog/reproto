@@ -1,20 +1,20 @@
 //! Python Compiler
 
-use {FileSpec, Options, EXT, INIT_PY, TYPE_SEP};
 use backend::{Converter, DynamicConverter, DynamicDecode, DynamicEncode, PackageProcessor,
               PackageUtils};
 use codegen::{EndpointExtra, ServiceAdded, ServiceCodegen};
-use core::{self, CoreFlavor, ForEachLoc, Handle, Loc, RelativePathBuf, WithPos};
 use core::errors::*;
 use core::flavored::{RpEnumBody, RpField, RpInterfaceBody, RpName, RpPackage, RpServiceBody,
                      RpTupleBody, RpType, RpTypeBody, RpVersionedPackage};
-use genco::{Element, Quoted, Tokens};
+use core::{self, CoreFlavor, ForEachLoc, Handle, Loc, RelativePathBuf, WithPos};
 use genco::python::{imported, Python};
+use genco::{Element, Quoted, Tokens};
 use naming::{self, Naming};
 use std::collections::BTreeMap;
 use std::iter;
 use std::rc::Rc;
 use trans::{self, Translated};
+use {FileSpec, Options, EXT, INIT_PY, TYPE_SEP};
 
 pub struct Compiler<'el> {
     pub env: &'el Translated<CoreFlavor>,

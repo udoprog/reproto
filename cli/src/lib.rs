@@ -32,8 +32,8 @@ extern crate reproto_trans as trans;
 extern crate toml;
 extern crate url;
 
-pub mod ops;
-pub mod config;
-pub mod output;
 mod build_spec;
+pub mod config;
 mod config_env;
+pub mod ops;
+pub mod output;

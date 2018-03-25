@@ -12,7 +12,7 @@ extern crate reproto_repository;
 extern crate tempfile;
 extern crate toml;
 
+pub mod config;
 mod errors;
 mod io;
 pub mod reproto_service;
-pub mod config;

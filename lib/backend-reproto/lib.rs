@@ -10,10 +10,10 @@ extern crate reproto_manifest as manifest;
 extern crate reproto_trans as trans;
 extern crate toml;
 
-use core::{Context, CoreFlavor, RelativePathBuf, DEFAULT_TAG};
 use core::errors::Result;
 use core::flavored::{RpDecl, RpEndpoint, RpEnumBody, RpField, RpInterfaceBody, RpServiceBody,
                      RpTupleBody, RpTypeBody, RpVariant};
+use core::{Context, CoreFlavor, RelativePathBuf, DEFAULT_TAG};
 use genco::{Custom, Formatter, IntoTokens, IoFmt, Quoted, Tokens, WriteTokens};
 use manifest::{Lang, Manifest, NoModule, TryFromToml};
 use std::any::Any;

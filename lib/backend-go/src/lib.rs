@@ -19,11 +19,11 @@ mod module;
 
 use backend::{Initializer, IntoBytes};
 use compiler::Compiler;
-use core::{Context, CoreFlavor};
 use core::errors::Result;
 use core::flavored::{RpEnumBody, RpField, RpInterfaceBody, RpPackage, RpTupleBody};
-use genco::{Element, IntoTokens, Tokens};
+use core::{Context, CoreFlavor};
 use genco::go::{self, Go};
+use genco::{Element, IntoTokens, Tokens};
 use manifest::{Lang, Manifest, NoModule, TryFromToml};
 use naming::Naming;
 use std::any::Any;

@@ -1,15 +1,15 @@
 //! gRPC module for Rust.
 
-use {Compiler, EnumAdded, EnumCodegen, FileSpec, InterfaceAdded, InterfaceCodegen, Options,
-     PackageAdded, PackageCodegen, TupleAdded, TupleCodegen, TypeAdded, TypeCodegen};
 use backend::Initializer;
 use compiler::Comments;
-use core::{self, Loc};
 use core::errors::Result;
 use core::flavored::{RpEnumBody, RpField, RpPackage, RpSubType, RpType, RpVersionedPackage};
-use genco::{Cons, IntoTokens, Quoted, Tokens};
+use core::{self, Loc};
 use genco::swift::{imported, Swift};
+use genco::{Cons, IntoTokens, Quoted, Tokens};
 use std::rc::Rc;
+use {Compiler, EnumAdded, EnumCodegen, FileSpec, InterfaceAdded, InterfaceCodegen, Options,
+     PackageAdded, PackageCodegen, TupleAdded, TupleCodegen, TypeAdded, TypeCodegen};
 
 pub struct GuardMissing<'el>(Cons<'el>, Tokens<'el, Swift<'el>>, Cons<'el>);
 

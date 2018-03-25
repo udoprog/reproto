@@ -2,9 +2,9 @@
 //!
 //! This asserts that any errors raised contains location information.
 
-use {Loc, WithPos};
 use as_loc::AsLoc;
 use std::result;
+use {Loc, WithPos};
 
 /// Helper trait to iterate over a collection of loc items.
 pub trait ForEachLoc {

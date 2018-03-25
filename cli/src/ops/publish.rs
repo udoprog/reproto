@@ -1,8 +1,8 @@
 use build_spec::{matches, path_resolver, publish_matches, repository, semck_check, simple_config,
                  Match};
 use clap::{App, Arg, ArgMatches, SubCommand};
-use core::{Context, RpRequiredPackage, Version};
 use core::errors::*;
+use core::{Context, RpRequiredPackage, Version};
 use std::rc::Rc;
 
 pub fn options<'a, 'b>() -> App<'a, 'b> {

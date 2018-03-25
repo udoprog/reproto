@@ -1,6 +1,6 @@
 use checksum::Checksum;
-use core::{Range, RelativePath, RpPackage, Version};
 use core::errors::*;
+use core::{Range, RelativePath, RpPackage, Version};
 use git::GitRepo;
 use index::{file_index, Deployment, Index};
 use objects::{FileObjects, GitObjects, Objects};

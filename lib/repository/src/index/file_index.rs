@@ -1,6 +1,6 @@
 use checksum::Checksum;
-use core::{Range, RelativePath, RpPackage, Version};
 use core::errors::*;
+use core::{Range, RelativePath, RpPackage, Version};
 use index::{Deployment, Index};
 use objects::{FileObjects, Objects};
 use serde_json;

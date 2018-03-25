@@ -1,8 +1,8 @@
 //! Path specifications
 
-use {Flavor, RpEndpointArgument, Translate, Translator};
 use errors::Result;
 use std::vec;
+use {Flavor, RpEndpointArgument, Translate, Translator};
 
 /// A part of a step.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

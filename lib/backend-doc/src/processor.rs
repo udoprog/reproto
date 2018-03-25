@@ -1,9 +1,9 @@
 //! Processor trait.
 
 use super::{DOC_CSS_NAME, NORMALIZE_CSS_NAME};
-use core::{self, CoreFlavor, ForEachLoc, Loc, WithPos};
 use core::errors::*;
 use core::flavored::{RpDecl, RpField, RpName, RpType, RpVersionedPackage};
+use core::{self, CoreFlavor, ForEachLoc, Loc, WithPos};
 use doc_builder::DocBuilder;
 use escape::Escape;
 use macros::FormatAttribute;

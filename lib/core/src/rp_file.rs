@@ -1,8 +1,8 @@
 //! File declarations
 
-use {Flavor, RpDecl, Translate, Translator};
 use errors::Result;
 use std::collections::LinkedList;
+use {Flavor, RpDecl, Translate, Translator};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct RpFile<F: 'static>

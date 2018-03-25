@@ -1,8 +1,8 @@
 //! # Helper trait for building a dynamic-language decode method
 
 use converter::Converter;
-use core::{Flavor, RpType};
 use core::errors::*;
+use core::{Flavor, RpType};
 use genco::Tokens;
 
 pub trait BaseDecode<'el, F>

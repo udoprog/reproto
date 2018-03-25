@@ -5,13 +5,13 @@
 //! This is preferred over results, since it permits reporting complex errors and their
 //! corresponding locations.
 
-use {ErrorPos, Filesystem, Handle};
 use errors::{Error, Result};
 use std::cell::{BorrowError, Ref, RefCell};
 use std::fmt;
 use std::path::Path;
 use std::rc::Rc;
 use std::result;
+use {ErrorPos, Filesystem, Handle};
 
 pub enum ContextItem {
     /// A positional error.

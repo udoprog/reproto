@@ -1,7 +1,7 @@
 //! # Helper data structure do handle option lookups
 
-use {Loc, OptionEntry, RpNumber, WithPos};
 use errors::Result;
+use {Loc, OptionEntry, RpNumber, WithPos};
 
 /// Helper for looking up and dealing with options.
 pub trait Options {

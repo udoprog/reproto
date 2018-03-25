@@ -1,17 +1,17 @@
 //! Backend for Rust
 
-use {Options, EXT, MOD};
 use backend::{PackageProcessor, PackageUtils};
-use core::{self, CoreFlavor, ForEachLoc, Handle, Loc, RelativePath, RelativePathBuf};
 use core::errors::*;
 use core::flavored::{RpEnumBody, RpField, RpInterfaceBody, RpName, RpPackage, RpServiceBody,
                      RpTupleBody, RpType, RpTypeBody, RpVersionedPackage};
-use genco::{Element, IntoTokens, Quoted, Rust, Tokens};
+use core::{self, CoreFlavor, ForEachLoc, Handle, Loc, RelativePath, RelativePathBuf};
 use genco::rust::{imported, imported_alias};
+use genco::{Element, IntoTokens, Quoted, Rust, Tokens};
 use rust_file_spec::RustFileSpec;
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 use trans::{self, Translated};
+use {Options, EXT, MOD};
 
 /// #[allow(non_camel_case_types)] attribute.
 pub struct AllowNonCamelCaseTypes;

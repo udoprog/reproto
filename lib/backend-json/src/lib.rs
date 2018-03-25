@@ -11,8 +11,8 @@ extern crate serde;
 extern crate serde_json;
 extern crate toml;
 
-use core::{Context, CoreFlavor, RelativePathBuf};
 use core::errors::*;
+use core::{Context, CoreFlavor, RelativePathBuf};
 use manifest::{Lang, Manifest, NoModule, TryFromToml};
 use std::any::Any;
 use std::path::Path;

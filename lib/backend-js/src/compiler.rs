@@ -1,16 +1,16 @@
-use {FileSpec, Options, EXT, TYPE_SEP};
 use backend::{Converter, DynamicConverter, DynamicDecode, DynamicEncode, PackageProcessor,
               PackageUtils};
-use core::{self, CoreFlavor, ForEachLoc, Handle, Loc};
 use core::errors::*;
 use core::flavored::{RpEnumBody, RpField, RpInterfaceBody, RpName, RpPackage, RpTupleBody, RpType,
                      RpTypeBody, RpVersionedPackage};
-use genco::{Element, JavaScript, Quoted, Tokens};
+use core::{self, CoreFlavor, ForEachLoc, Handle, Loc};
 use genco::js::imported_alias;
+use genco::{Element, JavaScript, Quoted, Tokens};
 use naming::{self, Naming};
 use std::rc::Rc;
 use trans::{self, Translated};
 use utils::{is_defined, is_not_defined};
+use {FileSpec, Options, EXT, TYPE_SEP};
 
 pub struct Compiler<'el> {
     pub env: &'el Translated<CoreFlavor>,

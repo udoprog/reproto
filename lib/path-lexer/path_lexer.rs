@@ -168,8 +168,8 @@ pub fn path_lex(input: &str) -> PathLexer {
 
 #[cfg(test)]
 pub mod tests {
-    use super::*;
     use super::PathToken::*;
+    use super::*;
 
     fn tokenize(input: &str) -> Result<Vec<(usize, PathToken, usize)>> {
         path_lex(input).collect()

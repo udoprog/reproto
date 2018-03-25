@@ -15,13 +15,13 @@ extern crate serde_derive;
 extern crate toml;
 
 mod compiler;
-mod rust_file_spec;
 mod module;
+mod rust_file_spec;
 
 use backend::Initializer;
 use compiler::Compiler;
-use core::{Context, CoreFlavor};
 use core::errors::*;
+use core::{Context, CoreFlavor};
 use genco::{Rust, Tokens};
 use manifest::{Lang, Manifest, NoModule, TryFromToml};
 use std::any::Any;

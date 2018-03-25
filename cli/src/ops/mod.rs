@@ -1,11 +1,11 @@
 mod build;
+mod check;
+mod derive;
 mod doc;
+mod init;
 mod publish;
 mod repo;
 mod update;
-mod check;
-mod derive;
-mod init;
 
 use clap::{App, Arg, ArgMatches};
 use core::Context;

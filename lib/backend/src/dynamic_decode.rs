@@ -2,8 +2,8 @@
 
 use base_decode::BaseDecode;
 use converter::Converter;
-use core::{Flavor, Loc, RpInterfaceBody, RpType, WithPos};
 use core::errors::*;
+use core::{Flavor, Loc, RpInterfaceBody, RpType, WithPos};
 use dynamic_converter::DynamicConverter;
 use genco::Tokens;
 

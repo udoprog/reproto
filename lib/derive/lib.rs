@@ -6,19 +6,19 @@ extern crate serde;
 extern crate serde_json;
 extern crate serde_yaml;
 
-mod sir;
-mod json;
-mod yaml;
 mod format;
+mod json;
+mod sir;
 mod utils;
+mod yaml;
 
 pub use self::format::Format;
 pub use self::json::Json;
 pub use self::yaml::Yaml;
 use ast::{Attribute, AttributeItem, Decl, Field, InterfaceBody, Item, Name, SubType, TupleBody,
           Type, TypeBody, TypeMember, Value};
-use core::{Loc, Object, Pos, RpPackage, DEFAULT_TAG};
 use core::errors::Result;
+use core::{Loc, Object, Pos, RpPackage, DEFAULT_TAG};
 use inflector::cases::pascalcase::to_pascal_case;
 use inflector::cases::snakecase::to_snake_case;
 use linked_hash_map::LinkedHashMap;

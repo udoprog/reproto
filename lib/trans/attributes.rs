@@ -1,9 +1,9 @@
 //! Handle parsing of attributes.
 
-use core::{self, Attributes, Context, Loc, Pos, WithPos};
 use core::errors::Result;
 use core::flavored::{RpAccept, RpChannel, RpEndpointArgument, RpEndpointHttp, RpHttpMethod,
                      RpPathSpec, RpValue};
+use core::{self, Attributes, Context, Loc, Pos, WithPos};
 use into_model::IntoModel;
 use path_parser;
 use scope::Scope;

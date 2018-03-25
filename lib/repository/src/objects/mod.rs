@@ -1,6 +1,6 @@
+mod cached_objects;
 mod file_objects;
 mod git_objects;
-mod cached_objects;
 
 pub use self::cached_objects::CachedObjects;
 pub use self::file_objects::FileObjects;

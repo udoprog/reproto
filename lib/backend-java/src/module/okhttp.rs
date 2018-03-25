@@ -1,9 +1,9 @@
 //! Module that adds fasterxml annotations to generated classes.
 
-use codegen::{Configure, EndpointExtra, ServiceAdded, ServiceCodegen};
-use core;
+use codegen::{Configure, ServiceAdded, ServiceCodegen};
+use core::{self, Loc};
 use core::errors::*;
-use flavored::{RpEndpoint, RpPathStep};
+use flavored::{JavaEndpoint, RpPathStep};
 use genco::{Cons, IntoTokens, Java, Quoted, Tokens};
 use genco::java::{imported, local, Argument, Class, Constructor, Field, Method, Modifier};
 use utils::Override;
@@ -170,6 +170,7 @@ pub struct OkHttpServiceCodegen {
     call: Java<'static>,
     response: Java<'static>,
     io_exc: Java<'static>,
+    optional: Java<'static>,
 }
 
 impl OkHttpServiceCodegen {
@@ -182,6 +183,7 @@ impl OkHttpServiceCodegen {
             call: imported("okhttp3", "Call"),
             response: imported("okhttp3", "Response"),
             io_exc: imported("java.io", "IOException"),
+            optional: imported("java.util", "Optional"),
         }
     }
 }
@@ -190,7 +192,7 @@ impl OkHttpServiceCodegen {
     fn request<'el>(
         &self,
         mut method: Method<'el>,
-        endpoint: &'el RpEndpoint,
+        endpoint: &'el Loc<JavaEndpoint>,
         client: Field<'el>,
         base_url: Field<'el>,
     ) -> Result<Method<'el>> {
@@ -290,7 +292,7 @@ impl OkHttpServiceCodegen {
                         let exc = toks![
                             "new IOException(",
                             "bad response: ".quoted(),
-                            " + response)"
+                            " + response)",
                         ];
 
                         t.push("if (!response.isSuccessful()) {");
@@ -344,13 +346,7 @@ impl OkHttpServiceCodegen {
 
 impl ServiceCodegen for OkHttpServiceCodegen {
     fn generate(&self, e: ServiceAdded) -> Result<()> {
-        let ServiceAdded {
-            compiler,
-            body,
-            spec,
-            extra,
-            ..
-        } = e;
+        let ServiceAdded { body, spec, .. } = e;
 
         let mut c = Class::new("OkHttp");
         c.implements = vec![local(spec.name())];
@@ -358,32 +354,23 @@ impl ServiceCodegen for OkHttpServiceCodegen {
         let client = Field::new(self.client.clone(), "client");
         let base_url = Field::new(self.http_url.clone(), "baseUrl");
 
-        for (endpoint, extra) in body.endpoints.iter().zip(extra.iter()) {
-            let EndpointExtra {
-                ref name,
-                ref response_ty,
-                ref arguments,
-                ..
-            } = *extra;
+        for endpoint in &body.endpoints {
+            let mut m = Method::new(endpoint.ident.clone());
+            m.returns = endpoint.response_ty.clone();
+            m.arguments.extend(endpoint.arguments.iter().cloned());
 
             if !endpoint.has_http_support() {
-                let mut m = Method::new(name.clone());
-                m.annotation(Override);
-                m.returns = response_ty.clone();
-                m.arguments.extend(arguments.iter().cloned());
-
-                // FIXME: compile-time error?
-                m.body
-                    .push("throw new RuntimeException(\"endpoint does not support HTTP\");");
+                // TODO: compile-time error?
+                push!(
+                    m.body,
+                    "throw new RuntimeException(",
+                    "endpoint does not support HTTP".quoted(),
+                    ");"
+                );
 
                 c.methods.push(m);
                 continue;
             }
-
-            let mut m = Method::new(name.clone());
-            m.annotation(Override);
-            m.returns = response_ty.clone();
-            m.arguments.extend(arguments.iter().cloned());
 
             c.methods
                 .push(self.request(m, endpoint, client.clone(), base_url.clone())?);
@@ -404,7 +391,7 @@ impl ServiceCodegen for OkHttpServiceCodegen {
 
         let builder = Builder {
             ty: local(c.name()),
-            optional: compiler.optional.clone(),
+            optional: self.optional.clone(),
             client: client.clone(),
             base_url: base_url.clone(),
         };

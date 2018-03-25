@@ -1,8 +1,8 @@
 use IntoBytes;
+use core::errors::*;
 use core::{Flavor, Handle, RelativePath, RelativePathBuf, RpDecl, RpEnumBody, RpInterfaceBody,
            RpName, RpPackage, RpServiceBody, RpTupleBody, RpType, RpTypeBody, RpVersionedPackage,
            WithPos};
-use core::errors::*;
 use std::collections::BTreeMap;
 use std::io::Write;
 

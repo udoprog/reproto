@@ -12,8 +12,8 @@ extern crate serde;
 extern crate serde_derive;
 extern crate toml;
 
-use core::{CoreFlavor, Range, RpPackage, RpRequiredPackage, Version};
 use core::errors::Result;
+use core::{CoreFlavor, Range, RpPackage, RpRequiredPackage, Version};
 use naming::Naming;
 use relative_path::{RelativePath, RelativePathBuf};
 use std::any::Any;

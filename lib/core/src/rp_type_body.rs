@@ -1,9 +1,9 @@
 //! Model for tuples.
 
-use {Flavor, Loc, RpCode, Translate, Translator};
 use errors::Result;
 use std::slice;
 use translator;
+use {Flavor, Loc, RpCode, Translate, Translator};
 
 decl_body!(pub struct RpTypeBody<F> {
     pub fields: Vec<Loc<F::Field>>,

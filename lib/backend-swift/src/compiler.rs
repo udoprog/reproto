@@ -1,15 +1,15 @@
 //! Backend for Swift
 
-use {EnumAdded, FileSpec, InterfaceAdded, InterfaceModelAdded, Options, PackageAdded,
-     StructModelAdded, TupleAdded, TypeAdded, EXT};
 use backend::{PackageProcessor, PackageUtils};
-use core::{CoreFlavor, Handle, Loc};
 use core::errors::*;
 use core::flavored::{RpEnumBody, RpField, RpInterfaceBody, RpName, RpPackage, RpTupleBody, RpType,
                      RpTypeBody, RpVersionedPackage};
-use genco::{IntoTokens, Tokens};
+use core::{CoreFlavor, Handle, Loc};
 use genco::swift::{self, Swift};
+use genco::{IntoTokens, Tokens};
 use trans::{self, Translated};
+use {EnumAdded, FileSpec, InterfaceAdded, InterfaceModelAdded, Options, PackageAdded,
+     StructModelAdded, TupleAdded, TypeAdded, EXT};
 
 /// Documentation comments.
 pub struct Comments<'el, S: 'el>(pub &'el [S]);

@@ -1,15 +1,15 @@
 //! encoding/json module for Go
 
-use {EnumAdded, EnumCodegen, FieldAdded, FieldCodegen, InterfaceAdded, InterfaceCodegen, Options,
-     TupleAdded, TupleCodegen};
 use backend::Initializer;
 use compiler::Compiler;
 use core;
 use core::errors::{Error, Result};
 use core::flavored::{RpEnumBody, RpInterfaceBody, RpSubType, RpTupleBody};
-use genco::{Quoted, Tokens};
 use genco::go::{imported, Go};
+use genco::{Quoted, Tokens};
 use std::rc::Rc;
+use {EnumAdded, EnumCodegen, FieldAdded, FieldCodegen, InterfaceAdded, InterfaceCodegen, Options,
+     TupleAdded, TupleCodegen};
 
 pub struct Module {}
 

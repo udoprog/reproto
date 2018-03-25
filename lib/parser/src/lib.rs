@@ -6,9 +6,9 @@ extern crate reproto_ast as ast;
 extern crate reproto_core as core;
 extern crate reproto_lexer as lexer;
 
-mod utils;
 #[allow(unused)]
 mod parser;
+mod utils;
 
 use core::Object;
 use core::errors::*;
@@ -86,8 +86,8 @@ pub fn parse<'input>(object: Rc<Box<Object>>, input: &'input str) -> Result<ast:
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::ast::*;
+    use super::*;
     use core::*;
     use std::rc::Rc;
     use std::sync::Arc;

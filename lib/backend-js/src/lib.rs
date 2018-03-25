@@ -19,8 +19,8 @@ mod compiler;
 
 use backend::IntoBytes;
 use compiler::Compiler;
-use core::{Context, CoreFlavor, Loc, Pos, RpField, RpPackage, RpType};
 use core::errors::Result;
+use core::{Context, CoreFlavor, Loc, Pos, RpField, RpPackage, RpType};
 use genco::{JavaScript, Tokens};
 use manifest::{Lang, Manifest, NoModule, TryFromToml};
 use std::any::Any;

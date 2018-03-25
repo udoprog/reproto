@@ -1,9 +1,9 @@
 //! Model for tuples.
 
-use {Flavor, Loc, RpCode, RpSubType, Translate, Translator};
 use errors::Result;
 use std::slice;
 use translator;
+use {Flavor, Loc, RpCode, RpSubType, Translate, Translator};
 
 /// Default key to use for tagged sub type strategy.
 pub const DEFAULT_TAG: &str = "type";

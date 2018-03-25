@@ -2,8 +2,8 @@
 
 use codegen::{ClassAdded, ClassCodegen, Configure};
 use core::errors::Result;
-use genco::{Java, Quoted, Tokens};
 use genco::java::imported;
+use genco::{Java, Quoted, Tokens};
 
 pub struct Module;
 

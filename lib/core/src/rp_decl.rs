@@ -1,10 +1,10 @@
 //! Model for declarations
 
-use {Flavor, Loc, Pos, RpEnumBody, RpInterfaceBody, RpName, RpReg, RpServiceBody, RpSubType,
-     RpTupleBody, RpTypeBody, RpVariant, Translate, Translator};
 use errors::Result;
 use std::fmt;
 use std::vec;
+use {Flavor, Loc, Pos, RpEnumBody, RpInterfaceBody, RpName, RpReg, RpServiceBody, RpSubType,
+     RpTupleBody, RpTypeBody, RpVariant, Translate, Translator};
 
 /// Iterator over declarations.
 pub struct Decls<'a, F: 'static>

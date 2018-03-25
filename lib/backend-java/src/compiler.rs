@@ -1,16 +1,14 @@
 //! Java backend for reproto
 
 use Options;
-use codegen::{ClassAdded, EndpointExtra, EnumAdded, GetterAdded, InterfaceAdded, ServiceAdded,
-              TupleAdded};
+use codegen::{ClassAdded, EnumAdded, GetterAdded, InterfaceAdded, ServiceAdded, TupleAdded};
 use core::{self, ForEachLoc, Handle, Loc, WithPos};
 use core::errors::*;
-use flavored::{JavaFlavor, RpCode, RpDecl, RpEnumBody, RpEnumType, RpInterfaceBody, RpServiceBody,
-               RpTupleBody, RpTypeBody};
+use flavored::{JavaField, JavaFlavor, RpCode, RpDecl, RpEnumBody, RpEnumType, RpInterfaceBody,
+               RpServiceBody, RpTupleBody, RpTypeBody};
 use genco::{Cons, Element, Java, Quoted, Tokens};
 use genco::java::{imported, local, Argument, Class, Constructor, Enum, Field, Interface, Method,
                   Modifier, BOOLEAN, INTEGER};
-use java_field::JavaField;
 use java_file::JavaFile;
 use naming::{self, Naming};
 use processor::Processor;
@@ -31,8 +29,6 @@ fn code<'el>(codes: &'el [Loc<RpCode>]) -> Tokens<'el, Java<'el>> {
                     t.register(imported(package, name));
                 }
             }
-
-            // TODO: explicitly include imports through genco. Tokens::opaque?
 
             t.append({
                 let mut t = Tokens::new();
@@ -61,18 +57,15 @@ pub struct Compiler<'el> {
     env: &'el Translated<JavaFlavor>,
     variant_field: &'el Loc<JavaField<'static>>,
     options: Options,
-    to_lower_camel: naming::ToLowerCamel,
     variant_naming: naming::ToUpperSnake,
     null_string: Element<'static, Java<'static>>,
     suppress_warnings: Java<'static>,
     string_builder: Java<'static>,
-    pub void: Java<'static>,
     objects: Java<'static>,
     object: Java<'static>,
     string: Java<'static>,
     pub optional: Java<'static>,
     illegal_argument: Java<'static>,
-    observer: Java<'static>,
 }
 
 impl<'el> Processor for Compiler<'el> {}
@@ -87,10 +80,8 @@ impl<'el> Compiler<'el> {
             env: env,
             variant_field: variant_field,
             options: options,
-            to_lower_camel: naming::to_lower_camel(),
             variant_naming: naming::to_upper_snake(),
             null_string: "null".quoted(),
-            void: imported("java.lang", "Void"),
             objects: imported("java.util", "Objects"),
             suppress_warnings: imported("java.lang", "SuppressWarnings"),
             string_builder: imported("java.lang", "StringBuilder"),
@@ -98,7 +89,6 @@ impl<'el> Compiler<'el> {
             string: imported("java.lang", "String"),
             optional: imported("java.util", "Optional"),
             illegal_argument: imported("java.lang", "IllegalArgumentException"),
-            observer: imported("io.reproto", "Observer"),
         }
     }
 
@@ -759,69 +749,9 @@ impl<'el> Compiler<'el> {
     fn process_service(&self, body: &'el RpServiceBody) -> Result<Interface<'el>> {
         let mut spec = Interface::new(body.ident.as_str());
 
-        let mut extra: Vec<EndpointExtra> = Vec::new();
-
-        for endpoint in &body.endpoints {
-            let name = self.to_lower_camel.convert(endpoint.safe_ident());
-
-            let response_ty = if let Some(res) = endpoint.response.as_ref() {
-                self.observer.with_arguments(vec![res.ty().clone()])
-            } else {
-                self.observer.with_arguments(vec![self.void.clone()])
-            };
-
-            let request_ty = if let Some(req) = endpoint.request.as_ref() {
-                self.observer.with_arguments(vec![req.channel.ty().clone()])
-            } else {
-                self.observer.with_arguments(vec![self.void.clone()])
-            };
-
-            let mut arguments = Vec::new();
-
-            for arg in &endpoint.arguments {
-                arguments.push(Argument::new(arg.channel.ty().clone(), arg.safe_ident()));
-            }
-
-            extra.push(EndpointExtra {
-                name: Rc::new(name).into(),
-                response_ty: response_ty,
-                request_ty: request_ty,
-                arguments: arguments,
-            });
-        }
-
-        if !self.options.suppress_service_methods {
-            for (endpoint, extra) in body.endpoints.iter().zip(extra.iter()) {
-                let EndpointExtra {
-                    ref name,
-                    ref response_ty,
-                    ref arguments,
-                    ..
-                } = *extra;
-
-                let mut method = Method::new(name.clone());
-
-                if !endpoint.comment.is_empty() {
-                    method.comments.push("<pre>".into());
-                    method
-                        .comments
-                        .extend(endpoint.comment.iter().cloned().map(Into::into));
-                    method.comments.push("</pre>".into());
-                }
-
-                method.modifiers = vec![];
-                method.arguments.extend(arguments.iter().cloned());
-
-                method.returns = response_ty.clone();
-                spec.methods.push(method);
-            }
-        }
-
         for generator in &self.options.service_generators {
             generator.generate(ServiceAdded {
-                compiler: self,
                 body: body,
-                extra: &extra,
                 spec: &mut spec,
             })?;
         }

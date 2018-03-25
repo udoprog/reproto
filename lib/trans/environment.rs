@@ -1,8 +1,8 @@
 use ast::{self, UseDecl};
+use core::errors::{Error, Result};
 use core::{translator, Context, CoreFlavor, Flavor, Loc, Object, PathObject, Range, Resolved,
            Resolver, RpFile, RpName, RpPackage, RpReg, RpRequiredPackage, RpVersionedPackage,
            Translate, TypeTranslator, WithPos};
-use core::errors::{Error, Result};
 use into_model::IntoModel;
 use linked_hash_map::LinkedHashMap;
 use naming::{self, Naming};

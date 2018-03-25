@@ -1,6 +1,5 @@
 //! Filesystem abstractions.
 
-use {RelativePath, RelativePathBuf};
 use errors::Result;
 use linked_hash_map::LinkedHashMap;
 use std::cell::RefCell;
@@ -8,6 +7,7 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use {RelativePath, RelativePathBuf};
 
 pub trait Handle {
     /// Check if the given path is a directory or not.

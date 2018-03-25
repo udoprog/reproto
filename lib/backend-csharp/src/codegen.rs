@@ -1,13 +1,13 @@
 //! Code generator for the given path.
 
-use {Compiler, Options, Utils};
 use core::Handle;
 use core::errors::Result;
 use core::flavored::{RpEnumBody, RpInterfaceBody, RpServiceBody};
 use csharp_field::CsharpField;
-use genco::{Cons, Csharp};
 use genco::csharp::{Argument, Class, Enum, Field};
+use genco::{Cons, Csharp};
 use std::rc::Rc;
+use {Compiler, Options, Utils};
 
 #[derive(Clone)]
 pub struct TypeField<'el> {

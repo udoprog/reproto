@@ -51,3 +51,18 @@ macro_rules! decl_flavor {
         pub type RpVersionedPackage = $source::RpVersionedPackage;
     };
 }
+
+/// Implement a Serialize that fails when trying to serializer for the given type.
+#[macro_export]
+macro_rules! no_serializer {
+    ($ty: ident < $lifetime: tt >) => {
+        impl<$lifetime> $crate::serde::Serialize for $ty<$lifetime> {
+            fn serialize<S>(&self, serializer: S) -> ::std::result::Result<S::Ok, S::Error>
+            where
+                S: $crate::serde::Serializer,
+            {
+                Err($crate::serde::ser::Error::custom("not supported"))
+            }
+        }
+    };
+}

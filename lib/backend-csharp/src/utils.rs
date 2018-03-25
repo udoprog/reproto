@@ -1,7 +1,7 @@
-use core::{CoreFlavor, RpName, RpType, RpVersionedPackage};
 use core::errors::*;
-use genco::{Cons, Csharp, IntoTokens, Quoted, Tokens};
+use core::{CoreFlavor, RpName, RpType, RpVersionedPackage};
 use genco::csharp::{self, array, struct_, using};
+use genco::{Cons, Csharp, IntoTokens, Quoted, Tokens};
 use processor::Processor;
 use std::rc::Rc;
 use trans::Translated;

@@ -14,20 +14,19 @@ extern crate serde;
 extern crate serde_derive;
 extern crate toml;
 
-mod processor;
-mod compiler;
-mod options;
-mod java_file;
-mod java_field;
-mod module;
 mod codegen;
-mod utils;
+mod compiler;
 mod flavored;
+mod java_file;
+mod module;
+mod options;
+mod processor;
+mod utils;
 
 use codegen::Configure;
 use compiler::Compiler;
-use core::{Context, CoreFlavor, Loc, Pos, RpField, RpType, Translator};
 use core::errors::Result;
+use core::{Context, CoreFlavor, Loc, Pos, RpField, RpType, Translator};
 use manifest::{checked_modules, Lang, Manifest, NoModule, TryFromToml};
 use options::Options;
 use std::any::Any;

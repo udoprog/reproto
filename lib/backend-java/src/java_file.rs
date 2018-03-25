@@ -1,9 +1,9 @@
 //! Helper component to build Java files.
 
-use core::{Handle, RelativePathBuf};
 use core::errors::*;
-use genco::{IoFmt, Java, Tokens, WriteTokens};
+use core::{Handle, RelativePathBuf};
 use genco::java::Extra;
+use genco::{IoFmt, Java, Tokens, WriteTokens};
 
 pub struct JavaFile<'el, F> {
     package: &'el str,

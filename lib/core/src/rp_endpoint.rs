@@ -1,9 +1,9 @@
 //! Model for endpoints
 
-use {Attributes, Flavor, Loc, RpChannel, RpPathSpec, Translate, Translator};
 use errors::Result;
 use std::default;
 use std::rc::Rc;
+use {Attributes, Flavor, Loc, RpChannel, RpPathSpec, Translate, Translator};
 
 #[derive(Debug, Clone, Serialize)]
 pub enum RpHttpMethod {
@@ -201,29 +201,5 @@ where
         }
 
         true
-    }
-}
-
-impl<F: 'static, T> Translate<T> for RpEndpoint<F>
-where
-    F: Flavor,
-    T: Translator<Source = F>,
-{
-    type Source = F;
-    type Out = RpEndpoint<T::Target>;
-
-    /// Translate into different flavor.
-    fn translate(self, translator: &T) -> Result<RpEndpoint<T::Target>> {
-        Ok(RpEndpoint {
-            ident: self.ident,
-            safe_ident: self.safe_ident,
-            name: self.name,
-            comment: self.comment,
-            attributes: self.attributes,
-            arguments: self.arguments.translate(translator)?,
-            request: self.request.translate(translator)?,
-            response: self.response.translate(translator)?,
-            http: self.http.translate(translator)?,
-        })
     }
 }

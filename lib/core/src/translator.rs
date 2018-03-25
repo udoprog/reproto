@@ -1,11 +1,11 @@
 //! Translates one IR in-place into another.
 
-use {CoreFlavor, Loc, RpField, RpName, RpReg, RpType};
 use Flavor;
 use errors::Result;
 use linked_hash_map::LinkedHashMap;
 use std::cell::RefCell;
 use std::rc::Rc;
+use {CoreFlavor, Loc, RpEndpoint, RpField, RpName, RpReg, RpType};
 
 pub trait TypeTranslator {
     type Source: 'static + Clone + Flavor;
@@ -53,6 +53,15 @@ pub trait TypeTranslator {
         translator: &T,
         field: <Self::Source as Flavor>::Field,
     ) -> Result<<Self::Target as Flavor>::Field>
+    where
+        T: Translator<Source = Self::Source, Target = Self::Target>;
+
+    /// Translate the given endpoint.
+    fn translate_endpoint<T>(
+        &self,
+        translator: &T,
+        endpoint: <Self::Source as Flavor>::Endpoint,
+    ) -> Result<<Self::Target as Flavor>::Endpoint>
     where
         T: Translator<Source = Self::Source, Target = Self::Target>;
 }
@@ -134,6 +143,27 @@ impl TypeTranslator for CoreTypeTranslator {
     {
         Ok(field)
     }
+
+    fn translate_endpoint<T>(
+        &self,
+        translator: &T,
+        endpoint: RpEndpoint<CoreFlavor>,
+    ) -> Result<RpEndpoint<CoreFlavor>>
+    where
+        T: Translator<Source = CoreFlavor, Target = CoreFlavor>,
+    {
+        Ok(RpEndpoint {
+            ident: endpoint.ident,
+            safe_ident: endpoint.safe_ident,
+            name: endpoint.name,
+            comment: endpoint.comment,
+            attributes: endpoint.attributes,
+            arguments: endpoint.arguments.translate(translator)?,
+            request: endpoint.request.translate(translator)?,
+            response: endpoint.response.translate(translator)?,
+            http: endpoint.http.translate(translator)?,
+        })
+    }
 }
 
 /// Translator trait from one flavor to another.
@@ -157,6 +187,12 @@ pub trait Translator {
         &self,
         <Self::Source as Flavor>::Field,
     ) -> Result<<Self::Target as Flavor>::Field>;
+
+    /// Translate the given endpoint from one flavor to another.
+    fn translate_endpoint(
+        &self,
+        <Self::Source as Flavor>::Endpoint,
+    ) -> Result<<Self::Target as Flavor>::Endpoint>;
 }
 
 /// A translated type.
@@ -330,5 +366,12 @@ where
         source: <Self::Source as Flavor>::Field,
     ) -> Result<<Self::Target as Flavor>::Field> {
         self.type_translator.translate_field(self, source)
+    }
+
+    fn translate_endpoint(
+        &self,
+        source: <Self::Source as Flavor>::Endpoint,
+    ) -> Result<<Self::Target as Flavor>::Endpoint> {
+        self.type_translator.translate_endpoint(self, source)
     }
 }

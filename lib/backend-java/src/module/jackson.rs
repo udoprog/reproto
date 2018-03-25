@@ -4,9 +4,9 @@ use codegen::{ClassAdded, ClassCodegen, Configure, EnumAdded, EnumCodegen, Gette
               GetterCodegen, InterfaceAdded, InterfaceCodegen, TupleAdded, TupleCodegen};
 use core::RpSubTypeStrategy;
 use core::errors::*;
-use genco::{Cons, Element, IntoTokens, Java, Quoted, Tokens};
 use genco::java::{imported, local, Argument, Class, Field, Modifier, DOUBLE, FLOAT, INTEGER, LONG,
                   SHORT};
+use genco::{Cons, Element, IntoTokens, Java, Quoted, Tokens};
 use std::rc::Rc;
 
 pub struct Module;

@@ -1,15 +1,15 @@
 //! gRPC module for Rust.
 
-use {Compiler, EnumAdded, EnumCodegen, FileSpec, InterfaceAdded, InterfaceCodegen,
-     InterfaceModelAdded, InterfaceModelCodegen, Options, PackageAdded, PackageCodegen,
-     StructModelAdded, StructModelCodegen, TupleAdded, TupleCodegen};
 use backend::Initializer;
 use core;
 use core::errors::{Error, Result};
 use core::flavored::{RpEnumBody, RpField, RpInterfaceBody, RpPackage, RpVersionedPackage};
-use genco::{Quoted, Tokens};
 use genco::swift::Swift;
+use genco::{Quoted, Tokens};
 use std::rc::Rc;
+use {Compiler, EnumAdded, EnumCodegen, FileSpec, InterfaceAdded, InterfaceCodegen,
+     InterfaceModelAdded, InterfaceModelCodegen, Options, PackageAdded, PackageCodegen,
+     StructModelAdded, StructModelCodegen, TupleAdded, TupleCodegen};
 
 pub struct Module {}
 

@@ -502,8 +502,8 @@ pub fn lex(input: &str) -> Lexer {
 
 #[cfg(test)]
 pub mod tests {
-    use super::*;
     use super::Token::*;
+    use super::*;
 
     fn tokenize(input: &str) -> Result<Vec<(usize, Token, usize)>> {
         lex(input).collect()

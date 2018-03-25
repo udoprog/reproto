@@ -1,7 +1,7 @@
 //! # Converter for core data structures into processor-specific ones.
 
-use core::{Flavor, RpName};
 use core::errors::*;
+use core::{Flavor, RpName};
 use genco::{Custom, Tokens};
 
 pub trait Converter<'el, F>

@@ -159,11 +159,11 @@
 #[cfg(feature = "serde")]
 extern crate serde;
 
-pub mod parser;
-pub mod lexer;
-pub mod version;
-pub mod range;
 pub mod errors;
+pub mod lexer;
+pub mod parser;
+pub mod range;
+pub mod version;
 
 pub use self::range::Range;
 pub use self::version::Version;

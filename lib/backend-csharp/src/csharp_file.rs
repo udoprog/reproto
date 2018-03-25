@@ -1,9 +1,9 @@
 //! Helper component to build C# files.
 
-use core::{Handle, RelativePathBuf};
 use core::errors::*;
-use genco::{Csharp, IoFmt, Tokens, WriteTokens};
+use core::{Handle, RelativePathBuf};
 use genco::csharp::Extra;
+use genco::{Csharp, IoFmt, Tokens, WriteTokens};
 
 pub struct CsharpFile<'el, F> {
     namespace: &'el str,

@@ -1,7 +1,7 @@
 //! Model for enums
 
-use {Flavor, Loc, RpCode, RpEnumType, RpVariant, Translate, Translator};
 use errors::Result;
+use {Flavor, Loc, RpCode, RpEnumType, RpVariant, Translate, Translator};
 
 decl_body!(pub struct RpEnumBody<F> {
     /// The type of the variant.

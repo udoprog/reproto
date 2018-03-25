@@ -16,10 +16,10 @@ mod converter;
 mod dynamic_converter;
 mod dynamic_decode;
 mod dynamic_encode;
+mod initializer;
 mod into_bytes;
 mod package_processor;
 mod package_utils;
-mod initializer;
 
 pub use self::base_decode::BaseDecode;
 pub use self::base_encode::BaseEncode;

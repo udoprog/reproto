@@ -3,8 +3,8 @@ mod non_colored;
 
 pub use self::colored::Colored;
 pub use self::non_colored::NonColored;
-use core::{self, ContextItem};
 use core::errors::*;
+use core::{self, ContextItem};
 use log;
 use std::io::{self, Write};
 

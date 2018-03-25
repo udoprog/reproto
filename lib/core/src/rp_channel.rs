@@ -1,8 +1,8 @@
 //! Data model for request or responses for endpoints
 
-use {Flavor, Translate, Translator};
 use errors::Result;
 use std::fmt;
+use {Flavor, Translate, Translator};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub enum RpChannel<F: 'static>

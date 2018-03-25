@@ -1,8 +1,8 @@
 //! Model for sub-types
 
-use {Flavor, Loc, RpCode, RpDecl, RpName, Translate, Translator};
 use errors::Result;
 use translator;
+use {Flavor, Loc, RpCode, RpDecl, RpName, Translate, Translator};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct RpSubType<F: 'static>

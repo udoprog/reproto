@@ -1,9 +1,9 @@
-use {Pos, WithPos};
 use serde;
 use std::borrow;
 use std::cmp;
 use std::hash;
 use std::result;
+use {Pos, WithPos};
 
 #[derive(Clone)]
 pub struct Loc<T> {

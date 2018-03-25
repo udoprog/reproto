@@ -3,8 +3,8 @@ use codegen::{ClassAdded, ClassCodegen, Configure, EnumAdded, EnumCodegen, Inter
               TypeFieldCodegen};
 use core::RpSubTypeStrategy;
 use core::errors::Result;
-use genco::{Cons, Csharp, Element, IntoTokens, Quoted, Tokens};
 use genco::csharp::{using, Argument};
+use genco::{Cons, Csharp, Element, IntoTokens, Quoted, Tokens};
 use std::rc::Rc;
 
 pub struct Module;

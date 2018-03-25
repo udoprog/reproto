@@ -1,6 +1,5 @@
 package test;
 
-import io.reproto.Observer;
 import java.io.IOException;
 import java.util.Optional;
 import okhttp3.Call;
@@ -11,34 +10,6 @@ import okhttp3.Request;
 import okhttp3.Response;
 
 public interface MyService {
-  /**
-   * <pre>
-   * UNKNOWN
-   * </pre>
-   */
-  Observer<Void> unknown(final int id);
-
-  /**
-   * <pre>
-   * UNKNOWN
-   * </pre>
-   */
-  Observer<Entry> unknownReturn(final int id);
-
-  /**
-   * <pre>
-   * UNKNOWN
-   * </pre>
-   */
-  Observer<Void> unknownArgument(final Entry request, final int id);
-
-  /**
-   * <pre>
-   * UNARY
-   * </pre>
-   */
-  Observer<Entry> unary(final Entry request, final int id);
-
   public class OkHttp implements MyService {
     private final OkHttpClient client;
     private final HttpUrl baseUrl;
@@ -51,8 +22,7 @@ public interface MyService {
       this.baseUrl = baseUrl;
     }
 
-    @Override
-    public Observer<Void> unknown(final int id) {
+    public void unknown(final int id) {
       final HttpUrl url_ = this.baseUrl.newBuilder()
         .addPathSegment("unknown")
         .addPathSegment(Integer.toString(id))
@@ -63,7 +33,7 @@ public interface MyService {
         .method("GET", null)
         .build();
 
-      final Observer<Void> future_ = new Observer<Void>();
+      final void future_ = new void();
 
       this.client.newCall(req_).enqueue(new Callback() {
         @Override
@@ -84,8 +54,7 @@ public interface MyService {
       return future_;
     }
 
-    @Override
-    public Observer<Entry> unknownReturn(final int id) {
+    public Entry unknownReturn(final int id) {
       final HttpUrl url_ = this.baseUrl.newBuilder()
         .addPathSegment("unknown-return")
         .addPathSegment(Integer.toString(id))
@@ -96,7 +65,7 @@ public interface MyService {
         .method("GET", null)
         .build();
 
-      final Observer<Entry> future_ = new Observer<Entry>();
+      final Entry future_ = new Entry();
 
       this.client.newCall(req_).enqueue(new Callback() {
         @Override
@@ -117,8 +86,7 @@ public interface MyService {
       return future_;
     }
 
-    @Override
-    public Observer<Void> unknownArgument(final Entry request, final int id) {
+    public void unknownArgument(final Entry request, final int id) {
       final HttpUrl url_ = this.baseUrl.newBuilder()
         .addPathSegment("unknown-argument")
         .addPathSegment(Integer.toString(id))
@@ -129,7 +97,7 @@ public interface MyService {
         .method("GET", null)
         .build();
 
-      final Observer<Void> future_ = new Observer<Void>();
+      final void future_ = new void();
 
       this.client.newCall(req_).enqueue(new Callback() {
         @Override
@@ -150,8 +118,7 @@ public interface MyService {
       return future_;
     }
 
-    @Override
-    public Observer<Entry> unary(final Entry request, final int id) {
+    public Entry unary(final Entry request, final int id) {
       final HttpUrl url_ = this.baseUrl.newBuilder()
         .addPathSegment("foo")
         .addPathSegment(Integer.toString(id))
@@ -162,7 +129,7 @@ public interface MyService {
         .method("GET", null)
         .build();
 
-      final Observer<Entry> future_ = new Observer<Entry>();
+      final Entry future_ = new Entry();
 
       this.client.newCall(req_).enqueue(new Callback() {
         @Override

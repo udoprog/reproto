@@ -1,7 +1,7 @@
 //! Variant in an enum
 
-use {Flavor, Loc, RpEnumOrdinal, RpName, Translate, Translator};
 use errors::Result;
+use {Flavor, Loc, RpEnumOrdinal, RpName, Translate, Translator};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct RpVariant {

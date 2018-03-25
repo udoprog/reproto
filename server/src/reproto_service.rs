@@ -2,15 +2,15 @@ use errors::{Error, Result};
 use flate2::FlateReadExt;
 use futures::future::{ok, Future};
 use futures_cpupool::CpuPool;
-use hyper::{self, Method, StatusCode};
 use hyper::header::{ContentEncoding, ContentLength, ContentType, Encoding, Headers};
 use hyper::mime;
 use hyper::server::{Request, Response, Service};
+use hyper::{self, Method, StatusCode};
 use io;
 use reproto_repository::{to_checksum, Checksum, FileObjects, Objects};
 use std::fs::File;
-use std::io::{Seek, SeekFrom};
 use std::io::Read;
+use std::io::{Seek, SeekFrom};
 use std::sync::{Arc, Mutex};
 use tempfile;
 

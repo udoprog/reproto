@@ -1,8 +1,8 @@
 //! # Helper trait for building a dynamic-language encode method
 
 use base_encode::BaseEncode;
-use core::{Flavor, RpType};
 use core::errors::*;
+use core::{Flavor, RpType};
 use dynamic_converter::DynamicConverter;
 use genco::Tokens;
 

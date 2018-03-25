@@ -2,10 +2,10 @@ extern crate reproto_core as core;
 
 use self::Component::*;
 use self::Violation::*;
-use core::{ErrorPos, Loc, Version};
 use core::errors::*;
 use core::flavored::{RpChannel, RpDecl, RpEndpoint, RpField, RpFile, RpName, RpNamed, RpType,
                      RpVariant};
+use core::{ErrorPos, Loc, Version};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]

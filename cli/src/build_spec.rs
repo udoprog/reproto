@@ -1,9 +1,9 @@
 use clap::ArgMatches;
 use config_env::ConfigEnv;
+use core::errors::*;
 use core::{BytesObject, Context, CoreFlavor, Flavor, Object, RelativePath, Resolved,
            ResolvedByPrefix, Resolver, RpChannel, RpPackage, RpPackageFormat, RpRequiredPackage,
            RpVersionedPackage, Version};
-use core::errors::*;
 use manifest::{self as m, read_manifest, read_manifest_preamble, Lang, Language, Manifest,
                ManifestFile, ManifestPreamble, NoLang, Publish};
 use repository::{index_from_path, index_from_url, objects_from_path, objects_from_url, Index,
