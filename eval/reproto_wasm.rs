@@ -1,9 +1,8 @@
-extern crate serde;
-#[macro_use]
-extern crate serde_derive;
-extern crate serde_json;
-#[macro_use]
-extern crate stdweb;
+#![feature(proc_macro, wasm_custom_section, wasm_import_module)]
+
+extern crate wasm_bindgen;
+
+use wasm_bindgen::prelude::*;
 
 extern crate reproto_ast as ast;
 extern crate reproto_backend_csharp as csharp;
@@ -27,35 +26,25 @@ use std::rc::Rc;
 use std::str;
 use std::sync::Arc;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-enum Format {
-    #[serde(rename = "json")]
+#[derive(Debug, Clone)]
+#[wasm_bindgen]
+pub enum Format {
     Json,
-    #[serde(rename = "yaml")]
     Yaml,
-    #[serde(rename = "reproto")]
     Reproto,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-enum Output {
-    #[serde(rename = "reproto")]
+#[derive(Debug, Clone, Copy)]
+#[wasm_bindgen]
+pub enum Output {
     Reproto,
-    #[serde(rename = "java")]
     Java,
-    #[serde(rename = "csharp")]
     Csharp,
-    #[serde(rename = "go")]
     Go,
-    #[serde(rename = "swift")]
     Swift,
-    #[serde(rename = "python")]
     Python,
-    #[serde(rename = "rust")]
     Rust,
-    #[serde(rename = "js")]
     JavaScript,
-    #[serde(rename = "json")]
     Json,
 }
 
@@ -114,50 +103,41 @@ impl Output {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
+#[wasm_bindgen]
 struct JavaSettings {
     jackson: bool,
     lombok: bool,
 }
 
-js_serializable!(JavaSettings);
-js_deserializable!(JavaSettings);
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct CsharpSettings {
+#[derive(Debug, Clone)]
+#[wasm_bindgen]
+pub struct CsharpSettings {
     json_net: bool,
 }
 
-js_serializable!(CsharpSettings);
-js_deserializable!(CsharpSettings);
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct GoSettings {
+#[derive(Debug, Clone)]
+#[wasm_bindgen]
+pub struct GoSettings {
     encoding_json: bool,
 }
 
-js_serializable!(GoSettings);
-js_deserializable!(GoSettings);
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct SwiftSettings {
+#[derive(Debug, Clone)]
+#[wasm_bindgen]
+pub struct SwiftSettings {
     codable: bool,
     simple: bool,
 }
 
-js_serializable!(SwiftSettings);
-js_deserializable!(SwiftSettings);
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct RustSettings {
+#[derive(Debug, Clone)]
+#[wasm_bindgen]
+pub struct RustSettings {
     chrono: bool,
 }
 
-js_serializable!(RustSettings);
-js_deserializable!(RustSettings);
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct Settings {
+#[derive(Debug, Clone)]
+#[wasm_bindgen]
+pub struct Settings {
     java: JavaSettings,
     swift: SwiftSettings,
     rust: RustSettings,
@@ -165,33 +145,24 @@ struct Settings {
     go: GoSettings,
 }
 
-js_serializable!(Settings);
-js_deserializable!(Settings);
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct File {
+#[derive(Debug, Clone)]
+#[wasm_bindgen]
+pub struct File {
     package: String,
     version: Option<String>,
     content: String,
 }
 
-js_serializable!(File);
-js_deserializable!(File);
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type")]
-enum Content {
-    #[serde(rename = "content")]
+#[derive(Debug, Clone)]
+#[wasm_bindgen]
+pub enum Content {
     Content { content: String },
-    #[serde(rename = "file_index")]
     FileIndex { index: usize },
 }
 
-js_serializable!(Content);
-js_deserializable!(Content);
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct Derive {
+#[derive(Debug, Clone)]
+#[wasm_bindgen]
+pub struct Derive {
     content: Content,
     files: Vec<File>,
     root_name: String,
@@ -201,11 +172,9 @@ struct Derive {
     settings: Settings,
 }
 
-js_serializable!(Derive);
-js_deserializable!(Derive);
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct Marker {
+#[derive(Debug, Clone)]
+#[wasm_bindgen]
+pub struct Marker {
     message: String,
     row_start: u32,
     row_end: u32,
@@ -251,31 +220,24 @@ impl Marker {
     }
 }
 
-js_serializable!(Marker);
-js_deserializable!(Marker);
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct DeriveFile {
+#[derive(Debug, Clone)]
+#[wasm_bindgen]
+pub struct DeriveFile {
     path: String,
     content: String,
 }
 
-js_serializable!(DeriveFile);
-js_deserializable!(DeriveFile);
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct DeriveResult {
+#[derive(Debug, Clone)]
+#[wasm_bindgen]
+pub struct DeriveResult {
     files: Vec<DeriveFile>,
     error: Option<String>,
     error_markers: Vec<Marker>,
     info_markers: Vec<Marker>,
 }
 
-js_serializable!(DeriveResult);
-js_deserializable!(DeriveResult);
-
 #[derive(Debug, Clone)]
-struct ParsedFile {
+pub struct ParsedFile {
     package: core::RpPackage,
     version: Option<core::Version>,
     content: String,
@@ -342,7 +304,8 @@ impl core::Resolver for MapResolver {
     }
 }
 
-fn derive(derive: Derive) -> DeriveResult {
+#[wasm_bindgen]
+pub fn derive(derive: Derive) -> DeriveResult {
     let errors = Rc::new(RefCell::new(Vec::new()));
 
     return match try_derive(derive, errors.clone()) {
@@ -508,13 +471,5 @@ fn derive(derive: Derive) -> DeriveResult {
         );
 
         Ok(input)
-    }
-}
-
-fn main() {
-    stdweb::initialize();
-
-    js! {
-        Module.exports.derive = @{derive};
     }
 }

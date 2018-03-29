@@ -13,6 +13,11 @@ Rethinking Protocol Generators
 WebAssembly Component
 """
 
+[lib]
+crate-type = ["cdylib"]
+name = "reproto_wasm"
+path = "reproto_wasm.rs"
+
 [dependencies]
 reproto-core = {path = "../lib/core", version = "0.3"}
 reproto-ast = {path = "../lib/ast", version = "0.3"}
@@ -30,11 +35,4 @@ reproto-backend-reproto = {path = "../lib/backend-reproto", version = "0.3"}
 reproto-backend-rust = {path = "../lib/backend-rust", version = "0.3"}
 reproto-backend-swift = {path = "../lib/backend-swift", version = "0.3"}
 
-stdweb = "0.3"
-serde = "1"
-serde_json = "1"
-serde_derive = "1"
-
-[[bin]]
-name = "reproto-wasm"
-path = "reproto_wasm.rs"
+wasm-bindgen = "0.1"

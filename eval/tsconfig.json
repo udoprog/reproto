@@ -9,7 +9,8 @@
     "baseUrl": ".",
     "paths": {
       "*": [
-        "./local_modules/*"
+        "./local_modules/*",
+        "./target/*"
       ]
     }
   },

@@ -10,7 +10,7 @@ import * as WebAssembly from "webassembly";
 import {Annotation, Marker as AceMarker} from 'react-ace';
 import AceEditor from 'react-ace';
 
-const wasm = require("rust/reproto-wasm.js");
+const wasm = import("reproto_wasm");
 
 const deepEqual = require("deep-equal");
 
@@ -56,15 +56,16 @@ themes.forEach((theme) => {
   require(`brace/theme/${theme}`)
 })
 
-const DEFAULT_JSON = require("raw-loader!../static/default.json");
-const DEFAULT_YAML = require("raw-loader!../static/default.yaml");
-const COMMON_REPROTO: string = require("raw-loader!../static/common.reproto");
-const COMMON2_REPROTO: string = require("raw-loader!../static/common2.reproto");
-const IMPORT_REPROTO: string = require("raw-loader!../static/import.reproto");
-const TYPE_REPROTO: string = require("raw-loader!../static/type.reproto");
-const TUPLE_REPROTO: string = require("raw-loader!../static/tuple.reproto");
-const INTERFACE_REPROTO: string = require("raw-loader!../static/interface.reproto");
-const DEFAULT_NEW_FILE_REPROTO: string = require("raw-loader!../static/default-new.reproto");
+// const DEFAULT_JSON = require("../static/default.json");
+const DEFAULT_JSON = "{}";
+const DEFAULT_YAML = require("../static/default.yaml");
+const COMMON_REPROTO: string = require("../static/common.reproto");
+const COMMON2_REPROTO: string = require("../static/common2.reproto");
+const IMPORT_REPROTO: string = require("../static/import.reproto");
+const TYPE_REPROTO: string = require("../static/type.reproto");
+const TUPLE_REPROTO: string = require("../static/tuple.reproto");
+const INTERFACE_REPROTO: string = require("../static/interface.reproto");
+const DEFAULT_NEW_FILE_REPROTO: string = require("../static/default-new.reproto");
 const logo = require("../static/logo.256.png");
 
 interface Dialog {
@@ -277,11 +278,7 @@ export class Main extends React.Component<MainProps, MainState> {
     this.setFormat(input);
     this.setOutput(output);
 
-    fetch("reproto-wasm.wasm")
-      .then(response => response.arrayBuffer())
-      .then(buffer => WebAssembly.compile(buffer))
-      .then(mod => wasm(mod, true))
-      .then(mod => {
+    wasm.then(mod => {
       this.setState({derive: mod.derive}, () => this.recompile());
     });
   }
