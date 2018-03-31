@@ -682,7 +682,7 @@ impl<'input> IntoModel for Item<'input, Endpoint<'input>> {
                 id.as_str(),
                 alias.as_ref().map(|s| s.as_str()),
                 scope.endpoint_naming(),
-                None,
+                scope.endpoint_ident_naming(),
             );
 
             let mut arguments = Vec::new();

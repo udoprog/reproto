@@ -127,13 +127,13 @@ pub fn endpoint_http(
         use core::RpHttpMethod::*;
 
         let m = match method.as_string()? {
-            "GET" => GET,
-            "POST" => POST,
-            "PUT" => PUT,
-            "UPDATE" => UPDATE,
-            "DELETE" => DELETE,
-            "PATCH" => PATCH,
-            "HEAD" => HEAD,
+            "GET" => Get,
+            "POST" => Post,
+            "PUT" => Put,
+            "UPDATE" => Update,
+            "DELETE" => Delete,
+            "PATCH" => Patch,
+            "HEAD" => Head,
             method => return Err(format!("no such method: {}", method).into()),
         };
 

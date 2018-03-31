@@ -161,7 +161,7 @@ impl ServiceCodegen for RequestsServiceCodegen {
                         .http
                         .method
                         .as_ref()
-                        .unwrap_or(&core::RpHttpMethod::GET)
+                        .unwrap_or(&core::RpHttpMethod::Get)
                         .as_str();
 
                     let mut args = Tokens::new();

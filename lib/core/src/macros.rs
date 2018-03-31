@@ -23,6 +23,7 @@ macro_rules! decl_flavor {
         pub type RpEndpoint = $source::RpEndpoint<$flavor>;
         pub type RpEndpointArgument = $source::RpEndpointArgument<$flavor>;
         pub type RpEndpointHttp = $source::RpEndpointHttp<$flavor>;
+        pub type RpEndpointHttp1 = $source::RpEndpointHttp1<$flavor>;
         pub type RpEnumBody = $source::RpEnumBody<$flavor>;
         pub type RpField = $source::RpField<$flavor>;
         pub type RpFile = $source::RpFile<$flavor>;

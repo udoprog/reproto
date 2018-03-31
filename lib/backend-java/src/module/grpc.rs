@@ -293,7 +293,7 @@ impl GrpcClient {
                     ".generateFullMethodName(",
                     service_name.quoted(),
                     ", ",
-                    e.name.clone().quoted(),
+                    e.name().quoted(),
                     "))",
                 ]);
 
@@ -594,7 +594,7 @@ impl GrpcClient {
     /// Build the addMethod call for a given endpoint to populate the server definition.
     fn server_definition_add_method<'el>(
         &self,
-        ident: Cons<'el>,
+        ident: &'el str,
         field: &Field<'el>,
         method_type: &MethodType,
     ) -> Tokens<'el, Java<'el>> {
@@ -693,7 +693,7 @@ impl ServiceCodegen for GrpcClient {
                 self.client_method(&field, &method_type, e, &request_ty, &response_ty);
 
             bind_service.body.nested(self.server_definition_add_method(
-                e.ident.clone(),
+                e.safe_ident(),
                 &field,
                 &method_type,
             ));

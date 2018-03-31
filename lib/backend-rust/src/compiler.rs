@@ -2,15 +2,16 @@
 
 use backend::{PackageProcessor, PackageUtils};
 use core::errors::*;
-use core::{self, ForEachLoc, Handle, Loc, RelativePath, RelativePathBuf};
+use core::{self, ForEachLoc, Handle, RelativePath, RelativePathBuf};
 use flavored::{RpEnumBody, RpField, RpInterfaceBody, RpName, RpPackage, RpServiceBody,
                RpTupleBody, RpTypeBody, RpVersionedPackage, RustFlavor};
-use genco::{IntoTokens, Quoted, Rust, Tokens};
+use genco::{Cons, IntoTokens, Quoted, Rust, Tokens};
 use rust_file_spec::RustFileSpec;
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 use trans::{self, Translated};
-use {Options, EXT, MOD, TYPE_SEP};
+use utils::Comments;
+use {Options, Service, EXT, MOD, TYPE_SEP};
 
 /// #[allow(non_camel_case_types)] attribute.
 pub struct AllowNonCamelCaseTypes;
@@ -48,35 +49,22 @@ impl<'a> IntoTokens<'a, Rust<'a>> for Tag<'a> {
     }
 }
 
-/// Documentation comments.
-pub struct Comments<'el, S: 'el>(&'el [S]);
-
-impl<'el, S: 'el + AsRef<str>> IntoTokens<'el, Rust<'el>> for Comments<'el, S> {
-    fn into_tokens(self) -> Tokens<'el, Rust<'el>> {
-        let mut t = Tokens::new();
-
-        for c in self.0.iter() {
-            t.push(toks!["/// ", c.as_ref()]);
-        }
-
-        t
-    }
-}
-
 pub struct Compiler<'el> {
     pub env: &'el Translated<RustFlavor>,
+    options: Options,
     handle: &'el Handle,
 }
 
 impl<'el> Compiler<'el> {
     pub fn new(
         env: &'el Translated<RustFlavor>,
-        _options: Options,
+        options: Options,
         handle: &'el Handle,
     ) -> Compiler<'el> {
         Compiler {
-            env: env,
-            handle: handle,
+            env,
+            options,
+            handle,
         }
     }
 
@@ -416,28 +404,15 @@ impl<'el> PackageProcessor<'el, RustFlavor> for Compiler<'el> {
 
     fn process_service(&self, out: &mut Self::Out, body: &'el RpServiceBody) -> Result<()> {
         let (name, attributes) = self.convert_type_name(&body.name);
-        let mut t = Tokens::new();
 
-        t.push_unless_empty(Comments(&body.comment));
-        t.push_unless_empty(attributes);
-        t.push(toks!["pub trait ", name.clone(), " {"]);
-
-        let endpoints = body.endpoints.iter().map(Loc::as_ref);
-
-        endpoints.for_each_loc(|e| {
-            t.nested({
-                let mut t = Tokens::new();
-                t.push_unless_empty(Comments(&e.comment));
-                t.push(toks!["fn ", e.safe_ident(), "();"]);
-                t
-            });
-
-            Ok(()) as Result<()>
-        })?;
-
-        t.push("}");
-
-        out.0.push(t);
+        for s in &self.options.service {
+            s.generate(Service {
+                body: body,
+                container: &mut out.0,
+                name: Cons::from(name.clone()),
+                attributes: &attributes,
+            })?;
+        }
 
         Ok(())
     }

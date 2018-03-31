@@ -19,12 +19,13 @@ mod compiler;
 mod flavored;
 mod module;
 mod rust_file_spec;
+mod utils;
 
 use backend::Initializer;
 use compiler::Compiler;
 use core::errors::*;
 use core::{Context, CoreFlavor, Handle};
-use genco::{Rust, Tokens};
+use genco::{Cons, Rust, Tokens};
 use manifest::{Lang, Manifest, NoModule, TryFromToml};
 use std::any::Any;
 use std::path::Path;
@@ -151,7 +152,10 @@ pub trait RootCodegen {
 }
 
 pub struct Service<'a, 'el: 'a> {
+    body: &'el flavored::RpServiceBody,
     container: &'a mut Tokens<'el, Rust<'el>>,
+    name: Cons<'el>,
+    attributes: &'a Tokens<'el, Rust<'el>>,
 }
 
 pub trait ServiceCodegen {

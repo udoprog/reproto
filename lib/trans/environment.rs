@@ -39,6 +39,8 @@ where
     package_naming: Option<Box<Naming>>,
     /// Field naming to apply.
     field_ident_naming: Option<Box<Naming>>,
+    /// Endpoint ident naming to apply.
+    endpoint_ident_naming: Option<Box<Naming>>,
 }
 
 /// Environment containing all loaded declarations.
@@ -63,6 +65,7 @@ where
             safe_packages: false,
             package_naming: None,
             field_ident_naming: None,
+            endpoint_ident_naming: None,
         }
     }
 
@@ -94,6 +97,14 @@ where
     pub fn with_field_ident_naming(self, field_ident_naming: Box<Naming>) -> Self {
         Self {
             field_ident_naming: Some(field_ident_naming),
+            ..self
+        }
+    }
+
+    /// Set endpoint ident naming.
+    pub fn with_endpoint_ident_naming(self, endpoint_ident_naming: Box<Naming>) -> Self {
+        Self {
+            endpoint_ident_naming: Some(endpoint_ident_naming),
             ..self
         }
     }
@@ -275,6 +286,7 @@ impl Environment<CoreFlavor> {
             self.safe_packages,
             self.package_naming.as_ref().map(|n| n.copy()),
             self.field_ident_naming.as_ref().map(|n| n.copy()),
+            self.endpoint_ident_naming.as_ref().map(|n| n.copy()),
         );
 
         let attributes = file.attributes.drain(..).collect::<Vec<_>>();

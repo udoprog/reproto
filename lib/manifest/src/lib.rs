@@ -123,6 +123,12 @@ pub trait Lang: fmt::Debug {
             e
         };
 
+        let e = if let Some(endpoint_ident_naming) = self.endpoint_ident_naming() {
+            e.with_endpoint_ident_naming(endpoint_ident_naming)
+        } else {
+            e
+        };
+
         e
     }
 
@@ -133,6 +139,11 @@ pub trait Lang: fmt::Debug {
 
     /// Rename fields according to the given naming convention.
     fn field_ident_naming(&self) -> Option<Box<Naming>> {
+        None
+    }
+
+    /// Rename endpoint identifiers according to the given naming convention.
+    fn endpoint_ident_naming(&self) -> Option<Box<Naming>> {
         None
     }
 }

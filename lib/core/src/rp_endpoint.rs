@@ -7,13 +7,13 @@ use {Attributes, Flavor, Loc, RpChannel, RpPathSpec, Translate, Translator};
 
 #[derive(Debug, Clone, Serialize)]
 pub enum RpHttpMethod {
-    GET,
-    POST,
-    PUT,
-    UPDATE,
-    DELETE,
-    PATCH,
-    HEAD,
+    Get,
+    Post,
+    Put,
+    Update,
+    Delete,
+    Patch,
+    Head,
 }
 
 impl RpHttpMethod {
@@ -22,13 +22,13 @@ impl RpHttpMethod {
         use self::RpHttpMethod::*;
 
         match *self {
-            GET => "GET",
-            POST => "POST",
-            PUT => "PUT",
-            UPDATE => "UPDATE",
-            DELETE => "DELETE",
-            PATCH => "PATCH",
-            HEAD => "HEAD",
+            Get => "GET",
+            Post => "POST",
+            Put => "PUT",
+            Update => "UPDATE",
+            Delete => "DELETE",
+            Patch => "PATCH",
+            Head => "HEAD",
         }
     }
 }
@@ -228,5 +228,60 @@ where
             response: self.response.translate(translator)?,
             http: self.http.translate(translator)?,
         })
+    }
+}
+
+/// A model that describes the endpoint as an HTTP/1.1 endpoint.
+#[derive(Debug, Clone)]
+pub struct RpEndpointHttp1<F: 'static>
+where
+    F: Flavor,
+{
+    pub request: Option<F::Type>,
+    pub response: Option<F::Type>,
+    pub path: RpPathSpec<F>,
+    pub method: RpHttpMethod,
+}
+
+impl<F: 'static> RpEndpointHttp1<F>
+where
+    F: Clone + Flavor,
+{
+    /// Convert the general HTTP information into HTTP/1.1 if applicable.
+    pub fn from_endpoint(endpoint: &RpEndpoint<F>) -> Option<RpEndpointHttp1<F>> {
+        use self::RpChannel::*;
+
+        // HTTP/1.1 requires a path.
+        let path = match endpoint.http.path.as_ref() {
+            Some(path) => path.clone(),
+            None => return None,
+        };
+
+        let request_ty = endpoint.request.as_ref().map(|r| Loc::value(&r.channel));
+        let response_ty = endpoint.response.as_ref().map(|r| Loc::value(r));
+
+        let (request, response) = match (request_ty, response_ty) {
+            (Some(&Unary { ty: ref request }), Some(&Unary { ty: ref response })) => {
+                (Some(request.clone()), Some(response.clone()))
+            }
+            (None, Some(&Unary { ty: ref response })) => (None, Some(response.clone())),
+            (Some(&Unary { ty: ref request }), None) => (Some(request.clone()), None),
+            (None, None) => (None, None),
+            _ => return None,
+        };
+
+        let method = endpoint
+            .http
+            .method
+            .as_ref()
+            .cloned()
+            .unwrap_or(RpHttpMethod::Get);
+
+        return Some(RpEndpointHttp1 {
+            request: request,
+            response: response,
+            path: path,
+            method: method,
+        });
     }
 }

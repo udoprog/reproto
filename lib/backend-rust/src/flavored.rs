@@ -7,8 +7,23 @@ use core::errors::Result;
 use core::{self, CoreFlavor, Flavor, Loc, Translate, Translator, TypeTranslator};
 use genco::rust::{imported, local};
 use genco::{Cons, Rust};
+use std::ops::Deref;
 use std::rc::Rc;
 use {SCOPE_SEP, TYPE_SEP};
+
+#[derive(Debug, Clone)]
+pub struct RustEndpoint {
+    pub endpoint: RpEndpoint,
+    pub http1: Option<RpEndpointHttp1>,
+}
+
+impl Deref for RustEndpoint {
+    type Target = RpEndpoint;
+
+    fn deref(&self) -> &Self::Target {
+        &self.endpoint
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct RustFlavor;
@@ -16,7 +31,7 @@ pub struct RustFlavor;
 impl Flavor for RustFlavor {
     type Type = Rust<'static>;
     type Field = core::RpField<RustFlavor>;
-    type Endpoint = core::RpEndpoint<RustFlavor>;
+    type Endpoint = RustEndpoint;
 }
 
 /// Responsible for translating RpType -> Rust type.
@@ -123,12 +138,15 @@ impl TypeTranslator for RustTypeTranslator {
     fn translate_endpoint<T>(
         &self,
         translator: &T,
-        e: core::RpEndpoint<CoreFlavor>,
-    ) -> Result<core::RpEndpoint<RustFlavor>>
+        endpoint: core::RpEndpoint<CoreFlavor>,
+    ) -> Result<RustEndpoint>
     where
         T: Translator<Source = CoreFlavor, Target = RustFlavor>,
     {
-        e.translate(translator)
+        let endpoint = endpoint.translate(translator)?;
+        let http1 = RpEndpointHttp1::from_endpoint(&endpoint);
+
+        Ok(RustEndpoint { endpoint, http1 })
     }
 }
 

@@ -30,9 +30,6 @@ impl RootEnum {
 #[derive(Serialize, Deserialize, Debug)]
 struct RootTuple();
 
-pub trait RootService {
-}
-
 #[allow(non_camel_case_types)]
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RootType_NestedType {
@@ -64,10 +61,6 @@ impl RootType_NestedEnum {
 #[allow(non_camel_case_types)]
 #[derive(Serialize, Deserialize, Debug)]
 struct RootType_NestedTuple();
-
-#[allow(non_camel_case_types)]
-pub trait RootType_NestedService {
-}
 
 #[allow(non_camel_case_types)]
 #[derive(Serialize, Deserialize, Debug)]
@@ -102,10 +95,6 @@ impl RootInterface_Foo_NestedEnum {
 struct RootInterface_Foo_NestedTuple();
 
 #[allow(non_camel_case_types)]
-pub trait RootInterface_Foo_NestedService {
-}
-
-#[allow(non_camel_case_types)]
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RootTuple_NestedType {
 }
@@ -138,10 +127,6 @@ impl RootTuple_NestedEnum {
 struct RootTuple_NestedTuple();
 
 #[allow(non_camel_case_types)]
-pub trait RootTuple_NestedService {
-}
-
-#[allow(non_camel_case_types)]
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RootService_NestedType {
 }
@@ -172,10 +157,6 @@ impl RootService_NestedEnum {
 #[allow(non_camel_case_types)]
 #[derive(Serialize, Deserialize, Debug)]
 struct RootService_NestedTuple();
-
-#[allow(non_camel_case_types)]
-pub trait RootService_NestedService {
-}
 
 #[allow(non_camel_case_types)]
 #[derive(Serialize, Deserialize, Debug)]

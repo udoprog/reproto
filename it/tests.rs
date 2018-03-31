@@ -53,6 +53,9 @@ define!{
     rust_keywords => {
         rust_keywords.include(Rust);
     },
+    rust_reqwest => {
+        rust_reqwest.include(Rust);
+    },
     tuple => {},
     versions => {},
     default_naming => {},

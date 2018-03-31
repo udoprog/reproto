@@ -27,6 +27,38 @@ public interface MyService {
       this.serialization = serialization;
     }
 
+    public CompletableFuture<Void> unknown(final int id) {
+      final HttpUrl url_ = this.baseUrl.newBuilder()
+        .addPathSegment("unknown")
+        .addPathSegment(Integer.toString(id))
+        .build();
+
+      final Request req_ = new Request.Builder()
+        .url(url_)
+        .method("GET", null)
+        .build();
+
+      final CompletableFuture<Void> future_ = new CompletableFuture<Void>();
+
+      this.client.newCall(req_).enqueue(new Callback() {
+        @Override
+        public void onFailure(final Call call, final IOException e) {
+          future_.completeExceptionally(e);
+        }
+
+        @Override
+        public void onResponse(final Call call, final Response response) {
+          if (!response.isSuccessful()) {
+            future_.completeExceptionally(new IOException("bad response: " + response));
+          } else {
+            future_.complete(null);
+          }
+        }
+      });
+
+      return future_;
+    }
+
     public CompletableFuture<Entry> unknownReturn(final int id) {
       final HttpUrl url_ = this.baseUrl.newBuilder()
         .addPathSegment("unknown-return")

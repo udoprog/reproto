@@ -19,6 +19,7 @@ pub struct Root {
     safe_packages: bool,
     package_naming: Option<Box<Naming>>,
     field_ident_naming: Option<Box<Naming>>,
+    endpoint_ident_naming: Option<Box<Naming>>,
 }
 
 impl Root {
@@ -62,6 +63,7 @@ impl Scope {
         safe_packages: bool,
         package_naming: Option<Box<Naming>>,
         field_ident_naming: Option<Box<Naming>>,
+        endpoint_ident_naming: Option<Box<Naming>>,
     ) -> Scope {
         let root = Rc::new(Root {
             ctx,
@@ -74,6 +76,7 @@ impl Scope {
             safe_packages,
             package_naming,
             field_ident_naming,
+            endpoint_ident_naming,
         });
 
         Scope(Rc::new(Inner::Root(root)))
@@ -163,6 +166,14 @@ impl Scope {
     /// Access field identifier naming.
     pub fn field_ident_naming(&self) -> Option<&Naming> {
         self.root().field_ident_naming.as_ref().map(AsRef::as_ref)
+    }
+
+    /// Access endpoint identifier naming.
+    pub fn endpoint_ident_naming(&self) -> Option<&Naming> {
+        self.root()
+            .endpoint_ident_naming
+            .as_ref()
+            .map(AsRef::as_ref)
     }
 
     /// Lookup if the given identifier matches a language keyword.

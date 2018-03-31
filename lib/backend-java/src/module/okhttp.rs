@@ -3,9 +3,9 @@
 use codegen::{Codegen, Configure, ServiceAdded, ServiceCodegen};
 use core::errors::*;
 use core::{self, Handle, Loc};
-use flavored::{JavaEndpoint, JavaHttp, RpPathStep};
+use flavored::{JavaEndpoint, RpEndpointHttp1, RpPathStep};
 use genco::java::{imported, local, Argument, Class, Constructor, Field, Interface, Method,
-                  Modifier};
+                  Modifier, VOID};
 use genco::{Cons, IntoTokens, Java, Quoted, Tokens};
 use java_file::JavaFile;
 use utils::Override;
@@ -407,7 +407,7 @@ impl OkHttpServiceCodegen {
         &self,
         mut method: Method<'el>,
         e: &'el Loc<JavaEndpoint>,
-        http: &'el JavaHttp<'el>,
+        http: &'el RpEndpointHttp1,
         client: Field<'el>,
         base_url: Field<'el>,
     ) -> Result<Method<'el>> {
@@ -577,10 +577,10 @@ impl ServiceCodegen for OkHttpServiceCodegen {
             c.implements = vec![local(spec.name().to_string())];
 
             for e in &body.endpoints {
-                if let Some(http) = e.http.as_ref() {
+                if let Some(http) = e.http1.as_ref() {
                     let mut m = Method::new(e.ident.clone());
                     m.returns = self.completable_future
-                        .with_arguments(vec![http.response.clone()]);
+                        .with_arguments(vec![http.response.as_ref().unwrap_or(&VOID).clone()]);
                     m.arguments.extend(e.arguments.iter().cloned());
 
                     c.methods

@@ -28,6 +28,7 @@ use compiler::Compiler;
 use core::errors::Result;
 use core::{Context, CoreFlavor, Loc, Pos, RpField, RpType, Translator};
 use manifest::{checked_modules, Lang, Manifest, NoModule, TryFromToml};
+use naming::Naming;
 use options::Options;
 use std::any::Any;
 use std::path::Path;
@@ -42,6 +43,10 @@ impl Lang for JavaLang {
 
     fn comment(&self, input: &str) -> Option<String> {
         Some(format!("// {}", input))
+    }
+
+    fn endpoint_ident_naming(&self) -> Option<Box<Naming>> {
+        Some(Box::new(naming::to_lower_camel()))
     }
 
     fn keywords(&self) -> Vec<(&'static str, &'static str)> {

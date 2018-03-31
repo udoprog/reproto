@@ -1,0 +1,30 @@
+type Entry {
+}
+
+#[http(url = "http://example.com")]
+service MyService {
+    /// UNKNOWN
+    #[http(path = "/unknown/{id}")]
+    unknown(id: u32);
+
+    /// UNKNOWN
+    #[http(path = "/unknown-return/{id}")]
+    unknown_return(id: u32) -> Entry;
+
+    /// UNKNOWN
+    #[http(path = "/unknown-argument/{id}")]
+    unknown_argument(request: Entry, id: u32);
+
+    /// UNARY
+    #[http(path = "/unary/{id}")]
+    unary(request: Entry, id: u32) -> Entry;
+
+    /// SERVER_STREMAING (ignored)
+    server_streaming(request: Entry) -> stream Entry;
+
+    /// CLIENT_STREAMING (ignored)
+    client_streaming(request: stream Entry) -> Entry;
+
+    /// BIDI_STREAMING (ignored)
+    bidi_streaming(request: stream Entry) -> stream Entry;
+}

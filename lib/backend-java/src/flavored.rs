@@ -8,6 +8,7 @@ use genco::java::{imported, optional, Argument, Field, Method, Modifier, BOOLEAN
                   INTEGER, LONG, VOID};
 use genco::{Cons, Java};
 use naming::{self, Naming};
+use std::ops::Deref;
 use std::rc::Rc;
 
 #[derive(Debug, Clone)]
@@ -20,19 +21,16 @@ pub struct JavaHttp<'el> {
 
 #[derive(Debug, Clone)]
 pub struct JavaEndpoint<'el> {
-    pub ident: Cons<'el>,
-    pub name: Cons<'el>,
-    pub response: Option<Loc<RpChannel>>,
-    pub request: Option<RpEndpointArgument>,
+    pub endpoint: RpEndpoint,
     pub arguments: Vec<Argument<'el>>,
-    pub comment: Vec<String>,
-    pub http: Option<JavaHttp<'el>>,
+    pub http1: Option<RpEndpointHttp1>,
 }
 
-impl<'el> JavaEndpoint<'el> {
-    /// If endpoint has metadata for HTTP.
-    pub fn has_http_support(&self) -> bool {
-        self.http.is_some()
+impl<'el> Deref for JavaEndpoint<'el> {
+    type Target = RpEndpoint;
+
+    fn deref(&self) -> &Self::Target {
+        &self.endpoint
     }
 }
 
@@ -232,77 +230,27 @@ impl TypeTranslator for JavaTypeTranslator {
     fn translate_endpoint<T>(
         &self,
         translator: &T,
-        e: core::RpEndpoint<CoreFlavor>,
+        endpoint: core::RpEndpoint<CoreFlavor>,
     ) -> Result<JavaEndpoint<'static>>
     where
         T: Translator<Source = CoreFlavor, Target = JavaFlavor>,
     {
-        let ident = Cons::from(self.to_lower_camel.convert(e.safe_ident()));
-
-        let name = {
-            let ident = e.ident;
-            e.name.map(Cons::from).unwrap_or_else(|| Cons::from(ident))
-        };
-
-        let response = e.response.translate(translator)?;
-        let request = e.request.translate(translator)?;
+        let endpoint = endpoint.translate(translator)?;
 
         let mut arguments = Vec::new();
 
-        for arg in e.arguments {
-            let ty = translator.translate_type(arg.channel.ty().clone())?;
+        for arg in &endpoint.arguments {
+            let ty = arg.channel.ty().clone();
             arguments.push(Argument::new(ty, arg.safe_ident().to_string()));
         }
 
-        let http = e.http.translate(translator)?;
-        let http = decode_http(http, &request, &response);
+        let http1 = RpEndpointHttp1::from_endpoint(&endpoint);
 
         return Ok(JavaEndpoint {
-            ident,
-            name,
-            response,
-            request,
+            endpoint: endpoint,
             arguments: arguments,
-            comment: e.comment,
-            http: http,
+            http1: http1,
         });
-
-        fn decode_http<'el>(
-            http: RpEndpointHttp,
-            request: &Option<RpEndpointArgument>,
-            response: &Option<Loc<RpChannel>>,
-        ) -> Option<JavaHttp<'el>> {
-            let request_ty = request.as_ref().map(|r| Loc::value(&r.channel));
-            let response_ty = response.as_ref().map(|r| Loc::value(r));
-
-            let path = match http.path {
-                Some(path) => path,
-                None => return None,
-            };
-
-            let method = http.method.unwrap_or(core::RpHttpMethod::GET);
-
-            let (request, response) = match (request_ty, response_ty) {
-                (
-                    Some(&core::RpChannel::Unary { ty: ref request }),
-                    Some(&core::RpChannel::Unary { ty: ref response }),
-                ) => (request.clone(), response.clone()),
-                (None, Some(&core::RpChannel::Unary { ty: ref response })) => {
-                    (VOID.clone(), response.clone())
-                }
-                (Some(&core::RpChannel::Unary { ty: ref request }), None) => {
-                    (request.clone(), VOID.clone())
-                }
-                _ => return None,
-            };
-
-            return Some(JavaHttp {
-                request: request,
-                response: response,
-                path: path,
-                method: method,
-            });
-        }
     }
 }
 
