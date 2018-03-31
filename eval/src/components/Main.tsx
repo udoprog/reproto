@@ -56,7 +56,7 @@ themes.forEach((theme) => {
   require(`brace/theme/${theme}`)
 })
 
-const DEFAULT_JSON = require("raw-loader!../static/default.json");
+const DEFAULT_JSON = require("raw-loader!../static/default.json.txt");
 const DEFAULT_YAML = require("raw-loader!../static/default.yaml");
 const COMMON_REPROTO: string = require("raw-loader!../static/common.reproto");
 const COMMON2_REPROTO: string = require("raw-loader!../static/common2.reproto");

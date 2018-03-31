@@ -1,10 +1,11 @@
 const path = require("path");
 
 const HtmlWebpackPlugin = require("html-webpack-plugin");
-const ExtractTextPlugin = require("extract-text-webpack-plugin");
 const CopyWebpackPlugin = require("copy-webpack-plugin");
 
 module.exports = {
+  mode: "development",
+
   entry: [
     "./src/index.tsx",
     "./src/main.scss",
@@ -18,7 +19,7 @@ module.exports = {
   devtool: "source-map",
 
   resolve: {
-    extensions: [".ts", ".tsx", ".js", ".json"],
+    extensions: [".ts", ".tsx", ".js"],
     modules: ["node_modules", "local_modules"],
     alias: {
       "rust": path.resolve("./target/wasm32-unknown-unknown/release/")
@@ -43,9 +44,13 @@ module.exports = {
         exclude: /(node_modules|bower_components)/,
         options: { presets: ['@babel/preset-env'] }
       },
+      {
+        test: /\.json$/,
+        loader: "raw-loader",
+      },
       { enforce: "pre", test: /\.js$/, loader: "source-map-loader" },
       { test: /\-wasm\.js$/, loader: "exports-loader?__initialize" },
-      { test: /\.scss$/, loader: ExtractTextPlugin.extract("css-loader!sass-loader") },
+      { test: /\.scss$/, loader: "css-loader!sass-loader" },
       { test: /\.(jpe?g|gif|png)$/, loader: "file-loader" },
       { test: /.(ttf|otf|eot|svg|woff(2)?)(\?[a-z0-9]+)?$/,
         use: [{
@@ -68,9 +73,6 @@ module.exports = {
   plugins: [
     new HtmlWebpackPlugin({
       template: "index.html"
-    }),
-    new ExtractTextPlugin("dist/style.css", {
-      allChunks: true
     }),
     new CopyWebpackPlugin([
       "target/wasm32-unknown-unknown/release/reproto-wasm.wasm",
