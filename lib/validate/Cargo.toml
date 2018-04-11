@@ -1,0 +1,25 @@
+[package]
+name = "reproto-validate"
+version = "0.3.24"
+authors = ["John-John Tedro <udoprog@tedro.se>"]
+license = "MIT/Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/reproto/reproto"
+homepage = "https://github.com/reproto/reproto"
+documentation = "https://docs.rs/reproto-derive"
+description = """
+Rethinking Protocol Generators
+
+Derives a reproto schema from an existing JSON.
+"""
+
+[dependencies]
+reproto-core = {path = "../core", version = "0.3"}
+
+linked-hash-map = "0.5"
+serde = "1.0"
+serde_json = {version = "1.0", features = ["preserve_order"]}
+serde_yaml = "0.7"
+
+[lib]
+path = "lib.rs"

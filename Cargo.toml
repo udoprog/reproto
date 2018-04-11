@@ -24,6 +24,7 @@ members = [
   "lib/repository-http",
   "lib/semck",
   "lib/derive",
+  "lib/validate",
   "lib/semver",
   "lib/trans",
   "tools/pack",
