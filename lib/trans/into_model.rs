@@ -350,25 +350,19 @@ impl<'input, 'a> IntoModel for (Item<'input, EnumVariant<'input>>, &'a RpEnumTyp
     }
 }
 
-/// Helper function to build a safe name.
-fn build_item_ident(
-    scope: &Scope,
-    ident: &str,
-    default_ident_naming: Option<&Naming>,
-) -> (String, Option<String>) {
-    let converted_ident = if let Some(ident_naming) = default_ident_naming {
-        ident_naming.convert(ident)
+/// Helper function to build a safe identifier.
+fn build_safe_ident(scope: &Scope, ident: &str, naming: Option<&Naming>) -> Option<String> {
+    if let Some(ident_naming) = naming {
+        let converted = ident_naming.convert(ident);
+
+        match scope.keyword(converted.as_str()) {
+            Some(ident) => Some(ident.to_string()),
+            None if converted.as_str() != ident => Some(converted),
+            None => None,
+        }
     } else {
-        ident.to_string()
-    };
-
-    // Identifier would translate to a language-specific keyword, introduce replacement
-    // here.
-    let safe_ident = scope
-        .keyword(converted_ident.as_str())
-        .map(|s| s.to_string());
-
-    (converted_ident, safe_ident)
+        scope.keyword(ident).map(|s| s.to_string())
+    }
 }
 
 /// Helper function to build a safe name.
@@ -379,7 +373,7 @@ fn build_item_name(
     default_naming: Option<&Naming>,
     default_ident_naming: Option<&Naming>,
 ) -> (String, Option<String>, Option<String>) {
-    let (converted_ident, safe_ident) = build_item_ident(scope, ident, default_ident_naming);
+    let safe_ident = build_safe_ident(scope, ident, default_ident_naming);
 
     // Apply specification-wide naming convention unless field name explicitly specified.
     let name = name.map(|s| s.to_string())
@@ -388,16 +382,14 @@ fn build_item_name(
     // Don't include field alias if same as name.
     let name = match name {
         // Explicit alias, but it's exactly the same as translated field.
-        Some(ref name) if name == converted_ident.as_str() => None,
+        Some(ref name) if name == ident => None,
         // Explicit alias that differs from field.
         Some(name) => Some(name),
-        // Name needs to be set if identifier does not match converted.
-        _ if ident != converted_ident.as_str() => Some(ident.to_string()),
-        // Name matches converted_ident
+        // Name matches ident
         _ => None,
     };
 
-    (converted_ident, safe_ident, name)
+    (ident.to_string(), safe_ident, name)
 }
 
 impl<'input> IntoModel for Item<'input, Field<'input>> {
@@ -773,12 +765,7 @@ impl<'input> IntoModel for EndpointArgument<'input> {
 
     fn into_model(self, scope: &Scope) -> Result<Self::Output> {
         let ident = self.ident.into_model(scope)?;
-        let (ident, pos) = Loc::take_pair(ident);
-
-        let (ident, safe_ident) =
-            build_item_ident(scope, ident.as_str(), scope.field_ident_naming());
-
-        let ident = Loc::new(ident, pos);
+        let safe_ident = build_safe_ident(scope, ident.as_str(), scope.field_ident_naming());
 
         let argument = RpEndpointArgument {
             ident: Rc::new(ident),
