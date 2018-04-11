@@ -580,7 +580,7 @@ impl ServiceCodegen for OkHttpServiceCodegen {
 
             for e in &body.endpoints {
                 if let Some(http) = e.http1.as_ref() {
-                    let mut m = Method::new(e.ident.clone());
+                    let mut m = Method::new(e.safe_ident());
                     m.returns = self.completable_future
                         .with_arguments(vec![http.response.as_ref().unwrap_or(&VOID).clone()]);
                     m.arguments.extend(e.arguments.iter().cloned());

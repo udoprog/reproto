@@ -255,7 +255,10 @@ impl GrpcClient {
     ) -> Field<'el> {
         use self::Modifier::*;
 
-        let method_name = Rc::new(format!("METHOD_{}", self.to_upper_snake.convert(&e.ident)));
+        let method_name = Rc::new(format!(
+            "METHOD_{}",
+            self.to_upper_snake.convert(e.safe_ident())
+        ));
 
         let descriptor_ty = self.method_descriptor
             .with_arguments(vec![request_ty.clone(), response_ty.clone()]);
@@ -372,7 +375,7 @@ impl GrpcClient {
         use self::MethodType::*;
         use self::Modifier::*;
 
-        let mut method = Method::new(e.ident.clone());
+        let mut method = Method::new(e.safe_ident());
         method.modifiers = vec![Public];
 
         Self::javadoc_comments(&mut method.comments, &e.comment);
@@ -465,7 +468,7 @@ impl GrpcClient {
         use self::MethodType::*;
         use self::Modifier::*;
 
-        let mut method = Method::new(e.ident.clone());
+        let mut method = Method::new(e.safe_ident());
         method.modifiers = vec![Public];
 
         Self::javadoc_comments(&mut method.comments, &e.comment);

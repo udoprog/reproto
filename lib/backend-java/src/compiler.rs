@@ -94,12 +94,14 @@ impl<'el> Compiler<'el> {
             generator.generate(handle)?;
         }
 
-        let package = packages.new("io.reproto")?;
+        if self.options.uses_observer {
+            let package = packages.new("io.reproto")?;
 
-        JavaFile::new(package, "Observer", |out| {
-            out.push(Observer);
-            Ok(())
-        }).process(handle)?;
+            JavaFile::new(package, "Observer", |out| {
+                out.push(Observer);
+                Ok(())
+            }).process(handle)?;
+        }
 
         for decl in self.env.toplevel_decl_iter() {
             self.compile_decl(handle, decl).with_pos(decl.pos())?;

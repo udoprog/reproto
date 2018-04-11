@@ -21,6 +21,8 @@ pub struct Options {
     pub build_equals: bool,
     /// Build a Object#toString() implementation.
     pub build_to_string: bool,
+    /// Indicates that a module requires that io.reproto.Observer is present.
+    pub uses_observer: bool,
     /// Container to use for asynchronous operations.
     pub async_container: Option<Java<'static>>,
     /// Do not generate methods in service interface.
@@ -52,6 +54,7 @@ impl Options {
             build_hash_code: true,
             build_equals: true,
             build_to_string: true,
+            uses_observer: false,
             async_container: None,
             suppress_service_methods: false,
             root_generators: Vec::new(),

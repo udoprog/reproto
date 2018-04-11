@@ -30,7 +30,7 @@ impl ConstructorProperties {
 impl ClassCodegen for ConstructorProperties {
     fn generate(&self, e: ClassAdded) -> Result<()> {
         let args: Tokens<Java> = e.names.iter().cloned().map(Quoted::quoted).collect();
-        let a = toks![self.annotation.clone(), "({", args.join(", "), "})"];
+        let a = toks!["@", self.annotation.clone(), "({", args.join(", "), "})"];
 
         for c in &mut e.spec.constructors {
             c.annotation(a.clone());
