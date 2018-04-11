@@ -654,7 +654,7 @@ pub fn load_common_manifest(
             // output directory
             manifest.output = Some(
                 base.join("target")
-                    .join("generated")
+                    .join("generated-sources")
                     .join("reproto")
                     .join("java"),
             );
