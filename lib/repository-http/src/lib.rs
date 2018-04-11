@@ -2,6 +2,7 @@
 
 extern crate futures;
 extern crate hyper;
+extern crate hyper_rustls;
 extern crate reproto_core as core;
 extern crate reproto_repository as repository;
 extern crate tokio_core;
@@ -48,7 +49,10 @@ impl HttpObjects {
         request: Request,
     ) -> Box<Future<Item = (Vec<u8>, StatusCode), Error = Error>> {
         let handle = self.core.handle();
-        let client = Client::new(&handle);
+
+        let client = Client::configure()
+            .connector(hyper_rustls::HttpsConnector::new(4, &handle))
+            .build(&handle);
 
         let body_and_status = client
             .request(request)

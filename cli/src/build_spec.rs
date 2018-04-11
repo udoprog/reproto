@@ -86,6 +86,7 @@ fn load_objects(
         Err(e) => return Err(e.into()),
         Ok(url) => objects_from_url(config, &url, |config, scheme, url| match scheme {
             "http" => Ok(Some(repository_http::objects_from_url(config, url)?)),
+            "https" => Ok(Some(repository_http::objects_from_url(config, url)?)),
             _ => Ok(None),
         }).map_err(Into::into),
     }

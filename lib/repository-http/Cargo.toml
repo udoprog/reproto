@@ -15,8 +15,9 @@ HTTP support for reproto repository client
 reproto-core = {path = "../core", version = "0.3"}
 reproto-repository = {path = "../repository", version = "0.3"}
 
-ring = "0.11"
+ring = "0.13.0-alpha"
 hyper = "0.11"
+hyper-rustls = "0.12"
 tokio-core = "0.1"
 futures = "0.1"
 url = "1.5"
