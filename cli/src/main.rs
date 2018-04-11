@@ -55,7 +55,7 @@ fn setup_logger(matches: &clap::ArgMatches, output: &output::Output) -> Result<(
 
 fn guarded_entry(ctx: Rc<Context>, matches: &ArgMatches, output: &output::Output) -> Result<()> {
     setup_logger(matches, output)?;
-    ops::entry(ctx, matches)?;
+    ops::entry(ctx, matches, output)?;
     Ok(())
 }
 

@@ -202,16 +202,34 @@ pub fn manifest<'a>(
     Ok(manifest)
 }
 
-/// Setup environment.
 pub fn environment(
     lang: &Lang,
     ctx: Rc<Context>,
     manifest: &Manifest,
 ) -> Result<Environment<CoreFlavor>> {
+    environment_with_hook(lang, ctx, manifest, |_| Ok(()))
+}
+
+/// Setup environment.
+pub fn environment_with_hook<F: 'static>(
+    lang: &Lang,
+    ctx: Rc<Context>,
+    manifest: &Manifest,
+    path_hook: F,
+) -> Result<Environment<CoreFlavor>>
+where
+    F: Fn(&Path) -> Result<()>,
+{
+    // manifest path, if present.
+    if let Some(p) = manifest.path.as_ref() {
+        path_hook(p)?;
+    }
+
     let resolvers = resolvers(manifest)?;
     let package_prefix = manifest.package_prefix.clone();
 
-    let mut env = lang.into_env(ctx, package_prefix, resolvers);
+    let mut env = lang.into_env(ctx, package_prefix, resolvers)
+        .with_path_hook(path_hook);
 
     let mut errors = Vec::new();
 

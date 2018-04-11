@@ -20,10 +20,11 @@ pub enum ContextItem {
     InfoPos(ErrorPos, String),
 }
 
+#[derive(Clone)]
 /// Context for a single reproto run.
 pub struct Context {
     /// Filesystem abstraction.
-    filesystem: Box<Filesystem>,
+    filesystem: Rc<Box<Filesystem>>,
     /// Collected context errors.
     errors: Rc<RefCell<Vec<ContextItem>>>,
 }
@@ -84,7 +85,7 @@ impl Context {
     /// Create a new context with the given filesystem.
     pub fn new(filesystem: Box<Filesystem>) -> Context {
         Context {
-            filesystem: filesystem,
+            filesystem: Rc::new(filesystem),
             errors: Rc::new(RefCell::new(vec![])),
         }
     }
@@ -93,6 +94,17 @@ impl Context {
     pub fn with_errors(self, errors: Rc<RefCell<Vec<ContextItem>>>) -> Context {
         Context {
             errors: errors,
+            ..self
+        }
+    }
+
+    /// Map the existing filesystem and return a new context with the new filesystem.
+    pub fn map_filesystem<F>(self, map: F) -> Self
+    where
+        F: FnOnce(Rc<Box<Filesystem>>) -> Box<Filesystem>,
+    {
+        Context {
+            filesystem: Rc::new(map(self.filesystem)),
             ..self
         }
     }

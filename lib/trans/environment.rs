@@ -41,6 +41,8 @@ where
     field_ident_naming: Option<Box<Naming>>,
     /// Endpoint ident naming to apply.
     endpoint_ident_naming: Option<Box<Naming>>,
+    /// Hook to provide to paths that were loaded.
+    path_hook: Option<Box<Fn(&Path) -> Result<()>>>,
 }
 
 /// Environment containing all loaded declarations.
@@ -66,6 +68,18 @@ where
             package_naming: None,
             field_ident_naming: None,
             endpoint_ident_naming: None,
+            path_hook: None,
+        }
+    }
+
+    /// Setup a new path hook for this environment.
+    pub fn with_path_hook<H: 'static>(self, path_hook: H) -> Self
+    where
+        H: Fn(&Path) -> Result<()>,
+    {
+        Self {
+            path_hook: Some(Box::new(path_hook)),
+            ..self
         }
     }
 
@@ -382,6 +396,13 @@ impl Environment<CoreFlavor> {
         object: &Object,
         package: &RpVersionedPackage,
     ) -> Result<RpFile<CoreFlavor>> {
+        // Notify hook that we loaded a path.
+        if let Some(hook) = self.path_hook.as_ref() {
+            if let Some(path) = object.path() {
+                hook(path)?;
+            }
+        }
+
         let object = Rc::new(object.clone_object());
         let input = parser::read_to_string(object.read()?)?;
         let file = parser::parse(object, input.as_str())?;

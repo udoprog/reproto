@@ -6,10 +6,12 @@ mod init;
 mod publish;
 mod repo;
 mod update;
+mod watch;
 
 use clap::{App, Arg, ArgMatches};
 use core::Context;
 use core::errors::*;
+use output::Output;
 use std::rc::Rc;
 
 pub fn base_args<'a, 'b>(out: App<'a, 'b>) -> App<'a, 'b> {
@@ -116,6 +118,7 @@ pub fn build_args<'a, 'b>(out: App<'a, 'b>) -> App<'a, 'b> {
 pub fn options<'a, 'b>(out: App<'a, 'b>) -> App<'a, 'b> {
     let out = out.subcommand(build_args(build::options()));
     let out = out.subcommand(build_args(doc::options()));
+    let out = out.subcommand(build_args(watch::options()));
     let out = out.subcommand(base_args(check::options()));
     let out = out.subcommand(base_args(publish::options()));
     let out = out.subcommand(base_args(update::options()));
@@ -125,19 +128,20 @@ pub fn options<'a, 'b>(out: App<'a, 'b>) -> App<'a, 'b> {
     out
 }
 
-pub fn entry(ctx: Rc<Context>, matches: &ArgMatches) -> Result<()> {
+pub fn entry(ctx: Rc<Context>, matches: &ArgMatches, output: &Output) -> Result<()> {
     let (name, matches) = matches.subcommand();
     let matches = matches.ok_or_else(|| "no subcommand")?;
 
     match name {
         "build" => return build::entry(ctx, matches),
         "check" => return check::entry(ctx, matches),
+        "derive" => return derive::entry(ctx, matches),
         "doc" => return doc::entry(ctx, matches),
-        "update" => return update::entry(ctx, matches),
+        "init" => return init::entry(ctx, matches),
         "publish" => return publish::entry(ctx, matches),
         "repo" => return repo::entry(ctx, matches),
-        "derive" => return derive::entry(ctx, matches),
-        "init" => return init::entry(ctx, matches),
+        "update" => return update::entry(ctx, matches),
+        "watch" => return watch::entry(ctx, matches, output),
         _ => {}
     }
 

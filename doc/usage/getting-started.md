@@ -1,3 +1,6 @@
+* [Getting started](#getting-started)
+* [Rebuilding project on changes](#rebuilding-project-on-changes)
+
 # Getting started
 
 Reproto can be installed through cargo:
@@ -38,3 +41,21 @@ Next up, you might be interested to read the following sections:
 [specification language]: ../spec.md
 [build manifest]: ../manifest.md
 [`reproto.toml`]: ../manifest.md
+
+## Rebuilding project on changes
+
+Reproto supports watching a project through `reproto watch`.
+
+Any changes done to any specification or to any relevant manifest files will cause the project to
+be rebuilt automatically.
+
+```bash
+$ reproto watch
+INFO - Project Built!
+```
+
+This is useful when using reproto with an IDE that doesn't have native support for reproto
+projects.
+
+You can keep reproto running in the background as you are editing your manifests, and the IDE
+should automatically pick up any updated files.

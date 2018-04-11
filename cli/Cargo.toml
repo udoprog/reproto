@@ -12,6 +12,7 @@ reproto compiler
 """
 
 [features]
+default = ["notify"]
 # Enable to emit very detailed tracing, potentially performance sensitive.
 tracing = []
 
@@ -50,3 +51,4 @@ toml = "0.4"
 url = "1.6"
 url_serde = "0.2"
 genco = {version = "0.3"}
+notify = {version = "4", optional = true}

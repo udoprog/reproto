@@ -8,6 +8,8 @@ extern crate serde_derive;
 extern crate ansi_term;
 extern crate clap;
 extern crate genco;
+#[cfg(feature = "notify")]
+extern crate notify;
 extern crate reproto_ast as ast;
 extern crate reproto_backend as backend;
 extern crate reproto_backend_csharp as csharp;
