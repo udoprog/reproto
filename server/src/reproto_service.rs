@@ -60,19 +60,21 @@ impl ReprotoService {
         Response::new().with_status(StatusCode::NotFound)
     }
 
-    fn get_objects<'a, I>(&self, path: I) -> Result<Box<Future<Item = Response, Error = Error>>>
-    where
-        I: IntoIterator<Item = &'a str>,
-    {
-        let id = if let Some(id) = path.into_iter().next() {
-            id
-        } else {
-            return Ok(Box::new(ok(Self::not_found())));
-        };
+    fn get_index(&self) -> Result<Box<Future<Item = Response, Error = Error>>> {
+        let m = "<html></html>";
 
+        let res = ok(Response::new()
+            .with_status(StatusCode::Ok)
+            .with_header(ContentLength(m.len() as u64))
+            .with_body(m));
+
+        Ok(Box::new(res))
+    }
+
+    fn get_objects(&self, id: &str) -> Result<Box<Future<Item = Response, Error = Error>>> {
         let objects = self.objects.clone();
 
-        let checksum = Checksum::from_str(id).map_err(|_| Error::BadRequest(BAD_OBJECT_ID))?;
+        let checksum = Checksum::from_str(id).map_err(|_| Error::BadRequest(BAD_OBJECT_ID.into()))?;
 
         // No async I/O, use pool
         Ok(Box::new(self.pool.spawn_fn(move || {
@@ -141,28 +143,19 @@ impl ReprotoService {
         Box::new(upload)
     }
 
-    fn put_objects<'a, I>(
+    fn put_objects(
         &self,
+        id: &str,
         req: Request,
-        path: I,
-    ) -> Result<Box<Future<Item = Response, Error = Error>>>
-    where
-        I: IntoIterator<Item = &'a str>,
-    {
-        let id = if let Some(id) = path.into_iter().next() {
-            id
-        } else {
-            return Ok(Box::new(ok(Self::not_found())));
-        };
-
-        let checksum = Checksum::from_str(id).map_err(|_| Error::BadRequest(BAD_OBJECT_ID))?;
+    ) -> Result<Box<Future<Item = Response, Error = Error>>> {
+        let checksum = Checksum::from_str(id).map_err(|_| Error::BadRequest(BAD_OBJECT_ID.into()))?;
 
         if let Some(len) = req.headers().get::<ContentLength>() {
             if len.0 > self.max_file_size {
-                return Err(Error::BadRequest("file too large").into());
+                return Err(Error::BadRequest("file too large".into()).into());
             }
         } else {
-            return Err(Error::BadRequest("missing content-length").into());
+            return Err(Error::BadRequest("missing content-length".into()).into());
         }
 
         let encoding = Self::pick_encoding(req.headers());
@@ -183,12 +176,21 @@ impl ReprotoService {
     {
         let mut it = path.into_iter();
 
-        if let Some(part) = it.next() {
-            match (req.method(), part) {
-                (&Method::Get, "objects") => return self.get_objects(it),
-                (&Method::Put, "objects") => return self.put_objects(req, it),
-                _ => return Ok(Box::new(ok(Self::not_found()))),
+        let a = it.next();
+        let b = it.next();
+        let c = it.next();
+
+        match (req.method(), a, b, c) {
+            (&Method::Get, Some(""), None, None) => {
+                return self.get_index();
             }
+            (&Method::Get, Some("objects"), Some(id), None) => {
+                return self.get_objects(id);
+            }
+            (&Method::Put, Some("objects"), Some(id), None) => {
+                return self.put_objects(id, req);
+            }
+            _ => {}
         }
 
         Ok(Box::new(ok(Self::not_found())))
@@ -196,12 +198,12 @@ impl ReprotoService {
 
     fn handle_error(e: Error) -> Response {
         match e {
-            Error::BadRequest(ref message) => {
+            Error::BadRequest(message) => {
                 return Response::new()
                     .with_status(StatusCode::BadRequest)
                     .with_header(ContentLength(message.len() as u64))
                     .with_header(ContentType(mime::TEXT_PLAIN))
-                    .with_body(*message)
+                    .with_body(message)
             }
             Error::Other(error) => {
                 error!("{}", error.message());
