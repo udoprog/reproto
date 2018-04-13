@@ -2,8 +2,8 @@
 
 use build_spec::simple_config;
 use clap::{App, ArgMatches, SubCommand};
-use core::errors::*;
 use core::Context;
+use core::errors::*;
 use std::rc::Rc;
 
 pub fn options<'a, 'b>() -> App<'a, 'b> {

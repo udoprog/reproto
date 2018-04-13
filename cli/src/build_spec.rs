@@ -1,241 +1,148 @@
 use clap::ArgMatches;
-use config_env::ConfigEnv;
 use core::errors::{Error, Result, ResultExt};
-use core::{Context, CoreFlavor, Flavor, RelativePath, Reporter, Resolved, ResolvedByPrefix,
-           Resolver, RpChannel, RpPackage, RpPackageFormat, RpRequiredPackage, RpVersionedPackage,
-           Source, Version};
-use manifest::{self as m, read_manifest, read_manifest_preamble, Lang, Language, Manifest,
-               ManifestFile, ManifestPreamble, NoLang, Publish};
-use repository::{index_from_path, index_from_url, objects_from_path, objects_from_url, Index,
-                 IndexConfig, NoIndex, NoObjects, Objects, ObjectsConfig, Paths, Repository,
-                 Resolvers};
-use repository_http;
+use core::{Context, CoreFlavor, Diagnostics, Flavor, Resolved, ResolvedByPrefix, Resolver,
+           RpChannel, RpPackage, RpPackageFormat, RpRequiredPackage, RpVersionedPackage, Source,
+           Version};
+use env;
+use manifest::{self, Lang, Language, Manifest, ManifestFile, Publish};
+use repository::Repository;
 use semck;
-use std::collections::HashMap;
 use std::fmt;
 use std::fs::File;
 use std::path::Path;
 use std::rc::Rc;
-use std::time::Duration;
 use trans::Environment;
-use url;
 
-pub const DEFAULT_INDEX: &'static str = "git+https://github.com/reproto/reproto-index";
-pub const MANIFEST_NAME: &'static str = "reproto.toml";
+/// Load the manifest based on commandline arguments.
+pub fn load_manifest<'a>(matches: &ArgMatches<'a>) -> Result<Manifest> {
+    let mut manifest = manifest::Manifest::default();
 
-fn load_index(base: &Path, url: &str, publishing: bool, config: IndexConfig) -> Result<Box<Index>> {
-    let index_path = Path::new(url);
-
-    if index_path.is_dir() {
-        let index_path = index_path
-            .canonicalize()
-            .map_err(|e| format!("index: bad path: {}: {}", e, index_path.display()))?;
-
-        return index_from_path(&index_path).map_err(Into::into);
-    }
-
-    match url::Url::parse(url) {
-        Err(url::ParseError::RelativeUrlWithoutBase) => {
-            let path = RelativePath::new(url).to_path(base);
-
-            index_from_path(&path).map_err(Into::into)
-        }
-        Err(e) => return Err(e.into()),
-        Ok(url) => index_from_url(config, &url, publishing).map_err(Into::into),
-    }
-}
-
-fn load_objects(
-    index: &Index,
-    index_publishing: bool,
-    index_url: &str,
-    objects: Option<String>,
-    config: ObjectsConfig,
-) -> Result<Box<Objects>> {
-    let (objects_url, publishing) = if let Some(ref objects) = objects {
-        (objects.as_ref(), true)
-    } else {
-        (index.objects_url()?, index_publishing)
-    };
-
-    debug!("index: {}", index_url);
-    debug!("objects: {}", objects_url);
-
-    let objects_path = Path::new(objects_url);
-
-    if objects_path.is_dir() {
-        let objects_path = objects_path
-            .canonicalize()
-            .map_err(|e| format!("objects: bad path: {}: {}", e, objects_path.display()))?;
-
-        return objects_from_path(objects_path)
-            .map(|o| Box::new(o) as Box<Objects>)
-            .map_err(Into::into);
-    }
-
-    match url::Url::parse(objects_url) {
-        // Relative to index index repository!
-        Err(url::ParseError::RelativeUrlWithoutBase) => index
-            .objects_from_index(RelativePath::new(objects_url))
-            .map_err(Into::into),
-        Err(e) => return Err(e.into()),
-        Ok(url) => objects_from_url(
-            config,
-            &url,
-            |config, scheme, url| match scheme {
-                "http" => Ok(Some(repository_http::objects_from_url(config, url)?)),
-                "https" => Ok(Some(repository_http::objects_from_url(config, url)?)),
-                _ => Ok(None),
-            },
-            publishing,
-        ).map_err(Into::into),
-    }
-}
-
-pub fn repository(manifest: &Manifest) -> Result<Repository> {
-    let repository = &manifest.repository;
-
-    if repository.no_repository {
-        return Ok(Repository::new(Box::new(NoIndex), Box::new(NoObjects)));
-    }
-
-    let base = manifest
-        .path
-        .as_ref()
-        .and_then(|p| p.parent())
-        .ok_or_else(|| "no parent path to manifest")?;
-
-    let mut repo_dir = None;
-    let mut cache_home = None;
-    let mut index = repository.index.clone();
-    let mut objects = repository.objects.clone();
-
-    if let Some(config_env) = ConfigEnv::new()? {
-        repo_dir = Some(config_env.repo_dir);
-        cache_home = Some(config_env.cache_home);
-        index = index.or(config_env.index.clone());
-        objects = objects.or(config_env.objects.clone());
-    }
-
-    let repo_dir = repo_dir.ok_or_else(|| "repo_dir: must be specified")?;
-
-    // NB: do not permit publishing to default index.
-    let (index_url, index_publishing) = index
-        .map(|index| (index, true))
-        .unwrap_or_else(|| (DEFAULT_INDEX.to_owned(), false));
-
-    let index_config = IndexConfig {
-        repo_dir: repo_dir.clone(),
-    };
-
-    let index = load_index(base, index_url.as_str(), index_publishing, index_config)?;
-
-    let objects_config = ObjectsConfig {
-        repo_dir,
-        cache_home,
-        missing_cache_time: Some(Duration::new(60, 0)),
-    };
-
-    let objects = load_objects(
-        index.as_ref(),
-        index_publishing,
-        index_url.as_str(),
-        objects,
-        objects_config,
-    )?;
-
-    Ok(Repository::new(index, objects))
-}
-
-pub fn path_resolver(manifest: &Manifest) -> Result<Option<Box<Resolver>>> {
-    if manifest.paths.is_empty() {
-        return Ok(None);
-    }
-
-    let mut published = HashMap::new();
-
-    for publish in &manifest.publish {
-        published.insert(publish.package.clone(), publish.version.clone());
-    }
-
-    Ok(Some(Box::new(Paths::new(
-        manifest.paths.clone(),
-        published,
-    ))))
-}
-
-pub fn resolvers(manifest: &Manifest) -> Result<Box<Resolver>> {
-    let mut resolvers: Vec<Box<Resolver>> = Vec::new();
-
-    resolvers.push(Box::new(repository(manifest)?));
-
-    if let Some(resolver) = path_resolver(manifest)? {
-        resolvers.push(resolver);
-    }
-
-    Ok(Box::new(Resolvers::new(resolvers)))
-}
-
-/// Read the first part of the manifest, to determine the language used.
-pub fn manifest_preamble<'a>(matches: &ArgMatches<'a>) -> Result<ManifestPreamble> {
-    let manifest_path = matches
+    let path = matches
         .value_of("manifest-path")
         .map::<Result<&Path>, _>(|p| Ok(Path::new(p)))
-        .unwrap_or_else(|| Ok(Path::new(MANIFEST_NAME)))?;
+        .unwrap_or_else(|| Ok(Path::new(env::MANIFEST_NAME)))?;
 
-    if !manifest_path.is_file() {
-        return Ok(ManifestPreamble::new(None, Some(manifest_path)));
+    manifest.path = Some(path.to_owned());
+
+    if let Some(lang) = matches.value_of("lang") {
+        let lang = Language::parse(lang).ok_or_else(|| format!("not a valid language: {}", lang))?;
+        manifest.lang = Some(env::convert_lang(lang));
     }
 
-    debug!("reading manifest: {}", manifest_path.display());
-    let reader = File::open(manifest_path.clone())?;
+    if path.is_file() {
+        debug!("reading manifest: {}", path.display());
+        manifest.from_yaml(File::open(&path)?, env::convert_lang)?;
+    }
 
-    read_manifest_preamble(&manifest_path, reader)
-        .map_err(|e| format!("{}: {}", manifest_path.display(), e.display()).into())
-}
+    matches_to_manifest(&mut manifest, matches)?;
+    return Ok(manifest);
 
-/// Read the manifest based on the current environment.
-pub fn manifest<'a>(
-    lang: &Lang,
-    matches: &ArgMatches<'a>,
-    preamble: ManifestPreamble,
-) -> Result<Manifest> {
-    let path = preamble.path.clone();
+    /// Populate manifest with overrides and extensions from the command line.
+    fn matches_to_manifest(manifest: &mut Manifest, matches: &ArgMatches) -> Result<()> {
+        manifest.paths.extend(
+            matches
+                .values_of("path")
+                .into_iter()
+                .flat_map(|it| it)
+                .map(Path::new)
+                .map(ToOwned::to_owned),
+        );
 
-    let mut manifest = read_manifest(lang, preamble).map_err(|e| {
-        if let Some(path) = path {
-            format!("{}: {}", path.display(), e.display()).into()
-        } else {
-            e
+        if let Some(files) = matches.values_of("file") {
+            for file in files {
+                match file {
+                    // read from stdin
+                    "-" => manifest.stdin = true,
+                    // read from file
+                    file => {
+                        manifest
+                            .files
+                            .push(ManifestFile::from_path(Path::new(file)));
+                    }
+                }
+            }
         }
-    })?;
 
-    manifest_from_matches(lang, &mut manifest, matches)?;
-    Ok(manifest)
+        // TODO: we want to be able to load modules, when we have paths.
+        if let Some(path) = manifest.path.as_ref() {
+            if let Some(lang) = manifest.lang.as_ref() {
+                for module in matches.values_of("module").into_iter().flat_map(|it| it) {
+                    let module = lang.string_spec(path, module)?;
+                    manifest.modules.push(module);
+                }
+            }
+        }
+
+        for package in matches.values_of("package").into_iter().flat_map(|it| it) {
+            let parsed = RpRequiredPackage::parse(package);
+
+            let parsed =
+                parsed.chain_err(|| format!("failed to parse --package argument: {}", package))?;
+
+            manifest.packages.push(parsed);
+        }
+
+        if let Some(package_prefix) = matches.value_of("package-prefix").map(RpPackage::parse) {
+            manifest.package_prefix = Some(package_prefix);
+        }
+
+        if let Some(id_converter) = matches.value_of("id-converter") {
+            manifest.id_converter = Some(id_converter.to_string());
+        }
+
+        // override output path
+        if let Some(out) = matches.value_of("out").map(Path::new) {
+            manifest.output = Some(out.to_owned());
+        }
+
+        matches_to_repository(&mut manifest.repository, matches)?;
+        return Ok(());
+
+        /// Populate the repository structure from CLI arguments.
+        ///
+        /// CLI arguments take precedence.
+        fn matches_to_repository(
+            repository: &mut manifest::Repository,
+            matches: &ArgMatches,
+        ) -> Result<()> {
+            repository.no_repository =
+                repository.no_repository || matches.is_present("no-repository");
+
+            if let Some(objects) = matches.value_of("objects").map(ToOwned::to_owned) {
+                repository.objects = Some(objects);
+            }
+
+            if let Some(index) = matches.value_of("index").map(ToOwned::to_owned) {
+                repository.index = Some(index);
+            }
+
+            Ok(())
+        }
+    }
 }
 
 pub fn environment(
-    lang: &Lang,
     ctx: Rc<Context>,
+    lang: Box<Lang>,
     manifest: &Manifest,
 ) -> Result<Environment<CoreFlavor>> {
-    environment_with_hook(lang, ctx, manifest, |_| Ok(()))
+    environment_with_hook(ctx, lang, manifest, |_| Ok(()))
 }
 
 /// Setup environment.
 pub fn environment_with_hook<F: 'static>(
-    lang: &Lang,
     ctx: Rc<Context>,
+    lang: Box<Lang>,
     manifest: &Manifest,
     path_hook: F,
 ) -> Result<Environment<CoreFlavor>>
 where
     F: Fn(&Path) -> Result<()>,
 {
-    let resolvers = resolvers(manifest)?;
+    let resolver = env::resolver(manifest)?;
     let package_prefix = manifest.package_prefix.clone();
 
-    let mut env = lang.into_env(ctx, package_prefix, resolvers)
+    let mut env = lang.into_env(ctx, package_prefix, resolver)
         .with_path_hook(path_hook);
 
     let mut errors: Vec<Error> = Vec::new();
@@ -270,7 +177,7 @@ where
 
         let source = Source::stdin();
 
-        if let Err(e) = env.import_source(&source, None) {
+        if let Err(e) = env.import_source(source, None) {
             errors.push(e.into());
         }
     }
@@ -280,85 +187,10 @@ where
     }
 
     if !errors.is_empty() {
-        return Err(Error::new("Error when building").with_suppressed(errors));
+        return Err(Error::new("error when building").with_suppressed(errors));
     }
 
     Ok(env)
-}
-
-/// Populate the repository structure from CLI arguments.
-///
-/// CLI arguments take precedence.
-fn repository_from_matches(repository: &mut m::Repository, matches: &ArgMatches) -> Result<()> {
-    repository.no_repository = repository.no_repository || matches.is_present("no-repository");
-
-    if let Some(objects) = matches.value_of("objects").map(ToOwned::to_owned) {
-        repository.objects = Some(objects);
-    }
-
-    if let Some(index) = matches.value_of("index").map(ToOwned::to_owned) {
-        repository.index = Some(index);
-    }
-
-    Ok(())
-}
-
-fn manifest_from_matches(lang: &Lang, manifest: &mut Manifest, matches: &ArgMatches) -> Result<()> {
-    manifest.paths.extend(
-        matches
-            .values_of("path")
-            .into_iter()
-            .flat_map(|it| it)
-            .map(Path::new)
-            .map(ToOwned::to_owned),
-    );
-
-    if let Some(files) = matches.values_of("file") {
-        for file in files {
-            match file {
-                // read from stdin
-                "-" => manifest.stdin = true,
-                // read from file
-                file => {
-                    manifest
-                        .files
-                        .push(ManifestFile::from_path(Path::new(file)));
-                }
-            }
-        }
-    }
-
-    // TODO: we want to be able to load modules, when we have paths.
-    if let Some(path) = manifest.path.as_ref() {
-        for module in matches.values_of("module").into_iter().flat_map(|it| it) {
-            manifest.modules.push(lang.string_spec(path, module)?);
-        }
-    }
-
-    for package in matches.values_of("package").into_iter().flat_map(|it| it) {
-        let parsed = RpRequiredPackage::parse(package);
-
-        let parsed =
-            parsed.chain_err(|| format!("failed to parse --package argument: {}", package))?;
-
-        manifest.packages.push(parsed);
-    }
-
-    if let Some(package_prefix) = matches.value_of("package-prefix").map(RpPackage::parse) {
-        manifest.package_prefix = Some(package_prefix);
-    }
-
-    if let Some(id_converter) = matches.value_of("id-converter") {
-        manifest.id_converter = Some(id_converter.to_string());
-    }
-
-    // override output path
-    if let Some(out) = matches.value_of("out").map(Path::new) {
-        manifest.output = Some(out.to_owned());
-    }
-
-    repository_from_matches(&mut manifest.repository, matches)?;
-    Ok(())
 }
 
 /// Argument match.
@@ -402,21 +234,17 @@ where
     let mut results = Vec::new();
 
     for package in packages.into_iter() {
-        let resolved = resolver.resolve(package)?;
+        let mut resolved = resolver.resolve(package)?.into_iter();
 
-        if resolved.is_empty() {
-            return Err(format!("no matching packages found for: {}", package).into());
-        }
+        let first = resolved
+            .next()
+            .ok_or_else(|| format!("no package matching: {}", package))?;
 
-        let mut it = resolved.into_iter();
-
-        let first = it.next().ok_or_else(|| format!("no packages to publish"))?;
-
-        if let Some(next) = it.next() {
+        if let Some(next) = resolved.next() {
             warn!("matched: {}", first);
             warn!("    and: {}", next);
 
-            while let Some(next) = it.next() {
+            while let Some(next) = resolved.next() {
                 warn!("    and: {}", next);
             }
 
@@ -424,10 +252,11 @@ where
         }
 
         let Resolved { version, source } = first;
-        let version = version_override.cloned().or(version);
 
-        let version =
-            version.ok_or_else(|| format!("No version for package: {}", package.package))?;
+        let version = version_override
+            .cloned()
+            .or(version)
+            .ok_or_else(|| format!("no version for package: {}", package.package))?;
 
         results.push(Match(version, source, package.package.clone()));
     }
@@ -442,7 +271,7 @@ pub fn semck_check(
     env: &mut Environment<CoreFlavor>,
     m: &Match,
 ) -> Result<()> {
-    let Match(ref version, ref source, ref package) = *m;
+    let Match(ref version, ref next, ref package) = *m;
 
     // perform semck verification
     if let Some(d) = repository
@@ -453,18 +282,18 @@ pub fn semck_check(
     {
         debug!("Checking semantics of {} -> {}", d.version, version);
 
-        let previous = repository
+        let current = repository
             .get_object(&d)?
             .ok_or_else(|| format!("No object found for deployment: {:?}", d))?;
 
         let name = RpPackageFormat(package, Some(&d.version)).to_string();
-        let previous = previous.with_name(name);
+        let current = current.with_name(name);
 
         let package_from = RpVersionedPackage::new(package.clone(), Some(d.version.clone()));
-        let file_from = env.load_object(&previous, &package_from)?;
+        let file_from = env.load_source(current.clone(), &package_from)?;
 
         let package_to = RpVersionedPackage::new(package.clone(), Some(version.clone()));
-        let file_to = env.load_object(&source, &package_to)?;
+        let file_to = env.load_source(next.clone(), &package_to)?;
 
         let violations = semck::check((&d.version, &file_from), (&version, &file_to))?;
 
@@ -474,81 +303,89 @@ pub fn semck_check(
                 violations.len()
             )));
 
-            let mut report = ctx.report();
+            let mut current = Diagnostics::new(current);
+            let mut next = Diagnostics::new(next.clone());
 
             for v in violations {
-                handle_violation(&mut report, v)?;
+                handle_violation(&mut current, &mut next, v)?;
             }
+
+            ctx.diagnostics(current)?;
+            ctx.diagnostics(next)?;
         }
     }
 
     return Ok(());
 
-    fn handle_violation(report: &mut Reporter, violation: semck::Violation) -> Result<()> {
+    fn handle_violation(
+        current: &mut Diagnostics,
+        next: &mut Diagnostics,
+        violation: semck::Violation,
+    ) -> Result<()> {
         use semck::Violation::*;
 
         match violation {
             DeclRemoved(c, reg) => {
-                report.err(reg, format!("{}: declaration removed", c.describe()));
+                current.err(reg, format!("{}: declaration removed", c.describe()));
             }
             DeclAdded(c, reg) => {
-                report.err(reg, format!("{}: declaration added", c.describe()));
+                next.err(reg, format!("{}: declaration added", c.describe()));
             }
             RemoveField(c, field) => {
-                report.err(field, format!("{}: field removed", c.describe()));
+                current.err(field, format!("{}: field removed", c.describe()));
             }
             RemoveVariant(c, field) => {
-                report.err(field, format!("{}: variant removed", c.describe()));
+                current.err(field, format!("{}: variant removed", c.describe()));
             }
             AddField(c, field) => {
-                report.err(field, format!("{}: field added", c.describe()));
+                next.err(field, format!("{}: field added", c.describe()));
             }
             AddVariant(c, field) => {
-                report.err(field, format!("{}: variant added", c.describe()));
+                next.err(field, format!("{}: variant added", c.describe()));
             }
             FieldTypeChange(c, from_type, from, to_type, to) => {
-                report.err(
+                next.err(
                     to,
                     format!("{}: type changed to `{}`", c.describe(), to_type),
                 );
-                report.err(from, format!("from `{}`", from_type));
+                current.info(from, format!("from `{}`", from_type));
             }
             FieldNameChange(c, from_name, from, to_name, to) => {
-                report.err(
+                next.err(
                     to,
                     format!("{}: name changed to `{}`", c.describe(), to_name),
                 );
-                report.err(from, format!("from `{}`", from_name));
+                current.info(from, format!("from `{}`", from_name));
             }
             VariantOrdinalChange(c, from_ordinal, from, to_ordinal, to) => {
-                report.err(
+                next.err(
                     to,
                     format!("{}: ordinal changed to `{}`", c.describe(), to_ordinal),
                 );
-                report.err(from, format!("from `{}`", from_ordinal));
+                current.info(from, format!("from `{}`", from_ordinal));
             }
             FieldRequiredChange(c, from, to) => {
-                report.err(
+                next.err(
                     to,
                     format!("{}: field changed to be required`", c.describe(),),
                 );
-                report.err(from, "from here");
+                current.info(from, "from here");
             }
             AddRequiredField(c, field) => {
-                report.err(field, format!("{}: required field added", c.describe()));
+                next.err(field, format!("{}: required field added", c.describe()));
             }
             FieldModifierChange(c, from, to) => {
-                report.err(to, format!("{}: field modifier changed", c.describe()));
-                report.err(from, "from here");
+                next.err(to, format!("{}: field modifier changed", c.describe()));
+                current.info(from, "from here");
             }
             AddEndpoint(c, span) => {
-                report.err(span, format!("{}: endpoint added", c.describe()));
+                next.err(span, format!("{}: endpoint added", c.describe()));
             }
             RemoveEndpoint(c, span) => {
-                report.err(span, format!("{}: endpoint removed", c.describe()));
+                current.err(span, format!("{}: endpoint removed", c.describe()));
             }
             EndpointRequestChange(c, from_channel, from, to_channel, to) => {
-                report.err(
+                next.err(
                     to,
                     format!(
                         "{}: request type changed to `{}`",
@@ -556,13 +393,13 @@ pub fn semck_check(
                         FmtChannel(to_channel.as_ref())
                     ),
                 );
-                report.err(
+                current.info(
                     from,
                     format!("from `{}`", FmtChannel(from_channel.as_ref())),
                 );
             }
             EndpointResponseChange(c, from_channel, from, to_channel, to) => {
-                report.err(
+                next.err(
                     to,
                     format!(
                         "{}: response type changed to `{}`",
@@ -570,7 +407,7 @@ pub fn semck_check(
                         FmtChannel(to_channel.as_ref())
                     ),
                 );
-                report.err(
+                current.err(
                     from,
                     format!("from `{}`", FmtChannel(from_channel.as_ref())),
                 );
@@ -598,38 +435,13 @@ pub fn semck_check(
     }
 }
 
-/// Convert the manifest language to an actual language implementation.
-pub fn convert_lang(input: Language) -> Box<Lang> {
-    use self::Language::*;
-
-    match input {
-        Csharp => Box::new(::csharp::CsharpLang),
-        Go => Box::new(::go::GoLang),
-        Java => Box::new(::java::JavaLang),
-        Js => Box::new(::js::JsLang),
-        Json => Box::new(::json::JsonLang),
-        Python => Box::new(::python::PythonLang),
-        Reproto => Box::new(::reproto::ReprotoLang),
-        Rust => Box::new(::rust::RustLang),
-        Swift => Box::new(::swift::SwiftLang),
-    }
-}
-
 /// Setup a basic environment falling back to `NoLang` unless one is specified.
 pub fn simple_config(
     ctx: &Rc<Context>,
     matches: &ArgMatches,
 ) -> Result<(Manifest, Environment<CoreFlavor>)> {
-    let preamble = manifest_preamble(matches)?;
-
-    let lang = preamble
-        .language
-        .map(|l| convert_lang(l))
-        .unwrap_or_else(|| Box::new(NoLang) as Box<Lang>);
-
-    let manifest = manifest(lang.as_ref(), matches, preamble)?;
-
-    let env = environment(lang.as_ref(), ctx.clone(), &manifest)?;
-
+    let manifest = load_manifest(matches)?;
+    let lang = manifest.lang_or_nolang();
+    let env = environment(ctx.clone(), lang, &manifest)?;
     Ok((manifest, env))
 }

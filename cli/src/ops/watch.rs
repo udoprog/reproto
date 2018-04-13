@@ -1,8 +1,8 @@
 //! build command
 
 use clap::{App, Arg, ArgMatches, SubCommand};
-use core::errors::Result;
 use core::Context;
+use core::errors::Result;
 use output::Output;
 use std::rc::Rc;
 
@@ -33,8 +33,7 @@ pub fn entry(_: Rc<Context>, _: &ArgMatches, _: &Output) -> Result<()> {
 
 #[cfg(feature = "notify")]
 pub fn entry(ctx: Rc<Context>, matches: &ArgMatches, output: &Output) -> Result<()> {
-    use build_spec::{convert_lang, environment_with_hook, manifest, manifest_preamble};
-    use manifest::Language;
+    use build_spec::{environment_with_hook, load_manifest};
     use notify::{RecommendedWatcher, RecursiveMode, Watcher};
     use std::cell::RefCell;
     use std::collections::HashSet;
@@ -257,32 +256,19 @@ pub fn entry(ctx: Rc<Context>, matches: &ArgMatches, output: &Output) -> Result<
             ))
         }));
 
-        // TODO: swap out filesystem implementation with a "stalker" implementation that records all
-        // files written.
+        let manifest = load_manifest(matches)?;
+        let lang = manifest.lang().ok_or_else(|| "no language to build for")?;
 
-        let preamble = manifest_preamble(matches)?;
-
-        if let Some(path) = preamble.path.as_ref() {
+        if let Some(path) = manifest.path.as_ref() {
             let path = path.to_owned()
                 .canonicalize()
                 .map_err(|e| format!("{}: {}", path.display(), e))?;
             paths.try_borrow_mut()?.insert(path);
         }
 
-        let language = preamble
-            .language
-            .as_ref()
-            .cloned()
-            .or_else(|| matches.value_of("lang").and_then(Language::parse))
-            .ok_or_else(|| "no language specified either through manifest or cli (--lang)")?;
-
-        let lang = convert_lang(language);
-
-        let manifest = manifest(lang.as_ref(), matches, preamble)?;
-
         let local_paths = paths.clone();
 
-        let env = environment_with_hook(lang.as_ref(), ctx.clone(), &manifest, move |p| {
+        let env = environment_with_hook(ctx.clone(), lang.copy(), &manifest, move |p| {
             let p = p.to_owned()
                 .canonicalize()
                 .map_err(|e| format!("{}: {}", p.display(), e))?;

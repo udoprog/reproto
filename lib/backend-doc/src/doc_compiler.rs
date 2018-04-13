@@ -3,7 +3,7 @@
 use super::{DOC_CSS_NAME, NORMALIZE_CSS_NAME};
 use core::errors::*;
 use core::flavored::{RpDecl, RpFile, RpVersionedPackage};
-use core::{AsPackage, CoreFlavor, WithSpan};
+use core::{AsPackage, CoreFlavor};
 use doc_builder::DocBuilder;
 use enum_processor::EnumProcessor;
 use genco::IoFmt;
@@ -39,7 +39,7 @@ impl<'a> DocCompiler<'a> {
     pub fn compile(&self) -> Result<()> {
         for (_, file) in self.env.for_each_file() {
             for decl in file.for_each_decl() {
-                self.process_decl(decl).with_span(decl.span())?;
+                self.process_decl(decl)?;
             }
         }
 

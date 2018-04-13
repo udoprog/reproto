@@ -1,12 +1,12 @@
 //! Derive a schema from the given input.
 
 use ast;
-use build_spec::convert_lang;
 use clap::{App, Arg, ArgMatches, SubCommand};
 use compile;
 use core::errors::Result;
 use core::{Context, RpPackage, RpVersionedPackage, Source};
 use derive;
+use env;
 use genco::IoFmt;
 use manifest::{Lang, Language};
 use std::any::Any;
@@ -119,7 +119,7 @@ pub fn entry(_ctx: Rc<Context>, matches: &ArgMatches) -> Result<()> {
         .and_then(Language::parse)
         .ok_or_else(|| "no language specified, use `--lang`")?;
 
-    let lang = convert_lang(language);
+    let lang = env::convert_lang(language);
 
     let modules = load_modules(lang.as_ref(), modules)?;
 

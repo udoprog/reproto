@@ -2,8 +2,8 @@
 
 use super::Objects;
 use checksum::Checksum;
-use core::errors::*;
 use core::Source;
+use core::errors::*;
 use hex_slice::HexSlice;
 use std::fs::{self, File};
 use std::io::{self, Read};

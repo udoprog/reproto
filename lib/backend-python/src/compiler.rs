@@ -3,7 +3,7 @@
 use backend::PackageProcessor;
 use codegen::{ServiceAdded, ServiceCodegen};
 use core::errors::*;
-use core::{self, ForEachLoc, Handle, Loc, RelativePathBuf};
+use core::{self, Handle, Loc, RelativePathBuf};
 use flavored::{PythonFlavor, PythonName, RpEnumBody, RpField, RpInterfaceBody, RpPackage,
                RpServiceBody, RpTupleBody, RpTypeBody};
 use genco::python::{imported, Python};
@@ -491,9 +491,7 @@ impl<'el> PackageProcessor<'el, PythonFlavor, PythonName> for Compiler<'el> {
 
         out.0.push(self.as_class(&body.name, type_body));
 
-        let values = body.sub_types.iter().map(|l| Loc::as_ref(l));
-
-        values.for_each_loc(|sub_type| {
+        for sub_type in &body.sub_types {
             let mut sub_type_body = Tokens::new();
 
             sub_type_body.push(toks!["TYPE = ", sub_type.name().quoted()]);
@@ -539,8 +537,7 @@ impl<'el> PackageProcessor<'el, PythonFlavor, PythonName> for Compiler<'el> {
             sub_type_body.push_unless_empty(code!(&sub_type.codes, core::RpContext::Python));
 
             out.0.push(self.as_class(&sub_type.name, sub_type_body));
-            Ok(()) as Result<()>
-        })?;
+        }
 
         return Ok(());
 

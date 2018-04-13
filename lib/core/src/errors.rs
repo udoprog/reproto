@@ -4,7 +4,6 @@ use std::ffi;
 use std::fmt;
 use std::result;
 use std::sync::atomic;
-use {Span, WithSpan};
 
 const RUST_BACKTRACE: &str = "RUST_BACKTRACE";
 
@@ -107,19 +106,8 @@ fn is_backtrace_enabled<F: Fn(&str) -> Option<ffi::OsString>>(get_var: F) -> boo
     }
 }
 
-/// The kind of error that has been raised.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ErrorKind {
-    /// Regular error that must not be ignored.
-    Regular,
-    /// Error has been reported to context and can be ignored.
-    Context,
-}
-
 pub struct Error {
     message: Cow<'static, str>,
-    kind: ErrorKind,
-    span: Option<Span>,
     cause: Option<Box<Error>>,
     suppressed: Vec<Error>,
     backtrace: Option<Backtrace>,
@@ -129,34 +117,10 @@ impl Error {
     pub fn new<M: Into<Cow<'static, str>>>(message: M) -> Self {
         Self {
             message: message.into(),
-            kind: ErrorKind::Regular,
-            span: None,
             cause: None,
             suppressed: Vec::new(),
             backtrace: Self::new_backtrace(),
         }
-    }
-
-    /// Build a new error that has been constructed from a context.
-    /// 
-    /// These errors can safely be ignored, and will be removed as soon as we no longer
-    /// have spans in errors.
-    /// 
-    /// All spanned issues should be reported through the context.
-    pub fn new_context<M: Into<Cow<'static, str>>>(message: M) -> Self {
-        Self {
-            message: message.into(),
-            kind: ErrorKind::Context,
-            span: None,
-            cause: None,
-            suppressed: Vec::new(),
-            backtrace: Self::new_backtrace(),
-        }
-    }
-
-    /// Check if this is a context error.
-    pub fn is_context(&self) -> bool {
-        self.kind == ErrorKind::Context
     }
 
     fn new_backtrace() -> Option<Backtrace> {
@@ -184,14 +148,6 @@ impl Error {
     }
 
     /// Set the position for this error.
-    pub fn with_span<P: Into<Span>>(self, span: P) -> Error {
-        Error {
-            span: Some(span.into()),
-            ..self
-        }
-    }
-
-    /// Set the position for this error.
     pub fn with_suppressed<S: IntoIterator<Item = Error>>(self, suppressed: S) -> Error {
         Error {
             suppressed: suppressed.into_iter().collect(),
@@ -216,11 +172,6 @@ impl Error {
     /// Get the message for the error.
     pub fn message(&self) -> &str {
         self.message.as_ref()
-    }
-
-    /// Extract the error position, if available.
-    pub fn span(&self) -> Option<&Span> {
-        self.span.as_ref()
     }
 
     /// Get the cause of this error.
@@ -255,18 +206,5 @@ impl fmt::Debug for Error {
         fmt.debug_struct("Error")
             .field("message", &self.message)
             .finish()
-    }
-}
-
-impl WithSpan for Error {
-    fn with_span<E: Into<Span>>(self, span: E) -> Self {
-        if self.span.is_some() {
-            return self;
-        }
-
-        Self {
-            span: Some(span.into()),
-            ..self
-        }
     }
 }

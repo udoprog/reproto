@@ -1,7 +1,7 @@
 use super::{LockableWrite, Output};
 use core::errors::*;
 use core::flavored::RpName;
-use core::{self, Span, SymbolKind};
+use core::{self, Source, Span, SymbolKind};
 use log;
 use serde_json;
 use std::io;
@@ -56,10 +56,10 @@ where
         Json { out: out }
     }
 
-    fn print_diagnostics(&self, m: &str, p: &Span) -> Result<()> {
-        if let Some(path) = p.source.path() {
+    fn print_diagnostics(&self, source: &Source, p: &Span, m: &str) -> Result<()> {
+        if let Some(path) = source.path() {
             let (line_start, line_end, col_start, col_end) =
-                core::utils::find_range(p.source.read()?, (p.start, p.end))?;
+                core::utils::find_range(source.read()?, (p.start, p.end))?;
 
             let m = Message::Diagnostics {
                 message: m.to_string(),
@@ -128,16 +128,22 @@ where
         Ok(())
     }
 
-    fn print_info(&self, m: &str, p: &Span) -> Result<()> {
-        self.print_diagnostics(m, p)
+    fn print_info(&self, source: &Source, p: &Span, m: &str) -> Result<()> {
+        self.print_diagnostics(source, p, m)
     }
 
-    fn print_error(&self, m: &str, p: &Span) -> Result<()> {
-        self.print_diagnostics(m, p)
+    fn print_error(&self, source: &Source, p: &Span, m: &str) -> Result<()> {
+        self.print_diagnostics(source, p, m)
     }
 
-    fn print_symbol(&self, kind: SymbolKind, p: &Span, name: &RpName) -> Result<()> {
-        let path = match p.source.path() {
+    fn print_symbol(
+        &self,
+        source: &Source,
+        kind: SymbolKind,
+        p: &Span,
+        name: &RpName,
+    ) -> Result<()> {
+        let path = match source.path() {
             Some(path) => path,
             None => return Ok(()),
         };
@@ -149,7 +155,7 @@ where
         };
 
         let (line_start, line_end, col_start, col_end) =
-            core::utils::find_range(p.source.read()?, (p.start, p.end))?;
+            core::utils::find_range(source.read()?, (p.start, p.end))?;
 
         let m = Message::Symbol {
             kind,

@@ -1,9 +1,9 @@
+use Opaque;
 use core::errors::Result;
 use format;
 use linked_hash_map::LinkedHashMap;
 use std::collections::HashSet;
 use std::mem;
-use Opaque;
 
 /// Results from calling `Sir::test_interface`.
 struct InterfaceTestResult {

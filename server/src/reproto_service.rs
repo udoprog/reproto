@@ -130,10 +130,11 @@ impl ReprotoService {
                 tmp.seek(SeekFrom::Start(0))?;
                 let mut read = encoding(&tmp)?;
 
-                objects
-                    .lock()
-                    .map_err(|_| "lock poisoned")?
-                    .put_object(&checksum, &mut read, false)?;
+                objects.lock().map_err(|_| "lock poisoned")?.put_object(
+                    &checksum,
+                    &mut read,
+                    false,
+                )?;
 
                 Ok(Response::new().with_status(StatusCode::Ok))
             })

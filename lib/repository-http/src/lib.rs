@@ -8,8 +8,8 @@ extern crate reproto_repository as repository;
 extern crate tokio_core;
 extern crate url;
 
-use core::errors::{Error, Result};
 use core::Source;
+use core::errors::{Error, Result};
 use futures::future::{err, ok};
 use futures::{Future, Stream};
 use hyper::header::ContentLength;

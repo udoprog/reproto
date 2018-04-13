@@ -101,12 +101,12 @@ where
             env.import_file(file, package)?;
         }
         Input::Source(source, package) => {
-            env.import_source(&source, package)?;
+            env.import_source(source, package)?;
         }
     }
 
-    let preamble = manifest::ManifestPreamble::new(Some(manifest::Language::Java), None);
-    let mut manifest = manifest::read_manifest(lang, preamble)?;
+    let mut manifest = manifest::Manifest::default();
+    manifest.lang = Some(lang.copy());
     manifest.modules = modules;
     manifest.package_prefix = package_prefix;
 

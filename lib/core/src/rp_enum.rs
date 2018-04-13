@@ -79,7 +79,7 @@ pub struct RpVariantRef<'a, F: 'static>
 where
     F: Flavor,
 {
-    pub span: &'a Span,
+    pub span: Span,
     pub name: &'a F::Name,
     pub ident: &'a Loc<String>,
     pub comment: &'a Vec<String>,

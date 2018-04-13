@@ -1,6 +1,6 @@
 use backend::PackageProcessor;
 use core::errors::*;
-use core::{self, ForEachLoc, Handle, Loc};
+use core::{self, Handle, Loc};
 use flavored::{JavaScriptFlavor, JavaScriptName, RpEnumBody, RpField, RpInterfaceBody,
                RpTupleBody, RpTypeBody};
 use genco::{Element, JavaScript, Quoted, Tokens};
@@ -470,9 +470,7 @@ impl<'el> PackageProcessor<'el, JavaScriptFlavor, JavaScriptName> for Compiler<'
             tokens
         });
 
-        let sub_types = body.sub_types.iter().map(|t| Loc::as_ref(t));
-
-        sub_types.for_each_loc(|sub_type| {
+        for sub_type in &body.sub_types {
             let mut class_body = Tokens::new();
 
             let fields: Vec<&Loc<RpField>> =
@@ -519,9 +517,7 @@ impl<'el> PackageProcessor<'el, JavaScriptFlavor, JavaScriptName> for Compiler<'
 
                 tokens
             });
-
-            Ok(()) as Result<()>
-        })?;
+        }
 
         out.0.push(classes.join_line_spacing());
         return Ok(());

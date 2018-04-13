@@ -1,0 +1,40 @@
+[package]
+name = "reproto-env"
+version = "0.3.34"
+authors = ["John-John Tedro <udoprog@tedro.se>"]
+license = "MIT/Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/reproto/reproto"
+homepage = "https://github.com/reproto/reproto"
+documentation = "https://docs.rs/reproto-derive"
+description = """
+Rethinking Protocol Generators
+
+Environment base
+"""
+
+[dependencies]
+reproto-core = {path = "../core", version = "0.3"}
+reproto-manifest = {path = "../manifest", version = "0.3"}
+reproto-repository = {path = "../repository", version = "0.3"}
+reproto-repository-http = {path = "../repository-http", version = "0.3"}
+reproto-backend-csharp = {path = "../backend-csharp", version = "0.3"}
+reproto-backend-doc = {path = "../backend-doc", version = "0.3"}
+reproto-backend-go = {path = "../backend-go", version = "0.3"}
+reproto-backend-java = {path = "../backend-java", version = "0.3"}
+reproto-backend-js = {path = "../backend-js", version = "0.3"}
+reproto-backend-json = {path = "../backend-json", version = "0.3"}
+reproto-backend-python = {path = "../backend-python", version = "0.3"}
+reproto-backend-reproto = {path = "../backend-reproto", version = "0.3"}
+reproto-backend-rust = {path = "../backend-rust", version = "0.3"}
+reproto-backend-swift = {path = "../backend-swift", version = "0.3"}
+
+toml = "0.4"
+log = "0.3"
+url = "1.6"
+url_serde = "0.2"
+serde = "1.0"
+serde_derive = "1.0"
+
+[lib]
+path = "lib.rs"

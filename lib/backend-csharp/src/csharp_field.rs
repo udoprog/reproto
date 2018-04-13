@@ -1,6 +1,6 @@
 pub use super::*;
-use genco::csharp::Field;
 use genco::Cons;
+use genco::csharp::Field;
 use std::rc::Rc;
 
 /// A single field.

@@ -2,7 +2,6 @@ extern crate linked_hash_map;
 #[macro_use]
 extern crate log;
 extern crate reproto_ast as ast;
-#[macro_use]
 extern crate reproto_core as core;
 extern crate reproto_naming as naming;
 extern crate reproto_parser as parser;
@@ -10,30 +9,26 @@ extern crate reproto_path_parser as path_parser;
 
 /// Helper macro to check that an attribute has been completely consumed.
 macro_rules! check_attributes {
-    ($ctx:expr, $attr:expr) => {{
-        let mut __a_r = $ctx.report();
-
+    ($diag:expr, $attr:expr) => {{
         for unused in $attr.unused() {
-            __a_r.err(unused, "unknown attribute");
+            $diag.err(unused, "unknown attribute");
         }
 
-        if let Some(e) = __a_r.close() {
-            return Err(e.into());
+        if $diag.has_errors() {
+            return Err(());
         }
     }};
 }
 
 /// Helper macro to check that a selection has been completely consumed.
 macro_rules! check_selection {
-    ($ctx:expr, $sel:expr) => {{
-        let mut __a_r = $ctx.report();
-
+    ($diag:expr, $sel:expr) => {{
         for unused in $sel.unused() {
-            __a_r.err(unused, "unknown attribute");
+            $diag.err(unused, "unknown attribute");
         }
 
-        if let Some(e) = __a_r.close() {
-            return Err(e.into());
+        if $diag.has_errors() {
+            return Err(());
         }
     }};
 }

@@ -33,5 +33,5 @@ pub use self::objects::{objects_from_path, objects_from_url, CachedObjects, File
                         NoObjects, Objects, ObjectsConfig};
 pub use self::repository::Repository;
 pub use self::resolver::{Paths, Resolvers};
-pub use self::sha256::{to_sha256 as to_checksum, Sha256 as Digest};
+pub use self::sha256::{Sha256 as Digest, to_sha256 as to_checksum};
 pub use self::update::Update;

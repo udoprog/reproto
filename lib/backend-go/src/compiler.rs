@@ -131,7 +131,7 @@ impl<'el> PackageProcessor<'el, GoFlavor, GoName> for Compiler<'el> {
         out.0.push(self.process_struct(
             &body.name,
             &body.comment,
-            body.fields.iter().map(Loc::value),
+            body.fields.iter().map(Loc::borrow),
         )?);
 
         Ok(())
@@ -255,7 +255,7 @@ impl<'el> PackageProcessor<'el, GoFlavor, GoName> for Compiler<'el> {
                         body.fields
                             .iter()
                             .chain(sub_type.fields.iter())
-                            .map(Loc::value),
+                            .map(Loc::borrow),
                     )?);
 
                     t.push_into(|t| {

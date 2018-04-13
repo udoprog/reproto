@@ -1,14 +1,14 @@
 //! ## Load objects through a local cache directory
 
+use Objects;
 use checksum::Checksum;
-use core::errors::*;
 use core::Source;
+use core::errors::*;
 use hex_slice::HexSlice;
 use std::fs::{self, File};
 use std::io::{self, Read};
 use std::path::PathBuf;
 use std::time::{self, Duration};
-use Objects;
 
 pub struct CachedObjects<T> {
     objects_cache: PathBuf,

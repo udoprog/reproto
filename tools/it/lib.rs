@@ -55,9 +55,7 @@ pub enum Error {
     },
 
     #[fail(display = "mismatches in json documents")]
-    JsonMismatches {
-        mismatches: Vec<JsonMismatch>,
-    },
+    JsonMismatches { mismatches: Vec<JsonMismatch> },
 }
 
 pub type Result<T> = result::Result<T, failure::Error>;

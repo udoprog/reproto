@@ -21,26 +21,28 @@ pub struct Lexer<'input> {
 }
 
 pub fn match_keyword(content: &str) -> Option<Token> {
+    use self::Token::*;
+
     let token = match content {
-        "any" => Token::AnyKeyword,
-        "interface" => Token::InterfaceKeyword,
-        "type" => Token::TypeKeyword,
-        "enum" => Token::EnumKeyword,
-        "tuple" => Token::TupleKeyword,
-        "service" => Token::ServiceKeyword,
-        "use" => Token::UseKeyword,
-        "as" => Token::AsKeyword,
-        "float" => Token::FloatKeyword,
-        "double" => Token::DoubleKeyword,
-        "i32" => Token::Signed32,
-        "i64" => Token::Signed64,
-        "u32" => Token::Unsigned32,
-        "u64" => Token::Unsigned64,
-        "boolean" => Token::BooleanKeyword,
-        "string" => Token::StringKeyword,
-        "datetime" => Token::DateTimeKeyword,
-        "bytes" => Token::BytesKeyword,
-        "stream" => Token::StreamKeyword,
+        "any" => Any,
+        "interface" => Interface,
+        "type" => Type,
+        "enum" => Enum,
+        "tuple" => Tuple,
+        "service" => Service,
+        "use" => Use,
+        "as" => As,
+        "float" => Float,
+        "double" => Double,
+        "i32" => I32,
+        "i64" => I64,
+        "u32" => U32,
+        "u64" => U64,
+        "boolean" => Boolean,
+        "string" => String,
+        "datetime" => Datetime,
+        "bytes" => Bytes,
+        "stream" => Stream,
         _ => return None,
     };
 
@@ -295,7 +297,7 @@ impl<'input> Lexer<'input> {
 
             if c == '"' {
                 let end = self.step_n(1);
-                return Ok((start, Token::String(self.buffer.clone()), end));
+                return Ok((start, Token::QuotedString(self.buffer.clone()), end));
             }
 
             self.buffer.push(c);
@@ -543,14 +545,16 @@ pub mod tests {
 
     #[test]
     pub fn test_complex_number() {
-        let expected = vec![(
-            0,
-            Number(RpNumber {
-                digits: (-1242).into(),
-                decimal: 6,
-            }),
-            9,
-        )];
+        let expected = vec![
+            (
+                0,
+                Number(RpNumber {
+                    digits: (-1242).into(),
+                    decimal: 6,
+                }),
+                9,
+            ),
+        ];
 
         assert_eq!(expected, tokenize("-12.42e-4").unwrap());
     }
@@ -628,11 +632,13 @@ pub mod tests {
     #[test]
     pub fn test_doc_comment() {
         let tokens = tokenize("/// foo\n\r      /// bar \r\n     /// baz ").unwrap();
-        let reference = [(
-            0,
-            DocComment(vec![" foo".into(), " bar ".into(), " baz ".into()]),
-            38,
-        )];
+        let reference = [
+            (
+                0,
+                DocComment(vec![" foo".into(), " bar ".into(), " baz ".into()]),
+                38,
+            ),
+        ];
         assert_eq!(reference, &tokens[..]);
     }
 }

@@ -1,10 +1,10 @@
 //! Translates one IR in-place into another.
 
+use Flavor;
 use errors::Result;
 use linked_hash_map::LinkedHashMap;
 use std::cell::RefCell;
 use std::rc::Rc;
-use Flavor;
 use {CoreFlavor, Loc, RpEndpoint, RpEnumType, RpField, RpName, RpReg, RpType, RpVersionedPackage};
 
 /// Method for translating package.

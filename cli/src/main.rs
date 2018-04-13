@@ -69,7 +69,7 @@ fn entry(matches: &ArgMatches, output: &output::Output) -> Result<()> {
         Err(e) => {
             // NB: get rid of dual reporting.
             // We only want positional errors reported through the context.
-            if !ctx.has_errors()? {
+            if !ctx.has_diagnostics()? {
                 output.handle_error(&e)?;
             }
 

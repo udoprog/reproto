@@ -1,14 +1,3 @@
-#[macro_export]
-macro_rules! try_loop {
-    ($e:expr) => {
-        match $e {
-            Err(ref e) if e.is_context() => continue,
-            Err(e) => return Err(e),
-            Ok(ok) => ok,
-        }
-    }
-}
-
 /// Build a declaration body including common fields.
 macro_rules! decl_body {
     (pub struct $name:ident<$f:ident> { $($rest:tt)* }) => {

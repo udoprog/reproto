@@ -1,10 +1,10 @@
+use RelativePathBuf;
 use errors::Result;
 use std::fmt;
 use std::fs::File;
 use std::io::{self, Cursor, Read};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use RelativePathBuf;
 
 #[derive(Debug, Clone)]
 pub enum Readable {

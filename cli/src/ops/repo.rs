@@ -1,8 +1,8 @@
 //! Repository management commands.
 
 use clap::{App, Arg, ArgMatches, SubCommand};
-use core::errors::*;
 use core::Context;
+use core::errors::*;
 use repository::init_file_index;
 use std::rc::Rc;
 

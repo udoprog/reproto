@@ -340,7 +340,6 @@ impl FlavorTranslator for JavaFlavorTranslator {
             U64 => self.translate_u64(),
             I32 => self.translate_i32(),
             I64 => self.translate_i64(),
-            enum_type => return Err(format!("bad enum type: {}", enum_type).into()),
         }
     }
 }

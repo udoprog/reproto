@@ -1,16 +1,20 @@
-use std::result;
-use Span;
+//! Report errors into the context.
+use errors::Error;
+use {Diagnostics, Span};
 
-pub trait WithSpan {
-    /// Add additional position information, if it's not already present.
-    fn with_span<E: Into<Span>>(self, span: E) -> Self;
+pub trait WithSpan<T> {
+    /// Report the span to the diagnostics and convert the result into a unit error if failed.
+    fn with_span<S: Into<Span>>(self, diag: &mut Diagnostics, span: S) -> Result<T, ()>;
 }
 
-impl<T, E> WithSpan for result::Result<T, E>
-where
-    E: WithSpan,
-{
-    fn with_span<P: Into<Span>>(self, span: P) -> Self {
-        self.map_err(|e| e.with_span(span))
+impl<T> WithSpan<T> for Result<T, Error> {
+    fn with_span<S: Into<Span>>(self, diag: &mut Diagnostics, span: S) -> Result<T, ()> {
+        match self {
+            Ok(value) => Ok(value),
+            Err(e) => {
+                diag.err(span, e.display());
+                Err(())
+            }
+        }
     }
 }

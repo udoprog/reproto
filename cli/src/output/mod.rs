@@ -7,7 +7,7 @@ pub use self::json::Json;
 pub use self::non_colored::NonColored;
 use core::errors::*;
 use core::flavored::RpName;
-use core::{self, ContextItem};
+use core::{self, ContextItem, Diagnostic};
 use log;
 use std::io::{self, Write};
 
@@ -44,18 +44,26 @@ pub trait Output {
     fn handle_context(&self, errors: &[ContextItem]) -> Result<()> {
         for e in errors.iter() {
             match *e {
-                ContextItem::Info(ref span, ref message) => {
-                    self.print_info(message.as_str(), span)?;
-                }
-                ContextItem::Error(ref span, ref message) => {
-                    self.print_error(message.as_str(), span)?;
-                }
-                ContextItem::Symbol {
-                    ref kind,
-                    ref span,
-                    ref name,
-                } => {
-                    self.print_symbol(*kind, span, name)?;
+                ContextItem::Diagnostics { ref diagnostics } => {
+                    let source = &diagnostics.source;
+
+                    for item in diagnostics.items() {
+                        match item {
+                            Diagnostic::Info(ref span, ref message) => {
+                                self.print_info(source, span, message.as_str())?;
+                            }
+                            Diagnostic::Error(ref span, ref message) => {
+                                self.print_error(source, span, message.as_str())?;
+                            }
+                            Diagnostic::Symbol {
+                                ref kind,
+                                ref span,
+                                ref name,
+                            } => {
+                                self.print_symbol(source, *kind, span, name)?;
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -66,11 +74,7 @@ pub trait Output {
     /// Handle any errors.
     fn handle_error(&self, e: &Error) -> Result<()> {
         for e in e.causes() {
-            if let Some(span) = e.span() {
-                self.print_error(e.message(), span)?;
-            } else {
-                self.error(e)?;
-            }
+            self.error(e)?;
 
             for e in e.suppressed() {
                 self.handle_error(e)?;
@@ -85,20 +89,11 @@ pub trait Output {
     }
 
     fn error(&self, e: &Error) -> Result<()> {
-        if let Some(p) = e.span() {
-            self.print_error(e.message(), p)?;
-        } else {
-            self.print(&e.message())?;
-        }
+        self.print(&e.message())?;
 
         for e in e.causes().skip(1) {
             let msg = self.error_message(format!("  caused by: {}", e.message()).as_str())?;
-
-            if let Some(p) = e.span() {
-                self.print_error(msg.as_str(), p)?;
-            } else {
-                self.print(msg.as_str())?;
-            }
+            self.print(msg.as_str())?;
         }
 
         Ok(())
@@ -112,12 +107,13 @@ pub trait Output {
 
     fn print(&self, m: &str) -> Result<()>;
 
-    fn print_info(&self, m: &str, p: &core::Span) -> Result<()>;
+    fn print_info(&self, source: &core::Source, p: &core::Span, m: &str) -> Result<()>;
 
-    fn print_error(&self, m: &str, p: &core::Span) -> Result<()>;
+    fn print_error(&self, source: &core::Source, p: &core::Span, m: &str) -> Result<()>;
 
     fn print_symbol(
         &self,
+        _source: &core::Source,
         _kind: core::SymbolKind,
         _pos: &core::Span,
         _name: &RpName,

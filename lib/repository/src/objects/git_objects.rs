@@ -1,8 +1,8 @@
 //! ## Load objects through a local git repo
 
 use checksum::Checksum;
-use core::errors::*;
 use core::Source;
+use core::errors::*;
 use git::GitRepo;
 use objects::{FileObjects, Objects};
 use std::io::Read;

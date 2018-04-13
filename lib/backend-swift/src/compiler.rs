@@ -183,7 +183,7 @@ impl<'el> PackageProcessor<'el, SwiftFlavor, SwiftName> for Compiler<'el> {
         out.0.extend(self.model_type(
             &body.name,
             &body.comment,
-            body.fields.iter().map(Loc::value),
+            body.fields.iter().map(Loc::borrow),
         )?);
 
         Ok(())
@@ -191,7 +191,7 @@ impl<'el> PackageProcessor<'el, SwiftFlavor, SwiftName> for Compiler<'el> {
 
     fn process_tuple(&self, out: &mut Self::Out, body: &'el RpTupleBody) -> Result<()> {
         out.0.push({
-            let fields = body.fields.iter().map(Loc::value).collect::<Vec<_>>();
+            let fields = body.fields.iter().map(Loc::borrow).collect::<Vec<_>>();
 
             let mut tokens = Tokens::new();
 
@@ -293,7 +293,7 @@ impl<'el> PackageProcessor<'el, SwiftFlavor, SwiftName> for Compiler<'el> {
             let fields = body.fields
                 .iter()
                 .chain(sub_type.fields.iter())
-                .map(Loc::value);
+                .map(Loc::borrow);
 
             out.0
                 .push(self.model_type(&sub_type.name, &sub_type.comment, fields)?);

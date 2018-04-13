@@ -172,12 +172,12 @@ where
             component,
             accessor(from_endpoint)
                 .as_ref()
-                .map(Loc::value)
+                .map(Loc::borrow)
                 .map(Clone::clone),
             from_pos.into(),
             accessor(to_endpoint)
                 .as_ref()
-                .map(Loc::value)
+                .map(Loc::borrow)
                 .map(Clone::clone),
             to_pos.into(),
         ));

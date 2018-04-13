@@ -13,6 +13,7 @@ structures for the reproto AST
 
 [dependencies]
 reproto-core = {path = "../core", version = "0.3"}
+reproto-lexer = {path = "../lexer", version = "0.3"}
 
 [lib]
 path = "lib.rs"

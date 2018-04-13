@@ -4,7 +4,7 @@ use Options;
 use codegen::{ClassAdded, EndpointExtra, EnumAdded, InterfaceAdded, ServiceAdded, TupleAdded,
               TypeField, TypeFieldAdded};
 use core::errors::*;
-use core::{self, ForEachLoc, Handle, Loc, RpContext, RpSubTypeStrategy, WithSpan};
+use core::{self, Handle, Loc, RpContext, RpSubTypeStrategy};
 use csharp_field::CsharpField;
 use csharp_file::CsharpFile;
 use flavored::{CsharpFlavor, RpDecl, RpEnumBody, RpField, RpInterfaceBody, RpServiceBody,
@@ -52,7 +52,7 @@ impl Compiler {
         }
 
         for decl in self.env.toplevel_decl_iter() {
-            self.compile_decl(handle, decl).with_span(decl.span())?;
+            self.compile_decl(handle, decl)?;
         }
 
         Ok(())
@@ -419,7 +419,7 @@ impl Compiler {
         spec.body
             .push_unless_empty(code!(&body.codes, RpContext::Csharp));
 
-        body.sub_types.iter().for_each_loc(|sub_type| {
+        for sub_type in &body.sub_types {
             let mut class = Class::new(sub_type.ident.clone());
             class.modifiers = vec![Modifier::Public];
 
@@ -459,8 +459,7 @@ impl Compiler {
             }
 
             spec.body.push(class);
-            Ok(()) as Result<()>
-        })?;
+        }
 
         for generator in &self.options.interface_generators {
             generator.generate(InterfaceAdded {
@@ -586,10 +585,9 @@ impl Compiler {
     fn fields<'el>(&self, fields: &'el [Loc<RpField>]) -> Result<Vec<CsharpField<'el>>> {
         let mut out = Vec::new();
 
-        fields.for_each_loc(|field| {
+        for field in fields {
             out.push(self.field(field)?);
-            Ok(()) as Result<()>
-        })?;
+        }
 
         Ok(out)
     }

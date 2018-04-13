@@ -1,8 +1,8 @@
 //! Processor for service declarations.
 
+use core::Loc;
 use core::errors::*;
 use core::flavored::{RpEndpoint, RpServiceBody};
-use core::{Loc, WithSpan};
 use doc_builder::DocBuilder;
 use escape::Escape;
 use macros::FormatAttribute;
@@ -57,8 +57,8 @@ impl<'p> ServiceProcessor<'p> {
                         html!(self, span {class => "keyword"} ~ Escape("stream"));
                     }
 
-                    let (req, span) = Loc::borrow_pair(&arg.channel);
-                    self.write_type(req.ty()).with_span(span)?;
+                    let (req, _) = Loc::borrow_pair(&arg.channel);
+                    self.write_type(req.ty())?;
                 });
             }
 
@@ -72,8 +72,7 @@ impl<'p> ServiceProcessor<'p> {
                         html!(self, span {class => "endpoint-stream"} ~ Escape("stream"));
                     }
 
-                    let (res, span) = Loc::borrow_pair(response);
-                    self.write_type(res.ty()).with_span(span)?;
+                    self.write_type(response.ty())?;
                 });
             }
 

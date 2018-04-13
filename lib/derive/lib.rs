@@ -29,7 +29,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::hash;
 use std::ops;
-use std::sync::Arc;
+use std::rc::Rc;
 
 #[derive(Debug)]
 pub struct Derive {
@@ -39,12 +39,12 @@ pub struct Derive {
 }
 
 #[derive(Debug, Clone)]
-struct Context<'a> {
+struct Context {
     path: Vec<String>,
-    package_prefix: Option<&'a RpPackage>,
+    package_prefix: Option<Rc<RpPackage>>,
 }
 
-impl<'a> Context<'a> {
+impl Context {
     /// Extract the 'local name' (last component).
     fn ident(&self) -> Result<&str> {
         if let Some(ident) = self.path.iter().last() {
@@ -55,7 +55,7 @@ impl<'a> Context<'a> {
     }
 
     /// Join this context with another path component.
-    fn join(&self, name: String) -> Context<'a> {
+    fn join(&self, name: String) -> Context {
         let mut path = self.path.iter().cloned().collect::<Vec<_>>();
         path.push(name);
 
@@ -66,10 +66,14 @@ impl<'a> Context<'a> {
     }
 
     /// Constructs an ``NAme`.
-    fn name(&self) -> Name {
+    fn name(&self) -> Name<'static> {
         Name::Absolute {
             prefix: None,
-            parts: Loc::new(self.path.clone().into(), Span::empty()),
+            parts: self.path
+                .clone()
+                .into_iter()
+                .map(|p| Loc::new(Cow::from(p), Span::empty()))
+                .collect(),
         }
     }
 }
@@ -88,7 +92,7 @@ impl Derive {
     }
 }
 
-type TypesCache = HashMap<Sir, Name>;
+type TypesCache<'input> = HashMap<Sir, Name<'input>>;
 
 /// An opaque data structure, well all instances are equal but can contain different data.
 #[derive(Debug, Clone)]
@@ -128,18 +132,22 @@ impl<T> ops::DerefMut for Opaque<T> {
     }
 }
 
-struct FieldInit<'a> {
+struct FieldInit<'a, 'input: 'a> {
     span: &'a Span,
-    ctx: Context<'a>,
-    types: &'a mut TypesCache,
+    ctx: Context,
+    types: &'a mut TypesCache<'input>,
 }
 
-impl<'a> FieldInit<'a> {
-    fn new(span: &'a Span, ctx: Context<'a>, types: &'a mut TypesCache) -> FieldInit<'a> {
+impl<'a, 'input: 'a> FieldInit<'a, 'input> {
+    fn new(
+        span: &'a Span,
+        ctx: Context,
+        types: &'a mut TypesCache<'input>,
+    ) -> FieldInit<'a, 'input> {
         FieldInit { span, ctx, types }
     }
 
-    fn init<'input>(
+    fn init(
         self,
         original_name: String,
         sir: &FieldSir,
@@ -183,7 +191,7 @@ impl<'a> FieldInit<'a> {
                 )?;
 
                 Type::Array {
-                    inner: Box::new(Loc::value(&f.item.ty).clone().recover()?),
+                    inner: Box::new(Loc::borrow(&f.item.ty).clone().recover()?),
                 }
             }
             ref sir => {
@@ -260,15 +268,15 @@ impl<'a> FieldInit<'a> {
     }
 }
 
-struct DeclDeriver<'a> {
+struct DeclDeriver<'a, 'input: 'a> {
     span: &'a Span,
-    ctx: Context<'a>,
-    types: &'a mut TypesCache,
+    ctx: Context,
+    types: &'a mut TypesCache<'input>,
 }
 
-impl<'a> DeclDeriver<'a> {
+impl<'a, 'input: 'a> DeclDeriver<'a, 'input> {
     /// Derive a declaration from the given JSON.
-    fn derive<'s, 'input>(self, sir: &'s Sir) -> Result<Decl<'input>> {
+    fn derive<'s>(self, sir: &'s Sir) -> Result<Decl<'input>> {
         let decl = match *sir {
             Sir::Tuple(ref array) => {
                 let tuple = TupleRefiner {
@@ -306,15 +314,15 @@ impl<'a> DeclDeriver<'a> {
     }
 }
 
-struct TypeRefiner<'a> {
+struct TypeRefiner<'a, 'input: 'a> {
     span: &'a Span,
-    ctx: Context<'a>,
-    types: &'a mut TypesCache,
+    ctx: Context,
+    types: &'a mut TypesCache<'input>,
 }
 
-impl<'a> TypeRefiner<'a> {
+impl<'a, 'input: 'a> TypeRefiner<'a, 'input> {
     /// Derive an struct body from the given input array.
-    fn derive<'input>(
+    fn derive(
         &mut self,
         object: &LinkedHashMap<String, FieldSir>,
     ) -> Result<Item<'input, TypeBody<'input>>> {
@@ -332,7 +340,7 @@ impl<'a> TypeRefiner<'a> {
         })
     }
 
-    fn init<'input>(
+    fn init(
         &mut self,
         base: &mut TypeBody<'input>,
         object: &LinkedHashMap<String, FieldSir>,
@@ -351,15 +359,15 @@ impl<'a> TypeRefiner<'a> {
     }
 }
 
-struct SubTypeRefiner<'a> {
+struct SubTypeRefiner<'a, 'input: 'a> {
     span: &'a Span,
-    ctx: Context<'a>,
-    types: &'a mut TypesCache,
+    ctx: Context,
+    types: &'a mut TypesCache<'input>,
 }
 
-impl<'a> SubTypeRefiner<'a> {
+impl<'a, 'input: 'a> SubTypeRefiner<'a, 'input> {
     /// Derive an struct body from the given input array.
-    fn derive<'input>(&mut self, sub_type: &SubTypeSir) -> Result<Item<'input, SubType<'input>>> {
+    fn derive(&mut self, sub_type: &SubTypeSir) -> Result<Item<'input, SubType<'input>>> {
         let mut body = SubType {
             name: Loc::new(self.ctx.ident()?.to_string().into(), self.span.clone()),
             members: vec![],
@@ -375,7 +383,7 @@ impl<'a> SubTypeRefiner<'a> {
         })
     }
 
-    fn init<'input>(&mut self, base: &mut SubType<'input>, sub_type: &SubTypeSir) -> Result<()> {
+    fn init(&mut self, base: &mut SubType<'input>, sub_type: &SubTypeSir) -> Result<()> {
         if sub_type.name.as_str() != base.name.as_ref() {
             base.alias = Some(Loc::new(
                 Value::String(sub_type.name.to_string()),
@@ -397,15 +405,15 @@ impl<'a> SubTypeRefiner<'a> {
     }
 }
 
-struct InterfaceRefiner<'a> {
+struct InterfaceRefiner<'a, 'input: 'a> {
     span: &'a Span,
-    ctx: Context<'a>,
-    types: &'a mut TypesCache,
+    ctx: Context,
+    types: &'a mut TypesCache<'input>,
 }
 
-impl<'a> InterfaceRefiner<'a> {
+impl<'a, 'input: 'a> InterfaceRefiner<'a, 'input> {
     /// Derive an struct body from the given input array.
-    fn derive<'input>(
+    fn derive(
         &mut self,
         tag: &str,
         sub_types: &[SubTypeSir],
@@ -441,11 +449,7 @@ impl<'a> InterfaceRefiner<'a> {
         })
     }
 
-    fn init<'input>(
-        &mut self,
-        base: &mut InterfaceBody<'input>,
-        sub_types: &[SubTypeSir],
-    ) -> Result<()> {
+    fn init(&mut self, base: &mut InterfaceBody<'input>, sub_types: &[SubTypeSir]) -> Result<()> {
         for st in sub_types {
             let ident = to_pascal_case(&st.name);
             let ctx = self.ctx.join(ident.clone());
@@ -463,15 +467,15 @@ impl<'a> InterfaceRefiner<'a> {
     }
 }
 
-struct TupleRefiner<'a> {
+struct TupleRefiner<'a, 'input: 'a> {
     span: &'a Span,
-    ctx: Context<'a>,
-    types: &'a mut TypesCache,
+    ctx: Context,
+    types: &'a mut TypesCache<'input>,
 }
 
-impl<'a> TupleRefiner<'a> {
+impl<'a, 'input: 'a> TupleRefiner<'a, 'input> {
     /// Derive an tuple body from the given input array.
-    fn derive<'input>(&mut self, array: &[FieldSir]) -> Result<Item<'input, TupleBody<'input>>> {
+    fn derive(&mut self, array: &[FieldSir]) -> Result<Item<'input, TupleBody<'input>>> {
         let mut body = TupleBody {
             name: self.ctx.ident()?.to_string().into(),
             members: Vec::new(),
@@ -486,7 +490,7 @@ impl<'a> TupleRefiner<'a> {
         })
     }
 
-    fn init<'input>(&mut self, base: &mut TupleBody<'input>, array: &[FieldSir]) -> Result<()> {
+    fn init(&mut self, base: &mut TupleBody<'input>, array: &[FieldSir]) -> Result<()> {
         for (index, added) in array.iter().enumerate() {
             let field = FieldInit::new(&self.span, self.ctx.clone(), self.types).init(
                 format!("field_{}", index),
@@ -511,13 +515,13 @@ pub fn derive<'input>(derive: Derive, object: &'input Source) -> Result<Decl<'in
 
     let sir = format.decode(object)?;
 
-    let span: Span = (Arc::new(object.clone()), 0, 0).into();
+    let span = Span::empty();
 
     let mut types = HashMap::new();
 
     let ctx = Context {
         path: vec![root_name],
-        package_prefix: package_prefix.as_ref(),
+        package_prefix: package_prefix.as_ref().map(|p| Rc::new(p.clone())),
     };
 
     let decl = DeclDeriver {

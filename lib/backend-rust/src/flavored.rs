@@ -125,6 +125,7 @@ impl FlavorTranslator for RustFlavorTranslator {
 
         if let Some(prefix) = name.prefix {
             let package_name = name.package.join("::");
+            let (prefix, _) = Loc::take_pair(prefix);
             return Ok(rust::imported(package_name, ident).alias(prefix));
         }
 
@@ -165,7 +166,6 @@ impl FlavorTranslator for RustFlavorTranslator {
             U64 => self.translate_u64(),
             I32 => self.translate_i32(),
             I64 => self.translate_i64(),
-            enum_type => return Err(format!("bad enum type: {}", enum_type).into()),
         }
     }
 }

@@ -323,7 +323,7 @@ impl<'a, 'el: 'a> IntoTokens<'el, Rust<'el>> for Constructor<'a, 'el> {
 
             t.push_into(|t| match body.http.url {
                 Some(ref url) => {
-                    let url = Loc::value(url).clone().quoted();
+                    let url = Loc::borrow(url).clone().quoted();
 
                     push!(t, "let url = match url {");
                     nested!(t, "Some(url) => url,");

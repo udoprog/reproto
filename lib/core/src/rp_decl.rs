@@ -60,7 +60,7 @@ where
     }
 
     /// Get the position of the named element.
-    pub fn span(&self) -> &Span {
+    pub fn span(&self) -> Span {
         use self::RpNamed::*;
 
         match *self {
@@ -76,10 +76,8 @@ where
 }
 
 #[derive(Debug, Clone, Serialize)]
-#[serde(
-    bound = "F: Serialize, F::Field: Serialize, F::Endpoint: Serialize, F::Package: \
-             Serialize, F::Name: Serialize, F::EnumType: Serialize"
-)]
+#[serde(bound = "F: Serialize, F::Field: Serialize, F::Endpoint: Serialize, F::Package: \
+                 Serialize, F::Name: Serialize, F::EnumType: Serialize")]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum RpDecl<F: 'static>
 where
@@ -151,7 +149,7 @@ where
     }
 
     /// Convert a declaration into its registered types.
-    pub fn to_reg(&self) -> Vec<(&F::Name, &Span, RpReg)> {
+    pub fn to_reg(&self) -> Vec<(&F::Name, Span, RpReg)> {
         use self::RpDecl::*;
 
         let mut out = Vec::new();
@@ -236,7 +234,7 @@ where
     }
 
     /// Get the position of the declaration.
-    pub fn span(&self) -> &Span {
+    pub fn span(&self) -> Span {
         use self::RpDecl::*;
 
         match *self {

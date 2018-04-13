@@ -1,5 +1,5 @@
-use errors::Result;
 use RpNumber;
+use errors::Result;
 
 pub trait OptionEntry {
     /// Get the name of the option.

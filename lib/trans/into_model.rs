@@ -1,8 +1,8 @@
 use ast::*;
 use attributes;
-use core::errors::{Error, Result};
+use core::errors::Error;
 use core::flavored::*;
-use core::{self, Attributes, BigInt, Context, Loc, Selection, Span, SymbolKind, WithSpan};
+use core::{self, Attributes, BigInt, Diagnostics, Loc, Selection, Span, SymbolKind, WithSpan};
 use linked_hash_map::LinkedHashMap;
 use naming::Naming;
 use scope::Scope;
@@ -11,35 +11,49 @@ use std::collections::{hash_map, BTreeSet, HashMap};
 use std::option;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use std::result;
+
+/// All error information is propagated to the diagnostics argument, but we signal that an error
+/// occurred by returning Err(()).
+pub type Result<T> = result::Result<T, ()>;
+
+/// Helper macro to deal with a unit error in a loop.
+///
+/// Important note: must use other diagnostics facilities to determine if an error happened, like
+/// `Diagnostics::has_errors`.
+#[macro_export]
+macro_rules! try_loop {
+    ($e:expr) => {
+        match $e {
+            Err(()) => continue,
+            Ok(ok) => ok,
+        }
+    };
+}
 
 /// Check for conflicting items and generate appropriate error messages if they are.
 macro_rules! check_conflict {
-    ($ctx:expr, $existing:expr, $item:expr, $accessor:expr, $what:expr) => {
+    ($diag:expr, $existing:expr, $item:expr, $accessor:expr, $what:expr) => {
         if let Some(other) = $existing.insert($accessor.to_string(), Span::from(&$item).clone())
         {
-            let mut report = $ctx.report();
-
-            report.err(
+            $diag.err(
                 Span::from(&$item),
                 format!(concat!($what, " `{}` is already defined"), $accessor),
             );
 
-            report.info(other, "previously defined here");
-
-            return Err(report.into());
+            $diag.info(other, "previously defined here");
+            return Err(());
         }
     };
 }
 
 /// Checks if a given field matches a sub-type tag.
 macro_rules! check_field_tag {
-    ($ctx:ident, $field:expr, $strategy:expr) => {
+    ($diag:ident, $field:expr, $strategy:expr) => {
         match $strategy {
             core::RpSubTypeStrategy::Tagged { ref tag, .. } => {
                 if $field.name() == tag {
-                    let mut report = $ctx.report();
-
-                    report.err(
+                    $diag.err(
                         Loc::span(&$field),
                         format!(
                             "field with name `{}` is the same as tag used in type_info",
@@ -47,7 +61,7 @@ macro_rules! check_field_tag {
                         ),
                     );
 
-                    return Err(report.into());
+                    return Err(());
                 }
             }
             _ => {}
@@ -56,18 +70,15 @@ macro_rules! check_field_tag {
 }
 
 macro_rules! check_field_reserved {
-    ($ctx:ident, $field:expr, $reserved:expr) => {
+    ($diag:ident, $field:expr, $reserved:expr) => {
         if let Some(reserved) = $reserved.get($field.name()) {
-            let mut report = $ctx.report();
-
-            report.err(
+            $diag.err(
                 Loc::span(&$field),
                 format!("field with name `{}` is reserved", $field.name()),
             );
 
-            report.info(reserved, "reserved here");
-
-            return Err(report.into());
+            $diag.info(reserved, "reserved here");
+            return Err(());
         }
     };
 }
@@ -101,7 +112,7 @@ pub trait IntoModel {
     type Output;
 
     /// Convert the current type to a model.
-    fn into_model(self, scope: &Scope) -> Result<Self::Output>;
+    fn into_model(self, diag: &mut Diagnostics, scope: &Scope) -> Result<Self::Output>;
 }
 
 /// Generic implementation for vectors.
@@ -111,30 +122,29 @@ where
 {
     type Output = Loc<T::Output>;
 
-    fn into_model(self, scope: &Scope) -> Result<Self::Output> {
+    fn into_model(self, diag: &mut Diagnostics, scope: &Scope) -> Result<Self::Output> {
         let (value, span) = Loc::take_pair(self);
-        Ok(Loc::new(value.into_model(scope)?, span))
+        Ok(Loc::new(value.into_model(diag, scope)?, span))
     }
 }
 
 /// Error recovery.
-impl<T> IntoModel for (&'static str, Loc<ErrorRecovery<T>>)
+impl<'input, T> IntoModel for (&'static str, Loc<ErrorRecovery<'input, T>>)
 where
     T: IntoModel,
 {
     type Output = T::Output;
 
-    fn into_model(self, scope: &Scope) -> Result<Self::Output> {
+    fn into_model(self, diag: &mut Diagnostics, scope: &Scope) -> Result<Self::Output> {
         let (message, recovery) = self;
         let (recovery, span) = Loc::take_pair(recovery);
 
         match recovery {
-            ErrorRecovery::Error => {
-                let mut report = scope.ctx().report();
-                report.err(span, message);
-                Err(report.into())
+            ErrorRecovery::Error(_) => {
+                diag.err(span, message);
+                Err(())
             }
-            ErrorRecovery::Value(value) => value.into_model(scope),
+            ErrorRecovery::Value(value) => value.into_model(diag, scope),
         }
     }
 }
@@ -146,11 +156,11 @@ where
 {
     type Output = Vec<T::Output>;
 
-    fn into_model(self, scope: &Scope) -> Result<Self::Output> {
+    fn into_model(self, diag: &mut Diagnostics, scope: &Scope) -> Result<Self::Output> {
         let mut out = Vec::new();
 
         for v in self {
-            out.push(v.into_model(scope)?);
+            out.push(v.into_model(diag, scope)?);
         }
 
         Ok(out)
@@ -163,12 +173,11 @@ where
 {
     type Output = Option<T::Output>;
 
-    fn into_model(self, scope: &Scope) -> Result<Self::Output> {
-        if let Some(value) = self {
-            return Ok(Some(value.into_model(scope)?));
+    fn into_model(self, diag: &mut Diagnostics, scope: &Scope) -> Result<Self::Output> {
+        match self {
+            Some(value) => Ok(Some(value.into_model(diag, scope)?)),
+            None => Ok(None),
         }
-
-        Ok(None)
     }
 }
 
@@ -178,15 +187,15 @@ where
 {
     type Output = Box<T::Output>;
 
-    fn into_model(self, scope: &Scope) -> Result<Self::Output> {
-        Ok(Box::new((*self).into_model(scope)?))
+    fn into_model(self, diag: &mut Diagnostics, scope: &Scope) -> Result<Self::Output> {
+        Ok(Box::new((*self).into_model(diag, scope)?))
     }
 }
 
 impl<'a> IntoModel for Cow<'a, str> {
     type Output = String;
 
-    fn into_model(self, _scope: &Scope) -> Result<Self::Output> {
+    fn into_model(self, _: &mut Diagnostics, _scope: &Scope) -> Result<Self::Output> {
         Ok(self.to_string())
     }
 }
@@ -194,7 +203,7 @@ impl<'a> IntoModel for Cow<'a, str> {
 impl IntoModel for String {
     type Output = String;
 
-    fn into_model(self, _scope: &Scope) -> Result<Self::Output> {
+    fn into_model(self, _: &mut Diagnostics, _scope: &Scope) -> Result<Self::Output> {
         Ok(self)
     }
 }
@@ -205,7 +214,7 @@ pub struct Comment<I>(I);
 impl<I: IntoIterator<Item = S>, S: AsRef<str>> IntoModel for Comment<I> {
     type Output = Vec<String>;
 
-    fn into_model(self, _scope: &Scope) -> Result<Self::Output> {
+    fn into_model(self, _: &mut Diagnostics, _scope: &Scope) -> Result<Self::Output> {
         let comment = self.0.into_iter().collect::<Vec<_>>();
 
         let pfx = comment
@@ -226,10 +235,10 @@ impl<I: IntoIterator<Item = S>, S: AsRef<str>> IntoModel for Comment<I> {
     }
 }
 
-impl IntoModel for Type {
+impl<'input> IntoModel for Type<'input> {
     type Output = RpType;
 
-    fn into_model(self, scope: &Scope) -> Result<RpType> {
+    fn into_model(self, diag: &mut Diagnostics, scope: &Scope) -> Result<RpType> {
         use self::Type::*;
 
         let out = match self {
@@ -241,14 +250,14 @@ impl IntoModel for Type {
             String => core::RpType::String,
             DateTime => core::RpType::DateTime,
             Name { name } => core::RpType::Name {
-                name: name.into_model(scope)?,
+                name: name.into_model(diag, scope)?,
             },
             Array { inner } => core::RpType::Array {
-                inner: inner.into_model(scope)?,
+                inner: inner.into_model(diag, scope)?,
             },
             Map { key, value } => core::RpType::Map {
-                key: key.into_model(scope)?,
-                value: value.into_model(scope)?,
+                key: key.into_model(diag, scope)?,
+                value: value.into_model(diag, scope)?,
             },
             Any => core::RpType::Any,
             Bytes => core::RpType::Bytes,
@@ -261,17 +270,17 @@ impl IntoModel for Type {
 impl<'input> IntoModel for Decl<'input> {
     type Output = RpDecl;
 
-    fn into_model(self, scope: &Scope) -> Result<Self::Output> {
+    fn into_model(self, diag: &mut Diagnostics, scope: &Scope) -> Result<Self::Output> {
         use self::Decl::*;
 
         let s = scope.child(self.name().to_owned());
 
         let out = match self {
-            Type(body) => core::RpDecl::Type(body.into_model(&s)?),
-            Interface(body) => core::RpDecl::Interface(body.into_model(&s)?),
-            Enum(body) => core::RpDecl::Enum(body.into_model(&s)?),
-            Tuple(body) => core::RpDecl::Tuple(body.into_model(&s)?),
-            Service(body) => core::RpDecl::Service(body.into_model(&s)?),
+            Type(body) => core::RpDecl::Type(body.into_model(diag, &s)?),
+            Interface(body) => core::RpDecl::Interface(body.into_model(diag, &s)?),
+            Enum(body) => core::RpDecl::Enum(body.into_model(diag, &s)?),
+            Tuple(body) => core::RpDecl::Tuple(body.into_model(diag, &s)?),
+            Service(body) => core::RpDecl::Service(body.into_model(diag, &s)?),
         };
 
         Ok(out)
@@ -281,10 +290,10 @@ impl<'input> IntoModel for Decl<'input> {
 impl<'input> IntoModel for Item<'input, EnumBody<'input>> {
     type Output = Loc<RpEnumBody>;
 
-    fn into_model(self, scope: &Scope) -> Result<Self::Output> {
+    fn into_model(self, diag: &mut Diagnostics, scope: &Scope) -> Result<Self::Output> {
         macro_rules! variants {
             (
-                $ctx:expr, $enum_type:expr, $variants:expr,
+                $diag:expr, $enum_type:expr, $variants:expr,
                 $(($ty:ident, $out:ident, $default:expr)),*
             ) => {
             match $enum_type {
@@ -297,12 +306,16 @@ impl<'input> IntoModel for Item<'input, EnumBody<'input>> {
                     let mut default = $default;
 
                     for v in $variants {
-                        let v = try_loop!((v, &mut default).into_model(scope));
+                        let v = try_loop!((v, &mut default).into_model(diag, scope));
 
-                        check_conflict!($ctx, idents, v, v.ident, "variant");
-                        check_conflict!($ctx, values, v, v.value(), "variant value");
+                        check_conflict!($diag, idents, v, v.ident, "variant");
+                        check_conflict!($diag, values, v, v.value(), "variant value");
 
                         out.push(v);
+                    }
+
+                    if diag.has_errors() {
+                        return Err(());
                     }
 
                     core::RpVariants::$out { variants: out }
@@ -312,72 +325,85 @@ impl<'input> IntoModel for Item<'input, EnumBody<'input>> {
             };
         }
 
-        return self.map(|comment, attributes, item| {
-            let (item, span) = Loc::take_pair(item);
+        let Item {
+            comment,
+            attributes,
+            item,
+        } = self;
 
-            let ctx = scope.ctx();
-            let name = scope.as_name();
+        let (item, span) = Loc::take_pair(item);
 
-            ctx.symbol(SymbolKind::Enum, &span, &name)?;
+        let name = scope.as_name();
 
-            let mut codes = Vec::new();
+        diag.symbol(SymbolKind::Enum, &span, &name);
 
-            for member in item.members {
-                match member {
-                    EnumMember::Code(code) => {
-                        codes.push(code.into_model(scope)?);
-                    }
-                };
+        let mut codes = Vec::new();
+
+        for member in item.members {
+            match member {
+                EnumMember::Code(code) => {
+                    codes.push(code.into_model(diag, scope)?);
+                }
+            };
+        }
+
+        let enum_type = {
+            let (enum_type, span) = Loc::take_pair(item.ty.into_model(diag, scope)?);
+
+            match enum_type.as_enum_type() {
+                Some(enum_type) => enum_type,
+                None => {
+                    diag.err(
+                        span,
+                        "illegal enum type, expected `string`, `u32`, `u64`, `i32`, or `i64`",
+                    );
+                    return Err(());
+                }
             }
+        };
 
-            let ty = item.ty.into_model(scope)?;
+        let variants = variants!(
+            diag,
+            enum_type,
+            item.variants,
+            (String, String, StringDefaultVariant),
+            (
+                U32,
+                Number,
+                NumberDefaultVariant::new(core::RpEnumType::U32)
+            ),
+            (
+                U64,
+                Number,
+                NumberDefaultVariant::new(core::RpEnumType::U64)
+            ),
+            (
+                I32,
+                Number,
+                NumberDefaultVariant::new(core::RpEnumType::I32)
+            ),
+            (
+                I64,
+                Number,
+                NumberDefaultVariant::new(core::RpEnumType::I64)
+            )
+        );
 
-            let enum_type = Loc::take(Loc::and_then(ty, |ty| {
-                ty.as_enum_type().ok_or_else(|| {
-                    "illegal enum type, expected `string`, `u32`, `u64`, `i32`, or `i64`".into()
-                }) as Result<RpEnumType>
-            })?);
+        let attributes = attributes.into_model(diag, scope)?;
+        check_attributes!(diag, attributes);
 
-            let variants = variants!(
-                ctx,
-                enum_type,
-                item.variants,
-                (String, String, StringDefaultVariant),
-                (
-                    U32,
-                    Number,
-                    NumberDefaultVariant::new(core::RpEnumType::U32)
-                ),
-                (
-                    U64,
-                    Number,
-                    NumberDefaultVariant::new(core::RpEnumType::U64)
-                ),
-                (
-                    I32,
-                    Number,
-                    NumberDefaultVariant::new(core::RpEnumType::I32)
-                ),
-                (
-                    I64,
-                    Number,
-                    NumberDefaultVariant::new(core::RpEnumType::I64)
-                )
-            );
-
-            let attributes = attributes.into_model(scope)?;
-            check_attributes!(scope.ctx(), attributes);
-
-            return Ok(RpEnumBody {
+        return Ok(Loc::new(
+            RpEnumBody {
                 name,
                 ident: item.name.to_string(),
-                comment: Comment(&comment).into_model(scope)?,
+                comment: Comment(&comment).into_model(diag, scope)?,
                 decls: vec![],
                 enum_type: enum_type,
                 variants: variants,
                 codes: codes,
-            });
-        });
+            },
+            span,
+        ));
 
         struct NumberDefaultVariant {
             state: BigInt,
@@ -396,7 +422,7 @@ impl<'input> IntoModel for Item<'input, EnumBody<'input>> {
         impl DefaultVariant for NumberDefaultVariant {
             type Type = RpNumber;
 
-            fn next<'input>(&mut self, _: &EnumVariant<'input>) -> Result<RpNumber> {
+            fn next<'input>(&mut self, _: &EnumVariant<'input>) -> result::Result<RpNumber, Error> {
                 let next = self.state.clone();
                 self.state = self.state.clone() + BigInt::from(1);
                 let number = RpNumber::from(next);
@@ -404,7 +430,7 @@ impl<'input> IntoModel for Item<'input, EnumBody<'input>> {
                 Ok(number)
             }
 
-            fn process(&mut self, value: RpValue) -> Result<RpNumber> {
+            fn process(&mut self, value: RpValue) -> result::Result<RpNumber, Error> {
                 let number = value.into_number()?;
 
                 {
@@ -425,11 +451,14 @@ impl<'input> IntoModel for Item<'input, EnumBody<'input>> {
         impl DefaultVariant for StringDefaultVariant {
             type Type = String;
 
-            fn next<'input>(&mut self, variant: &EnumVariant<'input>) -> Result<String> {
+            fn next<'input>(
+                &mut self,
+                variant: &EnumVariant<'input>,
+            ) -> result::Result<String, Error> {
                 Ok(variant.name.to_string())
             }
 
-            fn process(&mut self, value: RpValue) -> Result<String> {
+            fn process(&mut self, value: RpValue) -> result::Result<String, Error> {
                 value
                     .as_string()
                     .map(|s| s.to_string())
@@ -444,10 +473,10 @@ pub trait DefaultVariant {
     type Type;
 
     /// Get the next default variant value.
-    fn next<'input>(&mut self, variant: &EnumVariant<'input>) -> Result<Self::Type>;
+    fn next<'input>(&mut self, variant: &EnumVariant<'input>) -> result::Result<Self::Type, Error>;
 
     /// Process the value, attempting to convert it to the destination type.
-    fn process(&mut self, value: RpValue) -> Result<Self::Type>;
+    fn process(&mut self, value: RpValue) -> result::Result<Self::Type, Error>;
 }
 
 /// enum value with assigned ordinal
@@ -457,39 +486,43 @@ where
 {
     type Output = Loc<RpVariant<D::Type>>;
 
-    fn into_model(self, scope: &Scope) -> Result<Self::Output> {
+    fn into_model(self, diag: &mut Diagnostics, scope: &Scope) -> Result<Self::Output> {
         let (variant, default) = self;
 
-        let ctx = scope.ctx();
+        let Item {
+            comment,
+            attributes,
+            item,
+        } = variant;
 
-        variant.map(|comment, attributes, item| {
-            let (item, _) = Loc::take_pair(item);
+        let (item, span) = Loc::take_pair(item);
 
-            let value = if let Some(argument) = item.argument {
-                let (value, span) = Loc::take_pair(argument.into_model(scope)?);
+        let value = if let Some(argument) = item.argument {
+            let (value, span) = Loc::take_pair(argument.into_model(diag, scope)?);
 
-                match default.process(value) {
-                    Err(e) => {
-                        let mut report = ctx.report();
-                        report.err(span, e.display());
-                        return Err(report.into());
-                    }
-                    Ok(value) => value,
+            match default.process(value) {
+                Err(e) => {
+                    diag.err(span, e.display());
+                    return Err(());
                 }
-            } else {
-                default.next(&item)?
-            };
+                Ok(value) => value,
+            }
+        } else {
+            default.next(&item).with_span(diag, span)?
+        };
 
-            let attributes = attributes.into_model(scope)?;
-            check_attributes!(ctx, attributes);
+        let attributes = attributes.into_model(diag, scope)?;
+        check_attributes!(diag, attributes);
 
-            Ok(RpVariant {
+        Ok(Loc::new(
+            RpVariant {
                 name: scope.as_name().push(item.name.to_string()),
                 ident: Loc::map(item.name.clone(), |s| s.to_string()),
-                comment: Comment(&comment).into_model(scope)?,
+                comment: Comment(&comment).into_model(diag, scope)?,
                 value: value,
-            })
-        })
+            },
+            span,
+        ))
     }
 }
 
@@ -538,50 +571,61 @@ fn build_item_name(
 impl<'input> IntoModel for Item<'input, Field<'input>> {
     type Output = Loc<RpField>;
 
-    fn into_model(self, scope: &Scope) -> Result<Loc<RpField>> {
-        self.map(|comment, attributes, item| {
-            let (item, _) = Loc::take_pair(item);
+    fn into_model(self, diag: &mut Diagnostics, scope: &Scope) -> Result<Loc<RpField>> {
+        let Item {
+            comment,
+            attributes,
+            item,
+        } = self;
 
-            let field_as = item.field_as.into_model(scope)?;
+        let (item, span) = Loc::take_pair(item);
 
-            let (ident, safe_ident, field_as) = build_item_name(
-                scope,
-                item.name.as_ref(),
-                field_as.as_ref().map(|s| s.as_str()),
-                scope.field_naming(),
-                scope.field_ident_naming(),
-            );
+        let field_as = item.field_as.into_model(diag, scope)?;
 
-            let attributes = attributes.into_model(scope)?;
-            check_attributes!(scope.ctx(), attributes);
+        let (ident, safe_ident, field_as) = build_item_name(
+            scope,
+            item.name.as_ref(),
+            field_as.as_ref().map(|s| s.as_str()),
+            scope.field_naming(),
+            scope.field_ident_naming(),
+        );
 
-            Ok(RpField {
+        let attributes = attributes.into_model(diag, scope)?;
+        check_attributes!(diag, attributes);
+
+        Ok(Loc::new(
+            RpField {
                 required: item.required,
                 safe_ident: safe_ident,
                 ident: ident,
-                comment: Comment(&comment).into_model(scope)?,
+                comment: Comment(&comment).into_model(diag, scope)?,
                 ty: (
                     "expected type, like: `string`, `u32`, or `MyType`.",
                     item.ty,
-                ).into_model(scope)?,
+                ).into_model(diag, scope)?,
                 field_as: field_as,
-            })
-        })
+            },
+            span,
+        ))
     }
 }
 
 impl<'input> IntoModel for File<'input> {
     type Output = RpFile;
 
-    fn into_model(self, scope: &Scope) -> Result<RpFile> {
+    fn into_model(self, diag: &mut Diagnostics, scope: &Scope) -> Result<RpFile> {
         let mut decls = Vec::new();
 
         for d in self.decls {
-            decls.push(try_loop!(d.into_model(scope)));
+            decls.push(try_loop!(d.into_model(diag, scope)));
+        }
+
+        if diag.has_errors() {
+            return Err(());
         }
 
         Ok(RpFile {
-            comment: Comment(&self.comment).into_model(scope)?,
+            comment: Comment(&self.comment).into_model(diag, scope)?,
             decls: decls,
         })
     }
@@ -590,241 +634,262 @@ impl<'input> IntoModel for File<'input> {
 impl<'input> IntoModel for Item<'input, InterfaceBody<'input>> {
     type Output = Loc<RpInterfaceBody>;
 
-    fn into_model(self, scope: &Scope) -> Result<Self::Output> {
-        self.map(|comment, attributes, item| {
-            let (item, span) = Loc::take_pair(item);
+    fn into_model(self, diag: &mut Diagnostics, scope: &Scope) -> Result<Self::Output> {
+        let Item {
+            comment,
+            attributes,
+            item,
+        } = self;
 
-            let ctx = scope.ctx();
-            let name = scope.as_name();
+        let (item, span) = Loc::take_pair(item);
 
-            ctx.symbol(SymbolKind::Interface, &span, &name)?;
+        let name = scope.as_name();
 
-            let mut attributes = attributes.into_model(scope)?;
+        diag.symbol(SymbolKind::Interface, &span, &name);
 
-            let reserved = attributes::reserved(scope, &mut attributes)?;
+        let mut attributes = attributes.into_model(diag, scope)?;
 
-            let mut sub_type_strategy = RpSubTypeStrategy::default();
+        let reserved = attributes::reserved(diag, &mut attributes)?;
 
-            if let Some(mut type_info) = attributes.take_selection("type_info") {
-                sub_type_strategy = push_type_info(ctx, &mut type_info)?;
-                check_selection!(scope.ctx(), type_info);
-            }
+        let mut sub_type_strategy = RpSubTypeStrategy::default();
 
-            check_attributes!(scope.ctx(), attributes);
+        if let Some(mut type_info) = attributes.take_selection("type_info") {
+            sub_type_strategy = push_type_info(diag, &mut type_info)?;
+            check_selection!(diag, type_info);
+        }
 
-            let Members {
-                fields,
-                codes,
-                decls,
-                field_idents,
-                field_names,
-                ..
-            } = {
-                let constraint = MemberConstraint {
-                    sub_type_strategy: Some(&sub_type_strategy),
-                    ..MemberConstraint::default()
-                };
+        check_attributes!(diag, attributes);
 
-                (item.members, constraint).into_model(scope)?
+        let Members {
+            fields,
+            codes,
+            decls,
+            field_idents,
+            field_names,
+            ..
+        } = {
+            let constraint = MemberConstraint {
+                sub_type_strategy: Some(&sub_type_strategy),
+                ..MemberConstraint::default()
             };
 
-            let mut names = HashMap::new();
-            let mut idents = HashMap::new();
-            let mut sub_types = Vec::new();
-            let mut untagged = LinkedHashMap::new();
+            (item.members, constraint).into_model(diag, scope)?
+        };
 
-            for sub_type in item.sub_types {
-                let scope = scope.child(Loc::value(&sub_type.name).to_owned());
+        let mut names = HashMap::new();
+        let mut idents = HashMap::new();
+        let mut sub_types = Vec::new();
+        let mut untagged = LinkedHashMap::new();
 
-                let constraint = SubTypeConstraint {
-                    sub_type_strategy: &sub_type_strategy,
-                    reserved: &reserved,
-                    field_idents: &field_idents,
-                    field_names: &field_names,
-                    untagged: &mut untagged,
-                };
+        for sub_type in item.sub_types {
+            let scope = scope.child(Loc::borrow(&sub_type.name).to_owned());
 
-                let sub_type = (sub_type, constraint).into_model(&scope)?;
+            let constraint = SubTypeConstraint {
+                sub_type_strategy: &sub_type_strategy,
+                reserved: &reserved,
+                field_idents: &field_idents,
+                field_names: &field_names,
+                untagged: &mut untagged,
+            };
 
-                check_conflict!(ctx, idents, sub_type, sub_type.ident, "sub-type");
-                check_conflict!(ctx, names, sub_type, sub_type.name(), "sub-type with name");
+            let sub_type = (sub_type, constraint).into_model(diag, &scope)?;
 
-                sub_types.push(sub_type);
-            }
+            check_conflict!(diag, idents, sub_type, sub_type.ident, "sub-type");
+            check_conflict!(diag, names, sub_type, sub_type.name(), "sub-type with name");
 
-            // check that we are not violating any constraints.
-            match *&sub_type_strategy {
-                core::RpSubTypeStrategy::Untagged => {
-                    check_untagged(&ctx, &sub_types, &untagged)?;
+            sub_types.push(sub_type);
+        }
 
-                    // Check that - in the order sub-types appear, any the key for any give
-                    // sub-type is not a subset of any sub-sequent sub-types.
+        // check that we are not violating any constraints.
+        match *&sub_type_strategy {
+            core::RpSubTypeStrategy::Untagged => {
+                check_untagged(diag, &sub_types, &untagged)?;
 
-                    let mut it = untagged.iter();
-                    let mut report = ctx.report();
+                // Check that - in the order sub-types appear, any the key for any give
+                // sub-type is not a subset of any sub-sequent sub-types.
 
-                    while let Some((k0, span0)) = it.next() {
-                        let mut sub = it.clone();
+                let mut it = untagged.iter();
 
-                        while let Some((k1, span1)) = sub.next() {
-                            if !k0.is_subset(k1) {
-                                continue;
-                            }
+                while let Some((k0, span0)) = it.next() {
+                    let mut sub = it.clone();
 
-                            let names =
-                                k0.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", ");
-
-                            report.err(
-                                span0,
-                                &format!(
-                                    "fields with names `{}` are present in another sub-type, this \
-                                     would cause deserialization to be ambiguous for certain \
-                                     cases.",
-                                    names,
-                                ),
-                            );
-
-                            report.info(
-                                span0,
-                                "HINT: re-order or change your sub-types to avoid this",
-                            );
-
-                            let names =
-                                k1.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", ");
-
-                            report.info(
-                                span1,
-                                &format!(
-                                    "conflicting sub-type with fields `{}` is defined here",
-                                    names
-                                ),
-                            );
+                    while let Some((k1, span1)) = sub.next() {
+                        if !k0.is_subset(k1) {
+                            continue;
                         }
-                    }
 
-                    if let Some(e) = report.close() {
-                        return Err(e);
+                        let names = k0.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", ");
+
+                        diag.err(
+                            span0,
+                            &format!(
+                                "fields with names `{}` are present in another sub-type, this \
+                                 would cause deserialization to be ambiguous for certain cases.",
+                                names,
+                            ),
+                        );
+
+                        diag.info(
+                            span0,
+                            "HINT: re-order or change your sub-types to avoid this",
+                        );
+
+                        let names = k1.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", ");
+
+                        diag.info(
+                            span1,
+                            &format!(
+                                "conflicting sub-type with fields `{}` is defined here",
+                                names
+                            ),
+                        );
                     }
                 }
-                _ => {}
-            }
 
-            return Ok(RpInterfaceBody {
+                if diag.has_errors() {
+                    return Err(());
+                }
+            }
+            _ => {}
+        }
+
+        return Ok(Loc::new(
+            RpInterfaceBody {
                 name,
                 ident: item.name.to_string(),
-                comment: Comment(&comment).into_model(scope)?,
+                comment: Comment(&comment).into_model(diag, scope)?,
                 decls: decls,
                 fields: fields,
                 codes: codes,
                 sub_types: sub_types,
                 sub_type_strategy: sub_type_strategy,
-            });
+            },
+            span,
+        ));
 
-            /// Check invariants that need to be enforced with unique fields
-            fn check_untagged<'a, I: 'a>(
-                ctx: &Context,
-                sub_types: &Vec<Loc<RpSubType>>,
-                untagged: I,
-            ) -> Result<()>
-            where
-                I: Clone + IntoIterator<Item = (&'a BTreeSet<String>, &'a Span)>,
-            {
-                let mut r = ctx.report();
+        /// Check invariants that need to be enforced with unique fields
+        fn check_untagged<'a, I: 'a>(
+            diag: &mut Diagnostics,
+            sub_types: &Vec<Loc<RpSubType>>,
+            untagged: I,
+        ) -> Result<()>
+        where
+            I: Clone + IntoIterator<Item = (&'a BTreeSet<String>, &'a Span)>,
+        {
+            for sub_type in sub_types {
+                let required = sub_type
+                    .fields
+                    .iter()
+                    .filter(|f| f.is_required())
+                    .map(|f| f.name().to_string())
+                    .collect::<BTreeSet<_>>();
 
-                for sub_type in sub_types {
-                    let required = sub_type
-                        .fields
-                        .iter()
-                        .filter(|f| f.is_required())
-                        .map(|f| f.name().to_string())
-                        .collect::<BTreeSet<_>>();
+                for (key, span) in untagged.clone() {
+                    // skip own
+                    if *key == required {
+                        continue;
+                    }
 
-                    for (key, span) in untagged.clone() {
-                        // skip own
-                        if *key == required {
-                            continue;
-                        }
+                    let mut any = false;
 
-                        let mut any = false;
+                    let optional = sub_type.fields.iter().filter(|f| f.is_optional());
 
-                        let optional = sub_type.fields.iter().filter(|f| f.is_optional());
+                    for f in optional.filter(|f| key.contains(f.name())) {
+                        any = true;
+                        diag.err(Loc::span(f), "is a required field of another sub-type");
+                    }
 
-                        for f in optional.filter(|f| key.contains(f.name())) {
-                            any = true;
-                            r.err(Loc::span(f), "is a required field of another sub-type");
-                        }
-
-                        if any {
-                            r.info(span.clone(), "sub-type defined here");
-                        }
+                    if any {
+                        diag.info(span.clone(), "sub-type defined here");
                     }
                 }
-
-                if let Some(e) = r.close() {
-                    return Err(e);
-                }
-
-                Ok(())
             }
 
-            /// Extract type_info attribute.
-            fn push_type_info(
-                ctx: &Context,
-                selection: &mut Selection,
-            ) -> Result<RpSubTypeStrategy> {
-                if let Some(strategy) = selection.take("strategy") {
-                    let id = strategy.as_string()?;
+            if diag.has_errors() {
+                return Err(());
+            }
 
-                    match id {
-                        "tagged" => {
-                            if let Some(tag) = selection.take("tag") {
-                                let tag = tag.as_string()?;
+            Ok(())
+        }
 
-                                return Ok(core::RpSubTypeStrategy::Tagged {
-                                    tag: tag.to_string(),
-                                });
-                            }
-                        }
-                        "untagged" => {
-                            return Ok(core::RpSubTypeStrategy::Untagged);
-                        }
-                        _ => {
-                            let mut r = ctx.report();
-                            r.err(Loc::span(&strategy), "bad strategy");
-                            return Err(r.into());
+        /// Extract type_info attribute.
+        fn push_type_info(
+            diag: &mut Diagnostics,
+            selection: &mut Selection,
+        ) -> Result<RpSubTypeStrategy> {
+            if let Some(strategy) = selection.take("strategy") {
+                let (strategy, span) = Loc::take_pair(strategy);
+                let id = strategy.as_string().with_span(diag, span)?;
+
+                match id {
+                    "tagged" => {
+                        if let Some(tag) = selection.take("tag") {
+                            let (tag, span) = Loc::take_pair(tag);
+                            let tag = tag.as_string().with_span(diag, span)?;
+
+                            return Ok(core::RpSubTypeStrategy::Tagged {
+                                tag: tag.to_string(),
+                            });
                         }
                     }
+                    "untagged" => {
+                        return Ok(core::RpSubTypeStrategy::Untagged);
+                    }
+                    _ => {
+                        diag.err(span, "bad strategy");
+                        return Err(());
+                    }
                 }
-
-                Ok(RpSubTypeStrategy::default())
             }
-        })
+
+            Ok(RpSubTypeStrategy::default())
+        }
     }
 }
 
-impl IntoModel for Name {
+impl<'input> IntoModel for Name<'input> {
     type Output = RpName;
 
-    fn into_model(self, scope: &Scope) -> Result<Self::Output> {
+    fn into_model(self, diag: &mut Diagnostics, scope: &Scope) -> Result<Self::Output> {
         use self::Name::*;
 
         let out = match self {
-            Relative { parts } => scope.as_name().extend(parts),
+            Relative { parts } => {
+                let parts = parts.into_model(diag, scope)?;
+
+                scope
+                    .as_name()
+                    .extend(parts.into_iter().map(|p| Loc::take(p)))
+            }
             Absolute { prefix, parts } => {
-                let package = if let Some(ref prefix) = prefix {
-                    if let Some(package) = scope.lookup_prefix(prefix) {
-                        package.clone()
-                    } else {
-                        return Err(Error::new(format!("Missing prefix: {}", prefix.clone())));
+                let parts = parts
+                    .into_model(diag, scope)?
+                    .into_iter()
+                    .map(|s| Loc::take(s))
+                    .collect();
+
+                let (prefix, package) = match prefix {
+                    Some(prefix) => {
+                        let (prefix, span) = Loc::take_pair(prefix);
+
+                        match scope.lookup_prefix(prefix.as_ref()) {
+                            Some(package) => {
+                                let prefix = prefix.to_string();
+                                (Some(Loc::new(prefix, span)), package.clone())
+                            }
+                            None => {
+                                diag.err(span, format!("missing prefix `{}`", prefix.clone()));
+                                return Err(());
+                            }
+                        }
                     }
-                } else {
-                    scope.package()
+                    None => (None, scope.package()),
                 };
 
                 RpName {
-                    prefix: prefix,
-                    package: package,
-                    parts: ("Expected type identifier", parts).into_model(scope)?,
+                    prefix,
+                    package,
+                    parts,
                 }
             }
         };
@@ -836,7 +901,7 @@ impl IntoModel for Name {
 impl<'input> IntoModel for (&'input Path, usize, usize) {
     type Output = (PathBuf, usize, usize);
 
-    fn into_model(self, _scope: &Scope) -> Result<Self::Output> {
+    fn into_model(self, _: &mut Diagnostics, _scope: &Scope) -> Result<Self::Output> {
         Ok((self.0.to_owned(), self.1, self.2))
     }
 }
@@ -844,71 +909,77 @@ impl<'input> IntoModel for (&'input Path, usize, usize) {
 impl<'input> IntoModel for Item<'input, ServiceBody<'input>> {
     type Output = Loc<RpServiceBody>;
 
-    fn into_model(self, scope: &Scope) -> Result<Self::Output> {
-        return self.map(|comment, attributes, item| {
-            let (item, span) = Loc::take_pair(item);
+    fn into_model(self, diag: &mut Diagnostics, scope: &Scope) -> Result<Self::Output> {
+        let Item {
+            comment,
+            attributes,
+            item,
+        } = self;
 
-            let ctx = scope.ctx();
-            let name = scope.as_name();
+        let (item, span) = Loc::take_pair(item);
 
-            ctx.symbol(SymbolKind::Service, &span, &name)?;
+        let name = scope.as_name();
 
-            let mut decl_idents = HashMap::new();
-            let mut endpoint_names = HashMap::new();
-            let mut endpoint_idents = HashMap::new();
+        diag.symbol(SymbolKind::Service, &span, &name);
 
-            let mut endpoints = Vec::new();
-            let mut decls = Vec::new();
+        let mut decl_idents = HashMap::new();
+        let mut endpoint_names = HashMap::new();
+        let mut endpoint_idents = HashMap::new();
 
-            for member in item.members {
-                match member {
-                    ServiceMember::Endpoint(e) => {
-                        let e = e.into_model(scope)?;
+        let mut endpoints = Vec::new();
+        let mut decls = Vec::new();
 
-                        check_conflict!(ctx, endpoint_idents, e, e.ident(), "endpoint");
-                        check_conflict!(ctx, endpoint_names, e, e.name(), "endpoint with name");
+        for member in item.members {
+            match member {
+                ServiceMember::Endpoint(e) => {
+                    let e = e.into_model(diag, scope)?;
 
-                        endpoints.push(e);
-                    }
-                    ServiceMember::InnerDecl(d) => {
-                        let d = d.into_model(scope)?;
-                        check_conflict!(ctx, decl_idents, d, d.ident(), "inner declaration");
-                        decls.push(d);
-                    }
-                };
-            }
+                    check_conflict!(diag, endpoint_idents, e, e.ident(), "endpoint");
+                    check_conflict!(diag, endpoint_names, e, e.name(), "endpoint with name");
 
-            let mut attributes = attributes.into_model(scope)?;
+                    endpoints.push(e);
+                }
+                ServiceMember::InnerDecl(d) => {
+                    let d = d.into_model(diag, scope)?;
+                    check_conflict!(diag, decl_idents, d, d.ident(), "inner declaration");
+                    decls.push(d);
+                }
+            };
+        }
 
-            let mut http = RpServiceBodyHttp::default();
+        let mut attributes = attributes.into_model(diag, scope)?;
 
-            if let Some(selection) = attributes.take_selection("http") {
-                let (mut selection, span) = Loc::take_pair(selection);
-                push_http(ctx, scope, &mut selection, &mut http).with_span(span)?;
-                check_selection!(scope.ctx(), selection);
-            }
+        let mut http = RpServiceBodyHttp::default();
 
-            check_attributes!(scope.ctx(), attributes);
+        if let Some(selection) = attributes.take_selection("http") {
+            let (mut selection, _) = Loc::take_pair(selection);
+            push_http(diag, &mut selection, &mut http)?;
+            check_selection!(diag, selection);
+        }
 
-            Ok(RpServiceBody {
+        check_attributes!(diag, attributes);
+
+        return Ok(Loc::new(
+            RpServiceBody {
                 name,
                 ident: item.name.to_string(),
-                comment: Comment(&comment).into_model(scope)?,
+                comment: Comment(&comment).into_model(diag, scope)?,
                 decls: decls,
                 http: http,
                 endpoints: endpoints,
-            })
-        });
+            },
+            span,
+        ));
 
         fn push_http(
-            _ctx: &Context,
-            _scope: &Scope,
+            diag: &mut Diagnostics,
             selection: &mut Selection,
             http: &mut RpServiceBodyHttp,
         ) -> Result<()> {
             if let Some(url) = selection.take("url") {
-                let url = Loc::and_then(url, |url| url.as_string().map(ToOwned::to_owned))?;
-                http.url = Some(url);
+                let (url, span) = Loc::take_pair(url);
+                let url = url.as_string().with_span(diag, span)?.to_string();
+                http.url = Some(Loc::new(url, span));
             }
 
             Ok(())
@@ -919,14 +990,14 @@ impl<'input> IntoModel for Item<'input, ServiceBody<'input>> {
 impl<'input> IntoModel for EndpointArgument<'input> {
     type Output = RpEndpointArgument;
 
-    fn into_model(self, scope: &Scope) -> Result<Self::Output> {
-        let ident = self.ident.into_model(scope)?;
+    fn into_model(self, diag: &mut Diagnostics, scope: &Scope) -> Result<Self::Output> {
+        let ident = self.ident.into_model(diag, scope)?;
         let safe_ident = build_safe_ident(scope, ident.as_str(), scope.field_ident_naming());
 
         let argument = RpEndpointArgument {
             ident: Rc::new(ident),
             safe_ident: Rc::new(safe_ident),
-            channel: self.channel.into_model(scope)?,
+            channel: self.channel.into_model(diag, scope)?,
         };
 
         Ok(argument)
@@ -936,84 +1007,89 @@ impl<'input> IntoModel for EndpointArgument<'input> {
 impl<'input> IntoModel for Item<'input, Endpoint<'input>> {
     type Output = Loc<RpEndpoint>;
 
-    fn into_model(self, scope: &Scope) -> Result<Self::Output> {
-        return self.map(|comment, attributes, item| {
-            let (item, _) = Loc::take_pair(item);
+    fn into_model(self, diag: &mut Diagnostics, scope: &Scope) -> Result<Self::Output> {
+        let Item {
+            comment,
+            attributes,
+            item,
+        } = self;
 
-            let ctx = scope.ctx();
+        let (item, span) = Loc::take_pair(item);
 
-            let id = item.id.into_model(scope)?;
-            let alias = item.alias.into_model(scope)?;
+        let id = item.id.into_model(diag, scope)?;
+        let alias = item.alias.into_model(diag, scope)?;
 
-            let (ident, safe_ident, name) = build_item_name(
-                scope,
-                id.as_str(),
-                alias.as_ref().map(|s| s.as_str()),
-                scope.endpoint_naming(),
-                scope.endpoint_ident_naming(),
-            );
+        let (ident, safe_ident, name) = build_item_name(
+            scope,
+            id.as_str(),
+            alias.as_ref().map(|s| s.as_str()),
+            scope.endpoint_naming(),
+            scope.endpoint_ident_naming(),
+        );
 
-            let mut arguments = Vec::new();
-            let mut seen = HashMap::new();
+        let mut arguments = Vec::new();
+        let mut seen = HashMap::new();
 
-            for argument in item.arguments {
-                let argument = argument.into_model(scope)?;
+        for argument in item.arguments {
+            let argument = argument.into_model(diag, scope)?;
 
-                if let Some(other) = seen.insert(
-                    argument.ident.to_string(),
-                    Loc::span(&argument.ident).clone(),
-                ) {
-                    let mut r = ctx.report();
-                    r.err(Loc::span(&argument.ident), "argument already present");
-                    r.info(other, "argument present here");
-                    return Err(r.into());
-                }
-
-                arguments.push(argument);
+            if let Some(other) = seen.insert(
+                argument.ident.to_string(),
+                Loc::span(&argument.ident).clone(),
+            ) {
+                diag.err(Loc::span(&argument.ident), "argument already present");
+                diag.info(other, "argument present here");
+                return Err(());
             }
 
-            let response = item.response.into_model(scope)?;
-            let mut request = arguments.iter().cloned().next();
+            arguments.push(argument);
+        }
 
-            let mut attributes = attributes.into_model(scope)?;
+        let response = item.response.into_model(diag, scope)?;
+        let mut request = arguments.iter().cloned().next();
 
-            let http = attributes::endpoint_http(
-                scope,
-                &mut attributes,
-                &mut request,
-                response.as_ref(),
-                &arguments,
-            )?;
+        let mut attributes = attributes.into_model(diag, scope)?;
 
-            check_attributes!(scope.ctx(), attributes);
+        let http = attributes::endpoint_http(
+            diag,
+            scope,
+            &mut attributes,
+            &mut request,
+            response.as_ref(),
+            &arguments,
+        )?;
 
-            Ok(RpEndpoint {
+        check_attributes!(diag, attributes);
+
+        Ok(Loc::new(
+            RpEndpoint {
                 ident: ident,
                 safe_ident: safe_ident,
                 name: name,
-                comment: Comment(&comment).into_model(scope)?,
+                comment: Comment(&comment).into_model(diag, scope)?,
                 attributes: attributes,
                 arguments: arguments,
                 request: request,
                 response: response,
                 http: http,
-            })
-        });
+            },
+            span,
+        ))
     }
 }
 
-impl<'input> IntoModel for Channel {
+impl<'input> IntoModel for Channel<'input> {
     type Output = RpChannel;
 
-    fn into_model(self, scope: &Scope) -> Result<Self::Output> {
+    fn into_model(self, diag: &mut Diagnostics, scope: &Scope) -> Result<Self::Output> {
         use self::Channel::*;
 
         let result = match self {
             Unary { ty, .. } => core::RpChannel::Unary {
-                ty: ty.into_model(scope)?,
+                ty: ty.into_model(diag, scope)?,
             },
             Streaming { ty, .. } => core::RpChannel::Streaming {
-                ty: ty.into_model(scope)?,
+                ty: ty.into_model(diag, scope)?,
             },
         };
 
@@ -1024,7 +1100,7 @@ impl<'input> IntoModel for Channel {
 impl<'input> IntoModel for (Item<'input, SubType<'input>>, SubTypeConstraint<'input>) {
     type Output = Loc<RpSubType>;
 
-    fn into_model(self, scope: &Scope) -> Result<Self::Output> {
+    fn into_model(self, diag: &mut Diagnostics, scope: &Scope) -> Result<Self::Output> {
         use self::TypeMember::*;
 
         let (item, constraint) = self;
@@ -1037,97 +1113,110 @@ impl<'input> IntoModel for (Item<'input, SubType<'input>>, SubTypeConstraint<'in
             untagged,
         } = constraint;
 
-        return item.map(|comment, attributes, item| {
-            let (item, span) = Loc::take_pair(item);
+        let Item {
+            comment,
+            attributes,
+            item,
+        } = item;
 
-            let ctx = scope.ctx();
-            let name = scope.as_name();
+        let (item, span) = Loc::take_pair(item);
 
-            let mut attributes = attributes.into_model(scope)?;
-            let reserved = attributes::reserved(scope, &mut attributes)?;
-            check_attributes!(ctx, attributes);
+        let name = scope.as_name();
 
-            let mut fields = Vec::new();
-            let mut codes = Vec::new();
-            let mut decls = Vec::new();
+        let mut attributes = attributes.into_model(diag, scope)?;
+        let reserved = attributes::reserved(diag, &mut attributes)?;
+        check_attributes!(diag, attributes);
 
-            let mut decl_idents = HashMap::new();
-            let mut field_idents = field_idents.clone();
-            let mut field_names = field_names.clone();
+        let mut fields = Vec::new();
+        let mut codes = Vec::new();
+        let mut decls = Vec::new();
 
-            for member in item.members {
-                match member {
-                    Field(field) => {
-                        let field = field.into_model(scope)?;
+        let mut decl_idents = HashMap::new();
+        let mut field_idents = field_idents.clone();
+        let mut field_names = field_names.clone();
 
-                        check_conflict!(ctx, field_idents, field, field.ident(), "field");
-                        check_conflict!(ctx, field_names, field, field.name(), "field with name");
+        for member in item.members {
+            match member {
+                Field(field) => {
+                    let field = field.into_model(diag, scope)?;
 
-                        check_field_tag!(ctx, field, *sub_type_strategy);
+                    check_conflict!(diag, field_idents, field, field.ident(), "field");
+                    check_conflict!(diag, field_names, field, field.name(), "field with name");
 
-                        check_field_reserved!(ctx, field, interface_reserved);
-                        check_field_reserved!(ctx, field, reserved);
+                    check_field_tag!(diag, field, *sub_type_strategy);
 
-                        fields.push(field);
-                    }
-                    Code(code) => {
-                        codes.push(code.into_model(scope)?);
-                    }
-                    InnerDecl(d) => {
-                        let d = d.into_model(scope)?;
-                        check_conflict!(ctx, decl_idents, d, d.ident(), "inner declaration");
-                        decls.push(d);
-                    }
+                    check_field_reserved!(diag, field, interface_reserved);
+                    check_field_reserved!(diag, field, reserved);
+
+                    fields.push(field);
+                }
+                Code(code) => {
+                    codes.push(code.into_model(diag, scope)?);
+                }
+                InnerDecl(d) => {
+                    let d = d.into_model(diag, scope)?;
+                    check_conflict!(diag, decl_idents, d, d.ident(), "inner declaration");
+                    decls.push(d);
                 }
             }
+        }
 
-            let sub_type_name = sub_type_name(item.alias, scope)?;
+        let sub_type_name = sub_type_name(diag, item.alias, scope)?;
 
-            match *sub_type_strategy {
-                core::RpSubTypeStrategy::Untagged => {
-                    let fields = fields
-                        .iter()
-                        .filter(|f| f.is_required())
-                        .map(|f| f.name().to_string())
-                        .collect::<BTreeSet<_>>();
+        match *sub_type_strategy {
+            core::RpSubTypeStrategy::Untagged => {
+                let fields = fields
+                    .iter()
+                    .filter(|f| f.is_required())
+                    .map(|f| f.name().to_string())
+                    .collect::<BTreeSet<_>>();
 
-                    if let Some(other) = untagged.insert(fields, span.clone()) {
-                        let mut r = ctx.report();
-                        r.err(span, "does not have a unique set of fields");
-                        r.info(other, "previously defined here");
-                        return Err(r.into());
-                    }
+                if let Some(other) = untagged.insert(fields, span.clone()) {
+                    diag.err(span, "does not have a unique set of fields");
+                    diag.info(other, "previously defined here");
+                    return Err(());
                 }
-                _ => {}
             }
+            _ => {}
+        }
 
-            Ok(RpSubType {
+        return Ok(Loc::new(
+            RpSubType {
                 name,
                 ident: item.name.to_string(),
-                comment: Comment(&comment).into_model(scope)?,
+                comment: Comment(&comment).into_model(diag, scope)?,
                 decls: decls,
                 fields: fields,
                 codes: codes,
                 sub_type_name: sub_type_name,
-            })
-        });
+            },
+            span,
+        ));
 
         /// Extract all names provided.
-        fn alias_name<'input>(alias: Loc<Value<'input>>, scope: &Scope) -> Result<Loc<String>> {
-            let (alias, span) = Loc::take_pair(alias.into_model(scope)?);
+        fn alias_name<'input>(
+            diag: &mut Diagnostics,
+            alias: Loc<Value<'input>>,
+            scope: &Scope,
+        ) -> Result<Loc<String>> {
+            let (alias, span) = Loc::take_pair(alias.into_model(diag, scope)?);
 
             match alias {
                 core::RpValue::String(string) => Ok(Loc::new(string, span)),
-                _ => Err("expected string".into()).with_span(span),
+                _ => {
+                    diag.err(span, "expected string");
+                    return Err(());
+                }
             }
         }
 
         fn sub_type_name<'input>(
+            diag: &mut Diagnostics,
             alias: option::Option<Loc<Value<'input>>>,
             scope: &Scope,
         ) -> Result<::std::option::Option<Loc<String>>> {
             if let Some(alias) = alias {
-                alias_name(alias, scope).map(Some)
+                alias_name(diag, alias, scope).map(Some)
             } else {
                 Ok(None)
             }
@@ -1138,77 +1227,89 @@ impl<'input> IntoModel for (Item<'input, SubType<'input>>, SubTypeConstraint<'in
 impl<'input> IntoModel for Item<'input, TupleBody<'input>> {
     type Output = Loc<RpTupleBody>;
 
-    fn into_model(self, scope: &Scope) -> Result<Self::Output> {
-        self.map(|comment, attributes, item| {
-            let (item, span) = Loc::take_pair(item);
+    fn into_model(self, diag: &mut Diagnostics, scope: &Scope) -> Result<Self::Output> {
+        let Item {
+            comment,
+            attributes,
+            item,
+        } = self;
 
-            let ctx = scope.ctx();
-            let name = scope.as_name();
+        let (item, span) = Loc::take_pair(item);
 
-            ctx.symbol(SymbolKind::Tuple, &span, &name)?;
+        let name = scope.as_name();
 
-            let Members {
-                fields,
-                codes,
-                decls,
-                ..
-            } = item.members.into_model(scope)?;
+        diag.symbol(SymbolKind::Tuple, &span, &name);
 
-            let attributes = attributes.into_model(scope)?;
-            check_attributes!(ctx, attributes);
+        let Members {
+            fields,
+            codes,
+            decls,
+            ..
+        } = item.members.into_model(diag, scope)?;
 
-            Ok(RpTupleBody {
+        let attributes = attributes.into_model(diag, scope)?;
+        check_attributes!(diag, attributes);
+
+        Ok(Loc::new(
+            RpTupleBody {
                 name: name,
                 ident: item.name.to_string(),
-                comment: Comment(&comment).into_model(scope)?,
+                comment: Comment(&comment).into_model(diag, scope)?,
                 decls: decls,
                 fields: fields,
                 codes: codes,
-            })
-        })
+            },
+            span,
+        ))
     }
 }
 
 impl<'input> IntoModel for Item<'input, TypeBody<'input>> {
     type Output = Loc<RpTypeBody>;
 
-    fn into_model(self, scope: &Scope) -> Result<Self::Output> {
-        self.map(|comment, attributes, item| {
-            let (item, span) = Loc::take_pair(item);
+    fn into_model(self, diag: &mut Diagnostics, scope: &Scope) -> Result<Self::Output> {
+        let Item {
+            comment,
+            attributes,
+            item,
+        } = self;
 
-            let ctx = scope.ctx();
-            let name = scope.as_name();
+        let (item, span) = Loc::take_pair(item);
 
-            ctx.symbol(SymbolKind::Type, &span, &name)?;
+        let name = scope.as_name();
 
-            let mut attributes = attributes.into_model(scope)?;
-            let reserved = attributes::reserved(scope, &mut attributes)?;
+        diag.symbol(SymbolKind::Type, &span, &name);
 
-            check_attributes!(ctx, attributes);
+        let mut attributes = attributes.into_model(diag, scope)?;
+        let reserved = attributes::reserved(diag, &mut attributes)?;
 
-            let Members {
-                fields,
-                codes,
-                decls,
-                ..
-            } = {
-                let constraint = MemberConstraint {
-                    reserved: Some(&reserved),
-                    ..MemberConstraint::default()
-                };
+        check_attributes!(diag, attributes);
 
-                (item.members, constraint).into_model(scope)?
+        let Members {
+            fields,
+            codes,
+            decls,
+            ..
+        } = {
+            let constraint = MemberConstraint {
+                reserved: Some(&reserved),
+                ..MemberConstraint::default()
             };
 
-            Ok(RpTypeBody {
+            (item.members, constraint).into_model(diag, scope)?
+        };
+
+        Ok(Loc::new(
+            RpTypeBody {
                 name,
                 ident: item.name.to_string(),
-                comment: Comment(&comment).into_model(scope)?,
+                comment: Comment(&comment).into_model(diag, scope)?,
                 decls: decls,
                 fields: fields,
                 codes: codes,
-            })
-        })
+            },
+            span,
+        ))
     }
 }
 
@@ -1216,15 +1317,15 @@ impl<'input> IntoModel for Item<'input, TypeBody<'input>> {
 impl<'input> IntoModel for Vec<TypeMember<'input>> {
     type Output = Members;
 
-    fn into_model(self, scope: &Scope) -> Result<Self::Output> {
-        (self, MemberConstraint::default()).into_model(scope)
+    fn into_model(self, diag: &mut Diagnostics, scope: &Scope) -> Result<Self::Output> {
+        (self, MemberConstraint::default()).into_model(diag, scope)
     }
 }
 
 impl<'input> IntoModel for (Vec<TypeMember<'input>>, MemberConstraint<'input>) {
     type Output = Members;
 
-    fn into_model(self, scope: &Scope) -> Result<Self::Output> {
+    fn into_model(self, diag: &mut Diagnostics, scope: &Scope) -> Result<Self::Output> {
         use self::TypeMember::*;
 
         let (members, constraint) = self;
@@ -1233,8 +1334,6 @@ impl<'input> IntoModel for (Vec<TypeMember<'input>>, MemberConstraint<'input>) {
             sub_type_strategy,
             reserved,
         } = constraint;
-
-        let ctx = scope.ctx();
 
         let mut fields: Vec<Loc<RpField>> = Vec::new();
         let mut codes = Vec::new();
@@ -1247,25 +1346,25 @@ impl<'input> IntoModel for (Vec<TypeMember<'input>>, MemberConstraint<'input>) {
         for member in members {
             match member {
                 Field(field) => {
-                    let field = field.into_model(scope)?;
+                    let field = field.into_model(diag, scope)?;
 
-                    check_conflict!(ctx, field_idents, field, field.ident(), "field");
-                    check_conflict!(ctx, field_names, field, field.name(), "field with name");
+                    check_conflict!(diag, field_idents, field, field.ident(), "field");
+                    check_conflict!(diag, field_names, field, field.name(), "field with name");
 
                     if let Some(sub_type_strategy) = sub_type_strategy {
-                        check_field_tag!(ctx, field, *sub_type_strategy);
+                        check_field_tag!(diag, field, *sub_type_strategy);
                     }
 
                     if let Some(reserved) = reserved {
-                        check_field_reserved!(ctx, field, reserved);
+                        check_field_reserved!(diag, field, reserved);
                     }
 
                     fields.push(field);
                 }
-                Code(code) => codes.push(code.into_model(scope)?),
+                Code(code) => codes.push(code.into_model(diag, scope)?),
                 InnerDecl(d) => {
-                    let d = d.into_model(scope)?;
-                    check_conflict!(ctx, decl_idents, d, d.ident(), "inner declaration");
+                    let d = d.into_model(diag, scope)?;
+                    check_conflict!(diag, decl_idents, d, d.ident(), "inner declaration");
                     decls.push(d);
                 }
             }
@@ -1284,11 +1383,9 @@ impl<'input> IntoModel for (Vec<TypeMember<'input>>, MemberConstraint<'input>) {
 impl<'input> IntoModel for Code<'input> {
     type Output = RpCode;
 
-    fn into_model(self, scope: &Scope) -> Result<Self::Output> {
-        let mut attributes = self.attributes.into_model(scope)?;
-        let context = self.context.into_model(scope)?;
-
-        let ctx = scope.ctx();
+    fn into_model(self, diag: &mut Diagnostics, scope: &Scope) -> Result<Self::Output> {
+        let mut attributes = self.attributes.into_model(diag, scope)?;
+        let context = self.context.into_model(diag, scope)?;
 
         // Context-specific settings.
         let context = {
@@ -1298,7 +1395,7 @@ impl<'input> IntoModel for Code<'input> {
                 "csharp" => core::RpContext::Csharp {},
                 "go" => core::RpContext::Go {},
                 "java" => {
-                    let imports = attributes::import(scope, &mut attributes)?;
+                    let imports = attributes::import(diag, &mut attributes)?;
                     core::RpContext::Java { imports: imports }
                 }
                 "js" => core::RpContext::Js {},
@@ -1307,14 +1404,13 @@ impl<'input> IntoModel for Code<'input> {
                 "rust" => core::RpContext::Rust {},
                 "swift" => core::RpContext::Swift {},
                 context => {
-                    let mut r = ctx.report();
-                    r.err(span, format!("context `{}` not recognized", context));
-                    return Err(r.into());
+                    diag.err(span, format!("context `{}` not recognized", context));
+                    return Err(());
                 }
             }
         };
 
-        check_attributes!(ctx, attributes);
+        check_attributes!(diag, attributes);
 
         Ok(RpCode {
             context: context,
@@ -1326,14 +1422,14 @@ impl<'input> IntoModel for Code<'input> {
 impl<'input> IntoModel for Value<'input> {
     type Output = RpValue;
 
-    fn into_model(self, scope: &Scope) -> Result<RpValue> {
+    fn into_model(self, diag: &mut Diagnostics, scope: &Scope) -> Result<RpValue> {
         use self::Value::*;
 
         let out = match self {
             String(string) => core::RpValue::String(string),
             Number(number) => core::RpValue::Number(number),
             Identifier(identifier) => core::RpValue::Identifier(identifier.to_string()),
-            Array(inner) => core::RpValue::Array(inner.into_model(scope)?),
+            Array(inner) => core::RpValue::Array(inner.into_model(diag, scope)?),
         };
 
         Ok(out)
@@ -1343,10 +1439,8 @@ impl<'input> IntoModel for Value<'input> {
 impl<'input> IntoModel for Vec<Loc<Attribute<'input>>> {
     type Output = Attributes;
 
-    fn into_model(self, scope: &Scope) -> Result<Attributes> {
+    fn into_model(self, diag: &mut Diagnostics, scope: &Scope) -> Result<Attributes> {
         use self::Attribute::*;
-
-        let ctx = scope.ctx();
 
         let mut words = HashMap::new();
         let mut selections = HashMap::new();
@@ -1356,17 +1450,16 @@ impl<'input> IntoModel for Vec<Loc<Attribute<'input>>> {
 
             match attr {
                 Word(word) => {
-                    let (word, span) = Loc::take_pair(word.into_model(scope)?);
+                    let (word, span) = Loc::take_pair(word.into_model(diag, scope)?);
 
                     if let Some(old) = words.insert(word, span.clone()) {
-                        let mut r = ctx.report();
-                        r.err(span, "word already present");
-                        r.info(old, "old attribute here");
-                        return Err(r.into());
+                        diag.err(span, "word already present");
+                        diag.info(old, "old attribute here");
+                        return Err(());
                     }
                 }
                 List(key, name_values) => {
-                    let key = Loc::take(key.into_model(scope)?);
+                    let key = Loc::take(key.into_model(diag, scope)?);
 
                     match selections.entry(key) {
                         hash_map::Entry::Vacant(entry) => {
@@ -1376,12 +1469,12 @@ impl<'input> IntoModel for Vec<Loc<Attribute<'input>>> {
                             for name_value in name_values {
                                 match name_value {
                                     AttributeItem::Word(word) => {
-                                        words.push(word.into_model(scope)?);
+                                        words.push(word.into_model(diag, scope)?);
                                     }
                                     AttributeItem::NameValue { name, value } => {
-                                        let name = name.into_model(scope)?;
-                                        let value = value.into_model(scope)?;
-                                        values.insert(Loc::value(&name).clone(), (name, value));
+                                        let name = name.into_model(diag, scope)?;
+                                        let value = value.into_model(diag, scope)?;
+                                        values.insert(Loc::borrow(&name).clone(), (name, value));
                                     }
                                 }
                             }
@@ -1390,10 +1483,9 @@ impl<'input> IntoModel for Vec<Loc<Attribute<'input>>> {
                             entry.insert(Loc::new(selection, attr_pos));
                         }
                         hash_map::Entry::Occupied(entry) => {
-                            let mut r = ctx.report();
-                            r.err(attr_pos, "attribute already present");
-                            r.info(Loc::span(entry.get()), "attribute here");
-                            return Err(r.into());
+                            diag.err(attr_pos, "attribute already present");
+                            diag.info(Loc::span(entry.get()), "attribute here");
+                            return Err(());
                         }
                     }
                 }
@@ -1407,57 +1499,59 @@ impl<'input> IntoModel for Vec<Loc<Attribute<'input>>> {
 #[allow(unused)]
 type Variables<'a> = HashMap<&'a str, &'a RpEndpointArgument>;
 
-impl<'input, 'a: 'input> IntoModel for (&'input mut Variables<'a>, PathSpec<'input>) {
+impl<'input, 'a: 'input> IntoModel for (Span, &'input mut Variables<'a>, PathSpec<'input>) {
     type Output = RpPathSpec;
 
-    fn into_model(self, scope: &Scope) -> Result<Self::Output> {
-        let (vars, spec) = self;
+    fn into_model(self, diag: &mut Diagnostics, scope: &Scope) -> Result<Self::Output> {
+        let (span, vars, spec) = self;
 
         let mut out = Vec::new();
 
         for s in spec.steps {
-            out.push((&mut *vars, s).into_model(scope)?);
+            out.push((span, &mut *vars, s).into_model(diag, scope)?);
         }
 
         Ok(RpPathSpec { steps: out })
     }
 }
 
-impl<'input, 'a: 'input> IntoModel for (&'input mut Variables<'a>, PathStep<'input>) {
+impl<'input, 'a: 'input> IntoModel for (Span, &'input mut Variables<'a>, PathStep<'input>) {
     type Output = RpPathStep;
 
-    fn into_model(self, scope: &Scope) -> Result<Self::Output> {
-        let (vars, step) = self;
+    fn into_model(self, diag: &mut Diagnostics, scope: &Scope) -> Result<Self::Output> {
+        let (span, vars, step) = self;
 
         let mut out = Vec::new();
 
         for p in step.parts {
-            out.push((&mut *vars, p).into_model(scope)?);
+            out.push((span, &mut *vars, p).into_model(diag, scope)?);
         }
 
         Ok(RpPathStep { parts: out })
     }
 }
 
-impl<'input, 'a: 'input> IntoModel for (&'input mut Variables<'a>, PathPart<'input>) {
+impl<'input, 'a: 'input> IntoModel for (Span, &'input mut Variables<'a>, PathPart<'input>) {
     type Output = RpPathPart;
 
-    fn into_model(self, scope: &Scope) -> Result<Self::Output> {
-        let (vars, part) = self;
+    fn into_model(self, diag: &mut Diagnostics, scope: &Scope) -> Result<Self::Output> {
+        let (span, vars, part) = self;
 
         use self::PathPart::*;
 
         let out = match part {
             Variable(variable) => {
-                let var = variable.into_model(scope)?;
+                let var = variable.into_model(diag, scope)?;
 
                 let var = match vars.remove(var.as_str()) {
                     Some(rp) => rp.clone(),
                     None => {
-                        return Err(format!(
-                            "path variable `{}` is not an argument to endpoint",
-                            var
-                        ).into());
+                        diag.err(
+                            span,
+                            format!("path variable `{}` is not an argument to endpoint", var),
+                        );
+
+                        return Err(());
                     }
                 };
 

@@ -2,8 +2,8 @@
 
 use backend::IntoBytes;
 use compiler::Compiler;
-use core::errors::Result;
 use core::RpPackage;
+use core::errors::Result;
 use genco::{Rust, Tokens};
 
 pub struct RustFileSpec<'a>(pub Tokens<'a, Rust<'a>>);

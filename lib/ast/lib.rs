@@ -1,32 +1,34 @@
 extern crate reproto_core as core;
+extern crate reproto_lexer as lexer;
 
 use core::errors::Result;
-use core::{Loc, RpNumber, RpPackage, WithSpan};
+use core::{Loc, RpNumber, RpPackage};
+use lexer::Token;
 use std::borrow::Cow;
 use std::ops;
-use std::result;
+use std::vec;
 
 /// A value that can be error-recovered.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ErrorRecovery<T> {
-    Error,
+pub enum ErrorRecovery<'input, T> {
+    Error(Vec<(usize, Token<'input>, usize)>),
     Value(T),
 }
 
-impl<T> ErrorRecovery<T> {
+impl<'input, T> ErrorRecovery<'input, T> {
     /// Return the value or an error.
     pub fn recover(self) -> Result<T> {
         use self::ErrorRecovery::*;
 
         match self {
-            Error => Err("value not available".into()),
+            Error(_) => Err("value not available".into()),
             Value(value) => Ok(value),
         }
     }
 }
 
-impl<T> From<T> for ErrorRecovery<T> {
-    fn from(value: T) -> ErrorRecovery<T> {
+impl<'input, T> From<T> for ErrorRecovery<'input, T> {
+    fn from(value: T) -> ErrorRecovery<'input, T> {
         ErrorRecovery::Value(value)
     }
 }
@@ -53,22 +55,7 @@ impl<'input, T> ops::Deref for Item<'input, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        Loc::value(&self.item)
-    }
-}
-
-impl<'input, T> Item<'input, T> {
-    pub fn map<F, E: WithSpan, U>(self, f: F) -> result::Result<Loc<U>, E>
-    where
-        F: FnOnce(Vec<Cow<'input, str>>, Vec<Loc<Attribute<'input>>>, Loc<T>)
-            -> result::Result<U, E>,
-    {
-        let span = Loc::span(&self.item).clone();
-
-        match f(self.comment, self.attributes, self.item) {
-            Ok(o) => Ok(Loc::new(o, span)),
-            Err(e) => Err(e.with_span(span)),
-        }
+        Loc::borrow(&self.item)
     }
 }
 
@@ -111,7 +98,7 @@ pub enum Attribute<'input> {
 ///
 /// For example: `u32`, `::Relative::Name`, or `bytes`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Type {
+pub enum Type<'input> {
     Double,
     Float,
     Signed {
@@ -127,14 +114,14 @@ pub enum Type {
     /// ISO-8601 for date and time.
     DateTime,
     Name {
-        name: Name,
+        name: Name<'input>,
     },
     Array {
-        inner: Box<Type>,
+        inner: Box<Type<'input>>,
     },
     Map {
-        key: Box<Type>,
-        value: Box<Type>,
+        key: Box<Type<'input>>,
+        value: Box<Type<'input>>,
     },
 }
 
@@ -149,6 +136,7 @@ pub enum Decl<'input> {
 }
 
 impl<'input> Decl<'input> {
+    /// Get the local name for the declaration.
     pub fn name(&self) -> &str {
         use self::Decl::*;
 
@@ -159,6 +147,35 @@ impl<'input> Decl<'input> {
             Enum(ref body) => &body.name,
             Service(ref body) => &body.name,
         }
+    }
+
+    /// Get all the sub-declarations of this declaraiton.
+    pub fn decls(&self) -> Decls {
+        use self::Decl::*;
+
+        let decls = match *self {
+            Type(ref body) => body.decls(),
+            Tuple(ref body) => body.decls(),
+            Interface(ref body) => body.decls(),
+            Enum(ref body) => body.decls(),
+            Service(ref body) => body.decls(),
+        };
+
+        Decls {
+            iter: decls.into_iter(),
+        }
+    }
+}
+
+pub struct Decls<'a, 'input: 'a> {
+    iter: vec::IntoIter<&'a Decl<'input>>,
+}
+
+impl<'a, 'input: 'a> Iterator for Decls<'a, 'input> {
+    type Item = &'a Decl<'input>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next()
     }
 }
 
@@ -176,9 +193,16 @@ impl<'input> Decl<'input> {
 #[derive(Debug, PartialEq, Eq)]
 pub struct EnumBody<'input> {
     pub name: Cow<'input, str>,
-    pub ty: Loc<Type>,
+    pub ty: Loc<Type<'input>>,
     pub variants: Vec<Item<'input, EnumVariant<'input>>>,
     pub members: Vec<EnumMember<'input>>,
+}
+
+impl<'input> EnumBody<'input> {
+    /// Access all inner declarations.
+    fn decls(&self) -> Vec<&Decl<'input>> {
+        Vec::new()
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -202,7 +226,7 @@ pub enum EnumMember<'input> {
 pub struct Field<'input> {
     pub required: bool,
     pub name: Cow<'input, str>,
-    pub ty: Loc<ErrorRecovery<Type>>,
+    pub ty: Loc<ErrorRecovery<'input, Type<'input>>>,
     pub field_as: Option<String>,
 }
 
@@ -245,13 +269,13 @@ impl<'input> Field<'input> {
 ///
 /// Note: prefixes names are _always_ imported with `UseDecl`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Name {
+pub enum Name<'input> {
     Relative {
-        parts: Vec<String>,
+        parts: Vec<Loc<Cow<'input, str>>>,
     },
     Absolute {
-        prefix: Option<String>,
-        parts: Loc<ErrorRecovery<Vec<String>>>,
+        prefix: Option<Loc<Cow<'input, str>>>,
+        parts: Vec<Loc<Cow<'input, str>>>,
     },
 }
 
@@ -268,6 +292,34 @@ pub struct InterfaceBody<'input> {
     pub name: Cow<'input, str>,
     pub members: Vec<TypeMember<'input>>,
     pub sub_types: Vec<Item<'input, SubType<'input>>>,
+}
+
+impl<'input> InterfaceBody<'input> {
+    /// Access all inner declarations.
+    fn decls(&self) -> Vec<&Decl<'input>> {
+        let mut out = Vec::new();
+
+        for m in &self.members {
+            if let TypeMember::InnerDecl(ref decl) = *m {
+                out.push(decl);
+            }
+        }
+
+        out
+    }
+
+    /// Access all fields.
+    pub fn fields(&self) -> Vec<&Field<'input>> {
+        let mut out = Vec::new();
+
+        for m in &self.members {
+            if let TypeMember::Field(ref field) = *m {
+                out.push(Loc::borrow(&field.item));
+            }
+        }
+
+        out
+    }
 }
 
 /// A contextual code-block.
@@ -299,6 +351,21 @@ pub struct ServiceBody<'input> {
     pub members: Vec<ServiceMember<'input>>,
 }
 
+impl<'input> ServiceBody<'input> {
+    /// Access all inner declarations.
+    fn decls(&self) -> Vec<&Decl<'input>> {
+        let mut out = Vec::new();
+
+        for m in &self.members {
+            if let ServiceMember::InnerDecl(ref decl) = *m {
+                out.push(decl);
+            }
+        }
+
+        out
+    }
+}
+
 /// A member of a service declaration.
 #[derive(Debug, PartialEq, Eq)]
 pub enum ServiceMember<'input> {
@@ -310,7 +377,7 @@ pub enum ServiceMember<'input> {
 #[derive(Debug, PartialEq, Eq)]
 pub struct EndpointArgument<'input> {
     pub ident: Loc<Cow<'input, str>>,
-    pub channel: Loc<Channel>,
+    pub channel: Loc<Channel<'input>>,
 }
 
 /// An endpoint
@@ -325,7 +392,7 @@ pub struct Endpoint<'input> {
     pub id: Loc<Cow<'input, str>>,
     pub alias: Option<String>,
     pub arguments: Vec<EndpointArgument<'input>>,
-    pub response: Option<Loc<Channel>>,
+    pub response: Option<Loc<Channel<'input>>>,
 }
 
 /// Describes how data is transferred over a channel.
@@ -335,11 +402,11 @@ pub struct Endpoint<'input> {
 /// Streaming(<ty>)
 /// ```
 #[derive(Debug, PartialEq, Eq)]
-pub enum Channel {
+pub enum Channel<'input> {
     /// Single send.
-    Unary { ty: Type },
+    Unary { ty: Type<'input> },
     /// Multiple sends.
-    Streaming { ty: Type },
+    Streaming { ty: Type<'input> },
 }
 
 /// The body of a sub-type
@@ -370,6 +437,34 @@ pub struct TupleBody<'input> {
     pub members: Vec<TypeMember<'input>>,
 }
 
+impl<'input> TupleBody<'input> {
+    /// Access all inner declarations.
+    fn decls(&self) -> Vec<&Decl<'input>> {
+        let mut out = Vec::new();
+
+        for m in &self.members {
+            if let TypeMember::InnerDecl(ref decl) = *m {
+                out.push(decl);
+            }
+        }
+
+        out
+    }
+
+    /// Access all fields.
+    pub fn fields(&self) -> Vec<&Field<'input>> {
+        let mut out = Vec::new();
+
+        for m in &self.members {
+            if let TypeMember::Field(ref field) = *m {
+                out.push(Loc::borrow(&field.item));
+            }
+        }
+
+        out
+    }
+}
+
 /// The body of a type
 ///
 /// ```ignore
@@ -381,6 +476,34 @@ pub struct TupleBody<'input> {
 pub struct TypeBody<'input> {
     pub name: Cow<'input, str>,
     pub members: Vec<TypeMember<'input>>,
+}
+
+impl<'input> TypeBody<'input> {
+    /// Access all inner declarations.
+    fn decls(&self) -> Vec<&Decl<'input>> {
+        let mut out = Vec::new();
+
+        for m in &self.members {
+            if let TypeMember::InnerDecl(ref decl) = *m {
+                out.push(decl);
+            }
+        }
+
+        out
+    }
+
+    /// Access all fields.
+    pub fn fields(&self) -> Vec<&Field<'input>> {
+        let mut out = Vec::new();
+
+        for m in &self.members {
+            if let TypeMember::Field(ref field) = *m {
+                out.push(Loc::borrow(&field.item));
+            }
+        }
+
+        out
+    }
 }
 
 /// A use declaration

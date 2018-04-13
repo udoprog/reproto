@@ -230,8 +230,8 @@ impl GrpcClient {
     fn method_type(&self, e: &Loc<JavaEndpoint>) -> Result<MethodType> {
         use core::RpChannel::*;
 
-        let request = e.request.as_ref().map(|v| Loc::value(&v.channel));
-        let response = e.response.as_ref().map(|v| Loc::value(v));
+        let request = e.request.as_ref().map(|v| Loc::borrow(&v.channel));
+        let response = e.response.as_ref().map(|v| Loc::borrow(v));
 
         let out = match (request, response) {
             (Some(&Unary { .. }), Some(&Unary { .. })) => MethodType::Unary,

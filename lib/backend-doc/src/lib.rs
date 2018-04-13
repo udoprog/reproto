@@ -33,8 +33,8 @@ pub const DEFAULT_THEME: &str = "light";
 pub const DEFAULT_SYNTAX_THEME: &str = "ayu-mirage";
 
 use clap::{App, Arg, ArgMatches};
-use core::errors::*;
 use core::CoreFlavor;
+use core::errors::*;
 use doc_compiler::DocCompiler;
 use manifest::Manifest;
 use std::collections::HashMap;

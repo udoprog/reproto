@@ -3,7 +3,7 @@
 use super::{DOC_CSS_NAME, NORMALIZE_CSS_NAME};
 use core::errors::*;
 use core::flavored::{RpDecl, RpField, RpName, RpType, RpVersionedPackage};
-use core::{self, AsPackage, CoreFlavor, ForEachLoc, Loc, WithSpan};
+use core::{self, AsPackage, CoreFlavor, Loc};
 use doc_builder::DocBuilder;
 use escape::Escape;
 use macros::FormatAttribute;
@@ -185,7 +185,10 @@ pub trait Processor<'env> {
     where
         I: Iterator<Item = &'b Loc<RpField>>,
     {
-        fields.for_each_loc(|field| self.field(field))?;
+        for field in fields {
+            self.field(field)?;
+        }
+
         Ok(())
     }
 
@@ -206,7 +209,7 @@ pub trait Processor<'env> {
         I: Iterator<Item = &'b RpDecl>,
     {
         for decl in decls {
-            self.nested_decl(decl).with_span(decl.span())?;
+            self.nested_decl(decl)?;
         }
 
         Ok(())

@@ -1,10 +1,9 @@
 //! build command
 
-use build_spec::{convert_lang, environment, manifest, manifest_preamble};
+use build_spec::{environment, load_manifest};
 use clap::{App, Arg, ArgMatches, SubCommand};
-use core::errors::Result;
 use core::Context;
-use manifest::Language;
+use core::errors::Result;
 use std::rc::Rc;
 
 pub fn options<'a, 'b>() -> App<'a, 'b> {
@@ -21,19 +20,11 @@ pub fn options<'a, 'b>() -> App<'a, 'b> {
 }
 
 pub fn entry(ctx: Rc<Context>, matches: &ArgMatches) -> Result<()> {
-    let preamble = manifest_preamble(matches)?;
-
-    let language = preamble
-        .language
-        .as_ref()
-        .cloned()
-        .or_else(|| matches.value_of("lang").and_then(Language::parse))
-        .ok_or_else(|| "no language specified either through manifest or cli (--lang)")?;
-
-    let lang = convert_lang(language);
-
-    let manifest = manifest(lang.as_ref(), matches, preamble)?;
-    let env = environment(lang.as_ref(), ctx.clone(), &manifest)?;
+    let manifest = load_manifest(matches)?;
+    let lang = manifest.lang().ok_or_else(|| {
+        "no language to build for, either specify in manifest under `language` or `--lang`"
+    })?;
+    let env = environment(ctx.clone(), lang.copy(), &manifest)?;
 
     lang.compile(ctx, env, manifest)?;
     Ok(())

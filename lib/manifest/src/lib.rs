@@ -463,31 +463,13 @@ pub struct Repository {
     pub objects: Option<String>,
 }
 
-/// The first part when the manifest was read.
-#[derive(Debug, Clone, Default)]
-pub struct ManifestPreamble {
-    pub language: Option<Language>,
-    pub path: Option<PathBuf>,
-    value: toml::value::Table,
-}
-
-impl ManifestPreamble {
-    pub fn new(language: Option<Language>, path: Option<&Path>) -> ManifestPreamble {
-        ManifestPreamble {
-            language: language,
-            path: path.map(|p| p.to_owned()),
-            value: toml::value::Table::default(),
-        }
-    }
-}
-
 /// The realized project manifest.
 ///
 /// * All paths are absolute.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Manifest {
     /// Language manifest is being compiled for.
-    pub lang: Box<Lang>,
+    pub lang: Option<Box<Lang>>,
     /// Path where manifest was loaded from.
     pub path: Option<PathBuf>,
     /// Packages to build.
@@ -517,22 +499,51 @@ pub struct Manifest {
 }
 
 impl Manifest {
-    pub fn new(lang: Box<Lang>, path: Option<&Path>) -> Self {
-        Self {
-            lang: lang,
-            path: path.map(|p| p.to_owned()),
-            packages: Vec::default(),
-            files: Vec::default(),
-            stdin: false,
-            publish: Vec::default(),
-            modules: Vec::default(),
-            paths: Vec::default(),
-            output: Option::default(),
-            package_prefix: Option::default(),
-            id_converter: Option::default(),
-            repository: Repository::default(),
-            doc: Doc::default(),
+    /// Load from YAML.
+    pub fn from_yaml<R, C>(&mut self, mut reader: R, convert_language: C) -> Result<()>
+    where
+        R: Read,
+        C: Fn(Language) -> Box<Lang>,
+    {
+        let mut value = {
+            let mut content = String::new();
+            reader.read_to_string(&mut content)?;
+            toml::from_str(content.as_str())?
+        };
+
+        if let Some(lang) = take_field::<Option<Language>>(&mut value, "language")? {
+            // Already set, do not override.
+            if self.lang.is_none() {
+                self.lang = Some(convert_language(lang));
+            }
         }
+
+        let modules = take_field(&mut value, "modules")?;
+
+        // Only load components if we have a parent path.
+        if let Some(path) = self.path.clone() {
+            let parent = path.parent()
+                .ok_or_else(|| format!("path does not have a parent: {}", path.display()))?;
+
+            if let Some(lang) = self.lang.as_ref() {
+                self.modules.extend(lang.module_specs(parent, modules)?);
+            }
+
+            load_common_manifest(self, parent, &mut value)?;
+        }
+
+        check_empty(&value)?;
+        Ok(())
+    }
+
+    /// Access language to build for.
+    pub fn lang(&self) -> Option<Box<Lang>> {
+        self.lang.as_ref().map(|l| l.copy())
+    }
+
+    /// Access language to build for, or fall back to `NoLang` which is a no-operation language.
+    pub fn lang_or_nolang(&self) -> Box<Lang> {
+        self.lang().unwrap_or_else(|| Box::new(NoLang))
     }
 }
 
@@ -693,46 +704,6 @@ pub fn load_common_manifest(
     }
 }
 
-/// Read and parse the manifest as TOML, extracting the language (if present) in the process.
-pub fn read_manifest_preamble<'a, P: AsRef<Path>, R: Read>(
-    path: P,
-    mut reader: R,
-) -> Result<ManifestPreamble> {
-    let path = path.as_ref();
-
-    let mut content = String::new();
-    reader.read_to_string(&mut content)?;
-
-    let mut value: toml::value::Table = toml::from_str(content.as_str())
-        .map_err(|e| format!("{}: bad manifest: {}", path.display(), e))?;
-
-    let language = take_field::<Option<Language>>(&mut value, "language")?;
-
-    Ok(ManifestPreamble {
-        language: language,
-        path: Some(path.to_owned()),
-        value: value,
-    })
-}
-
-/// Read the given manifest.
-///
-/// Takes a path since it's used to convert declarations.
-/// Returns `true` if the manifest is present, `false` otherwise.
-pub fn read_manifest(lang: &Lang, mut preamble: ManifestPreamble) -> Result<Manifest> {
-    let mut manifest = Manifest::new(lang.copy(), preamble.path.as_ref().map(AsRef::as_ref));
-
-    // Only load components if we have a parent path.
-    if let Some(parent) = preamble.path.as_ref().and_then(|p| p.parent()) {
-        let modules = take_field(&mut preamble.value, "modules")?;
-        manifest.modules.extend(lang.module_specs(parent, modules)?);
-        load_common_manifest(&mut manifest, parent, &mut preamble.value)?;
-    }
-
-    check_empty(&preamble.value)?;
-    Ok(manifest)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -750,12 +721,8 @@ mod tests {
     macro_rules! include_manifest {
         ($name:expr) => {{
             let path = Path::new(".").join($name);
-
-            let preamble = read_manifest_preamble(&path, Cursor::new(include_vec!($name)))
-                .expect("to read preamble of manifest");
-
-            let lang = Box::new(NoLang) as Box<Lang>;
-            read_manifest(lang.as_ref(), preamble).expect("to read manifest")
+            let reader = Cursor::new(include_vec!($name));
+            read_manifest(path, reader, |_| Box::new(NoLang)).expect("to read manifest")
         }};
     }
 

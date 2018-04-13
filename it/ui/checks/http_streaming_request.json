@@ -1,7 +1,7 @@
 {
   "status": false,
   "stdout": [
-    "ERROR: No version for package: http_streaming_request"
+    "ERROR: no version for package: http_streaming_request"
   ],
   "stderr": []
 }

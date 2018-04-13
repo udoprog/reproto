@@ -1,9 +1,9 @@
+use Span;
 use serde;
 use std::borrow;
 use std::cmp;
 use std::hash;
 use std::result;
-use {Span, WithSpan};
 
 #[derive(Clone)]
 pub struct Loc<T> {
@@ -28,12 +28,8 @@ impl<T> Loc<T> {
         }
     }
 
-    pub fn value(loc: &Loc<T>) -> &T {
-        &loc.inner
-    }
-
-    pub fn span(loc: &Loc<T>) -> &Span {
-        &loc.span
+    pub fn span(loc: &Loc<T>) -> Span {
+        loc.span
     }
 
     pub fn take(loc: Loc<T>) -> T {
@@ -44,8 +40,12 @@ impl<T> Loc<T> {
         (loc.inner, loc.span)
     }
 
-    pub fn borrow_pair(loc: &Loc<T>) -> (&T, &Span) {
-        (&loc.inner, &loc.span)
+    pub fn borrow(loc: &Loc<T>) -> &T {
+        &loc.inner
+    }
+
+    pub fn borrow_pair(loc: &Loc<T>) -> (&T, Span) {
+        (&loc.inner, loc.span)
     }
 
     pub fn map<U, O>(loc: Loc<T>, op: O) -> Loc<U>
@@ -55,20 +55,16 @@ impl<T> Loc<T> {
         Loc::new(op(loc.inner), loc.span.clone())
     }
 
-    pub fn and_then<U, O, E: WithSpan>(
-        Loc { inner, span }: Loc<T>,
-        op: O,
-    ) -> result::Result<Loc<U>, E>
+    pub fn as_ref(loc: &Loc<T>) -> Loc<&T> {
+        Loc::new(&loc.inner, loc.span.clone())
+    }
+
+    /// Apply the fallible operation over the given location.
+    pub fn and_then<U, O, E>(Loc { inner, span }: Loc<T>, op: O) -> result::Result<Loc<U>, E>
     where
         O: FnOnce(T) -> result::Result<U, E>,
     {
-        op(inner)
-            .map(|value| Loc::new(value, span.clone()))
-            .with_span(&span)
-    }
-
-    pub fn as_ref(loc: &Loc<T>) -> Loc<&T> {
-        Loc::new(&loc.inner, loc.span.clone())
+        op(inner).map(|value| Loc::new(value, span.clone()))
     }
 }
 

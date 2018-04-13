@@ -1,10 +1,10 @@
 //! Update action that synchronizes all repositories.
 
-use build_spec::{convert_lang, manifest, manifest_preamble, repository};
+use build_spec::load_manifest;
 use clap::{App, ArgMatches, SubCommand};
-use core::errors::*;
 use core::Context;
-use manifest::NoLang;
+use core::errors::*;
+use env;
 use repository::Update;
 use std::collections::HashSet;
 use std::rc::Rc;
@@ -15,17 +15,9 @@ pub fn options<'a, 'b>() -> App<'a, 'b> {
 }
 
 pub fn entry(_ctx: Rc<Context>, matches: &ArgMatches) -> Result<()> {
-    let preamble = manifest_preamble(matches)?;
+    let manifest = load_manifest(matches)?;
 
-    let lang = preamble
-        .language
-        .as_ref()
-        .map(|l| convert_lang(*l))
-        .unwrap_or_else(|| Box::new(NoLang));
-
-    let manifest = manifest(lang.as_ref(), matches, preamble)?;
-
-    let repository = repository(&manifest)?;
+    let repository = env::repository(&manifest)?;
     let updates: HashSet<Update> = repository.update()?.into_iter().collect();
 
     for update in updates {

@@ -1,11 +1,11 @@
 //! Module that adds fasterxml annotations to generated classes.
 
+use Options;
 use backend::Initializer;
 use core::errors::Result;
 use genco::{Cons, Python, Tokens};
 use std::rc::Rc;
 use utils::VersionHelper;
-use Options;
 
 #[derive(Debug, Default, Deserialize)]
 pub struct Config {}

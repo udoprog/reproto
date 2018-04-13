@@ -1,7 +1,6 @@
 //! # Helper data structure do handle option lookups
 
-use errors::Result;
-use {Loc, OptionEntry, RpNumber, WithSpan};
+use {Diagnostics, Loc, OptionEntry, RpNumber, WithSpan};
 
 /// Helper for looking up and dealing with options.
 pub trait Options {
@@ -20,24 +19,24 @@ pub trait Options {
     /// Find all strings matching the given name.
     ///
     /// This enforces that all found values are strings, otherwise the lookup will cause an error.
-    fn find_all_strings(&self, name: &str) -> Result<Vec<Loc<String>>> {
+    fn find_all_strings(&self, diag: &mut Diagnostics, name: &str) -> Result<Vec<Loc<String>>, ()> {
         let mut out = Vec::new();
 
         for s in self.lookup(name) {
             let (value, span) = Loc::take_pair(s);
-            let string = value.as_string().with_span(&span)?;
+            let string = value.as_string().with_span(diag, &span)?;
             out.push(Loc::new(string, span));
         }
 
         Ok(out)
     }
 
-    fn find_all_u32(&self, name: &str) -> Result<Vec<Loc<RpNumber>>> {
+    fn find_all_u32(&self, diag: &mut Diagnostics, name: &str) -> Result<Vec<Loc<RpNumber>>, ()> {
         let mut out = Vec::new();
 
         for s in self.lookup(name) {
             let (value, span) = Loc::take_pair(s);
-            let number = value.as_number().with_span(&span)?;
+            let number = value.as_number().with_span(diag, &span)?;
             out.push(Loc::new(number, span));
         }
 
@@ -48,12 +47,16 @@ pub trait Options {
     ///
     /// This enforces that all found values are identifiers, otherwise the lookup will cause an
     /// error.
-    fn find_all_identifiers(&self, name: &str) -> Result<Vec<Loc<String>>> {
+    fn find_all_identifiers(
+        &self,
+        diag: &mut Diagnostics,
+        name: &str,
+    ) -> Result<Vec<Loc<String>>, ()> {
         let mut out = Vec::new();
 
         for s in self.lookup(name) {
             let (value, span) = Loc::take_pair(s);
-            let identifier = value.as_identifier().with_span(&span)?;
+            let identifier = value.as_identifier().with_span(diag, &span)?;
             out.push(Loc::new(identifier, span));
         }
 
@@ -64,16 +67,28 @@ pub trait Options {
     ///
     /// This enforces that all found values are identifiers, otherwise the lookup will cause an
     /// error.
-    fn find_one_identifier(&self, name: &str) -> Result<Option<Loc<String>>> {
-        Ok(self.find_all_identifiers(name)?.into_iter().next())
+    fn find_one_identifier(
+        &self,
+        diag: &mut Diagnostics,
+        name: &str,
+    ) -> Result<Option<Loc<String>>, ()> {
+        Ok(self.find_all_identifiers(diag, name)?.into_iter().next())
     }
 
-    fn find_one_string(&self, name: &str) -> Result<Option<Loc<String>>> {
-        Ok(self.find_all_strings(name)?.into_iter().next())
+    fn find_one_string(
+        &self,
+        diag: &mut Diagnostics,
+        name: &str,
+    ) -> Result<Option<Loc<String>>, ()> {
+        Ok(self.find_all_strings(diag, name)?.into_iter().next())
     }
 
-    fn find_one_u32(&self, name: &str) -> Result<Option<Loc<RpNumber>>> {
-        Ok(self.find_all_u32(name)?.into_iter().next())
+    fn find_one_u32(
+        &self,
+        diag: &mut Diagnostics,
+        name: &str,
+    ) -> Result<Option<Loc<RpNumber>>, ()> {
+        Ok(self.find_all_u32(diag, name)?.into_iter().next())
     }
 }
 

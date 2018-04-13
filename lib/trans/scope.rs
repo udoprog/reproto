@@ -1,14 +1,13 @@
 //! Propagates scope-specific information to `into_model` transformations.
 
 use core::errors::{Error, Result};
-use core::{Context, CoreFlavor, RpName, RpVersionedPackage};
+use core::{CoreFlavor, RpName, RpVersionedPackage};
 use naming::Naming;
 use std::collections::HashMap;
 use std::rc::Rc;
 
 /// Root of the scope.
 pub struct Root {
-    ctx: Rc<Context>,
     package: RpVersionedPackage,
     prefixes: HashMap<String, RpVersionedPackage>,
     pub endpoint_naming: Option<Box<Naming>>,
@@ -33,7 +32,6 @@ pub struct Scope(Rc<Inner>);
 
 impl Scope {
     pub fn new(
-        ctx: Rc<Context>,
         package: RpVersionedPackage,
         prefixes: HashMap<String, RpVersionedPackage>,
         keywords: Rc<HashMap<String, String>>,
@@ -41,7 +39,6 @@ impl Scope {
         endpoint_ident_naming: Option<Box<Naming>>,
     ) -> Scope {
         let root = Rc::new(Root {
-            ctx,
             package,
             prefixes,
             endpoint_naming: None,
@@ -89,13 +86,8 @@ impl Scope {
         }))
     }
 
-    /// Access the error context.
-    pub fn ctx(&self) -> &Context {
-        self.root().ctx.as_ref()
-    }
-
     /// Lookup what package a given prefix belongs to.
-    pub fn lookup_prefix(&self, prefix: &String) -> Option<RpVersionedPackage> {
+    pub fn lookup_prefix(&self, prefix: &str) -> Option<RpVersionedPackage> {
         self.root().prefixes.get(prefix).map(Clone::clone)
     }
 
@@ -173,7 +165,6 @@ impl Iterator for ScopeWalker {
 #[cfg(test)]
 mod tests {
     use core::CapturingFilesystem;
-    use core::Context;
     use core::{RpPackage, RpVersionedPackage};
     use scope::Scope;
     use std::collections::HashMap;
@@ -181,12 +172,11 @@ mod tests {
 
     #[test]
     pub fn test_scope() {
-        let ctx = Rc::new(Context::new(Box::new(CapturingFilesystem::new())));
         let package = RpVersionedPackage::new(RpPackage::empty(), None);
         let prefixes = HashMap::new();
         let keywords = Rc::new(HashMap::new());
 
-        let s = Scope::new(ctx, package, prefixes, keywords, None, None);
+        let s = Scope::new(package, prefixes, keywords, None, None);
 
         let s2 = s.child("foo");
         let s3 = s2.child("bar");

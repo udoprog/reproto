@@ -1,3 +1,4 @@
+use Opaque;
 use core;
 use core::errors::Result;
 use format;
@@ -5,7 +6,6 @@ use linked_hash_map::LinkedHashMap;
 use serde_yaml as yaml;
 use sir::{FieldSir, Sir};
 use utils::is_datetime;
-use Opaque;
 
 #[derive(Debug)]
 pub struct Yaml;

@@ -3,6 +3,7 @@ mod check;
 mod derive;
 mod doc;
 mod init;
+mod language_server;
 mod publish;
 mod repo;
 mod self_update;
@@ -10,8 +11,8 @@ mod update;
 mod watch;
 
 use clap::{App, Arg, ArgMatches};
-use core::errors::*;
 use core::Context;
+use core::errors::*;
 use output::Output;
 use std::rc::Rc;
 
@@ -118,6 +119,7 @@ pub fn build_args<'a, 'b>(out: App<'a, 'b>) -> App<'a, 'b> {
 
 pub fn options<'a, 'b>(out: App<'a, 'b>) -> App<'a, 'b> {
     let out = out.subcommand(build_args(build::options()));
+    let out = out.subcommand(build_args(language_server::options()));
     let out = out.subcommand(build_args(doc::options()));
     let out = out.subcommand(build_args(watch::options()));
     let out = out.subcommand(base_args(check::options()));
@@ -136,6 +138,7 @@ pub fn entry(ctx: Rc<Context>, matches: &ArgMatches, output: &Output) -> Result<
 
     match name {
         "build" => return build::entry(ctx, matches),
+        "language-server" => return language_server::entry(ctx, matches),
         "check" => return check::entry(ctx, matches),
         "derive" => return derive::entry(ctx, matches),
         "doc" => return doc::entry(ctx, matches),

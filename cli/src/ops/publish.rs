@@ -1,8 +1,8 @@
-use build_spec::{matches, path_resolver, publish_matches, repository, semck_check, simple_config,
-                 Match};
+use build_spec::{matches, publish_matches, semck_check, simple_config, Match};
 use clap::{App, Arg, ArgMatches, SubCommand};
 use core::errors::*;
 use core::{Context, RpRequiredPackage, Version};
+use env;
 use std::rc::Rc;
 
 pub fn options<'a, 'b>() -> App<'a, 'b> {
@@ -42,7 +42,7 @@ pub fn entry(ctx: Rc<Context>, m: &ArgMatches) -> Result<()> {
     let (manifest, mut env) = simple_config(&ctx, m)?;
 
     let mut manifest_resolver =
-        path_resolver(&manifest)?.ok_or_else(|| "could not setup manifest resolver")?;
+        env::path_resolver(&manifest)?.ok_or_else(|| "could not setup manifest resolver")?;
 
     let version_override = if let Some(version) = m.value_of("version") {
         Some(Version::parse(version)
@@ -76,7 +76,7 @@ pub fn entry(ctx: Rc<Context>, m: &ArgMatches) -> Result<()> {
     let pretend = m.is_present("pretend");
     let no_semck = m.is_present("no-semck");
 
-    let mut repository = repository(&manifest)?;
+    let mut repository = env::repository(&manifest)?;
 
     // errors that would prevent publishing
     let mut semck_errors = Vec::new();

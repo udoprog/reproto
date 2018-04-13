@@ -1,7 +1,7 @@
 //! gRPC module for Rust.
 
-use backend::Initializer;
 use Options;
+use backend::Initializer;
 
 pub struct Module {}
 

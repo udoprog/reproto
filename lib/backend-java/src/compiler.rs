@@ -3,7 +3,7 @@
 use Options;
 use codegen::{ClassAdded, EnumAdded, GetterAdded, InterfaceAdded, ServiceAdded, TupleAdded};
 use core::errors::*;
-use core::{self, ForEachLoc, Handle, Loc, WithSpan};
+use core::{self, Handle, Loc};
 use flavored::{JavaField, JavaFlavor, RpCode, RpDecl, RpEnumBody, RpInterfaceBody, RpServiceBody,
                RpTupleBody, RpTypeBody};
 use genco::java::{self, imported, local, Argument, Class, Constructor, Enum, Field, Interface,
@@ -98,7 +98,7 @@ impl<'el> Compiler<'el> {
         }
 
         for decl in self.env.toplevel_decl_iter() {
-            self.compile_decl(handle, decl).with_span(decl.span())?;
+            self.compile_decl(handle, decl)?;
         }
 
         Ok(())
@@ -670,7 +670,7 @@ impl<'el> Compiler<'el> {
 
         spec.body.push_unless_empty(code(&body.codes));
 
-        body.sub_types.iter().for_each_loc(|sub_type| {
+        for sub_type in &body.sub_types {
             let mut class = Class::new(sub_type.ident.clone());
             class.modifiers = vec![Public, Static];
 
@@ -752,8 +752,7 @@ impl<'el> Compiler<'el> {
             }
 
             spec.body.push(class);
-            Ok(()) as Result<()>
-        })?;
+        }
 
         for generator in &self.options.interface_generators {
             generator.generate(InterfaceAdded {

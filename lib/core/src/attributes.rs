@@ -10,12 +10,12 @@ use std::vec;
 use {Loc, RpValue, Span};
 
 /// Iterator over unused positions.
-pub struct Unused<'a> {
-    iter: vec::IntoIter<&'a Span>,
+pub struct Unused {
+    iter: vec::IntoIter<Span>,
 }
 
-impl<'a> Iterator for Unused<'a> {
-    type Item = &'a Span;
+impl Iterator for Unused {
+    type Item = Span;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.iter.next()

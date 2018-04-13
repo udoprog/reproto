@@ -2,7 +2,7 @@
 
 use backend::PackageProcessor;
 use core::errors::*;
-use core::{self, ForEachLoc, Handle, Loc, RelativePath, RelativePathBuf};
+use core::{self, Handle, Loc, RelativePath, RelativePathBuf};
 use flavored::{RpEnumBody, RpField, RpInterfaceBody, RpName, RpPackage, RpServiceBody,
                RpTupleBody, RpTypeBody, RpVariant, RustFlavor};
 use genco::rust;
@@ -643,7 +643,7 @@ impl<'el> PackageProcessor<'el, RustFlavor, RpName> for Compiler<'el> {
 
         t.push(toks!["pub enum ", name.clone(), " {"]);
 
-        body.sub_types.iter().for_each_loc(|s| {
+        for s in &body.sub_types {
             t.nested({
                 let mut t = Tokens::new();
 
@@ -677,9 +677,7 @@ impl<'el> PackageProcessor<'el, RustFlavor, RpName> for Compiler<'el> {
 
                 t
             });
-
-            Ok(()) as Result<()>
-        })?;
+        }
 
         t.push("}");
 

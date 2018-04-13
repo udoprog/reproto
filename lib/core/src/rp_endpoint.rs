@@ -257,8 +257,8 @@ where
             None => return None,
         };
 
-        let request_ty = endpoint.request.as_ref().map(|r| Loc::value(&r.channel));
-        let response_ty = endpoint.response.as_ref().map(|r| Loc::value(r));
+        let request_ty = endpoint.request.as_ref().map(|r| Loc::borrow(&r.channel));
+        let response_ty = endpoint.response.as_ref().map(|r| Loc::borrow(r));
 
         let (request, response) = match (request_ty, response_ty) {
             (Some(&Unary { ty: ref request }), Some(&Unary { ty: ref response })) => {

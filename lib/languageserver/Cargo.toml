@@ -1,0 +1,33 @@
+[package]
+name = "reproto-languageserver"
+version = "0.3.31"
+authors = ["John-John Tedro <udoprog@tedro.se>"]
+license = "MIT/Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/reproto/reproto"
+homepage = "https://github.com/reproto/reproto"
+documentation = "https://docs.rs/reproto"
+description = """
+Language Server for Reproto
+"""
+
+[dependencies]
+reproto-core = {path = "../core", version = "0.3"}
+reproto-manifest = {path = "../manifest", version = "0.3"}
+reproto-ast = {path = "../ast", version = "0.3"}
+reproto-env = {path = "../env", version = "0.3"}
+reproto-parser = {path = "../parser", version = "0.3"}
+reproto-lexer = {path = "../lexer", version = "0.3"}
+
+languageserver-types = "0.37"
+serde_json = "1.0"
+serde = "1.0"
+serde_derive = "1.0"
+url = "1.7"
+url_serde = "0.2"
+ropey = "0.6"
+log = "0.3"
+linked-hash-map = {version = "0.5", features = ["serde"]}
+
+[lib]
+path = "lib.rs"

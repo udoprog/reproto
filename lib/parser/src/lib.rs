@@ -10,10 +10,10 @@ extern crate reproto_lexer as lexer;
 mod parser;
 mod utils;
 
-use core::errors::*;
-use core::Source;
+use core::Diagnostics;
+use core::errors::Result;
 use std::io::Read;
-use std::sync::Arc;
+use std::result;
 
 /// Read the full contents of the given reader as a string.
 pub fn read_to_string<'a, R>(mut reader: R) -> Result<String>
@@ -26,61 +26,74 @@ where
 }
 
 /// Parse the given object.
-pub fn parse<'input>(object: Arc<Source>, input: &'input str) -> Result<ast::File<'input>> {
+pub fn parse<'input>(
+    diag: &mut Diagnostics,
+    input: &'input str
+) -> result::Result<ast::File<'input>, ()> {
     use self::lexer::errors::Error::*;
     use lalrpop_util::ParseError::*;
 
     let lexer = lexer::lex(input);
     let parser = parser::FileParser::new();
 
-    match parser.parse(&object, lexer) {
+    match parser.parse(lexer) {
         Ok(file) => Ok(file),
         Err(e) => match e {
             InvalidToken { location } => {
-                let span = (object.clone(), location, location);
-                Err(Error::new("syntax error").with_span(span))
+                let span = (location, location);
+                diag.err(span, "syntax error");
+                Err(())
+            }
+            ExtraToken { token: (start, token, end) } => {
+                diag.err((start, end), format!("extra token: {:?}", token));
+                Err(())
             }
             UnrecognizedToken { token, expected } => {
-                let e = if let Some((start, token, end)) = token {
-                    let span = (object.clone(), start, end);
-                    Error::new(format!(
-                        "syntax error, got token {:?}, expected: {}",
-                        token,
-                        expected.join(", ")
-                    )).with_span(span)
-                } else {
-                    Error::new(format!("syntax error, expected: {}", expected.join(", ")))
+                match token {
+                    Some((start, token, end)) => {
+                        diag.err(
+                            (start, end),
+                            format!(
+                                "syntax error, got token {:?}, expected: {}",
+                                token,
+                                expected.join(", ")
+                            ),
+                        );
+                    }
+                    None => {
+                        let m = format!("syntax error, expected: {}", expected.join(", "));
+                        diag.err((0, 0), m);
+                    }
                 };
 
-                Err(e)
+                return Err(());
             }
             User { error } => match error {
                 UnterminatedString { start } => {
-                    let span = (object.clone(), start, start);
-                    return Err(Error::new("unterminated string").with_span(span));
+                    diag.err((start, start), "unterminated string");
+                    return Err(());
                 }
                 UnterminatedEscape { start } => {
-                    let span = (object.clone(), start, start);
-                    return Err(Error::new("unterminated escape sequence").with_span(span));
+                    diag.err((start, start), "unterminated escape sequence");
+                    return Err(());
                 }
                 InvalidEscape { pos, message } => {
-                    let span = (object.clone(), pos, pos);
-                    return Err(Error::new(message).with_span(span));
+                    diag.err((pos, pos), message);
+                    return Err(());
                 }
                 UnterminatedCodeBlock { start } => {
-                    let span = (object.clone(), start, start);
-                    return Err(Error::new("unterminated code block").with_span(span));
+                    diag.err((start, start), "unterminated code block");
+                    return Err(());
                 }
                 InvalidNumber { pos, message } => {
-                    let span = (object.clone(), pos, pos);
-                    return Err(Error::new(message).with_span(span));
+                    diag.err((pos, pos), message);
+                    return Err(());
                 }
                 Unexpected { pos } => {
-                    let span = (object.clone(), pos, pos);
-                    return Err(Error::new("unexpected input").with_span(span));
+                    diag.err((pos, pos), "unexpected input");
+                    return Err(());
                 }
             },
-            _ => Err("Parse error".into()),
         },
     }
 }

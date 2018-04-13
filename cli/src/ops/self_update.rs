@@ -18,18 +18,17 @@ mod internal {
     use self::hyper::{Client, Method, Request, Response, StatusCode, Uri};
     use self::tar::Archive;
     use self::tokio_core::reactor::{Core, Handle};
+    use VERSION;
     use clap::ArgMatches;
-    use config_env::ConfigEnv;
     use core::errors::{Error, Result};
     use core::{Context, Version};
-    use std::env;
+    use env;
     use std::fs::{self, File};
     use std::io::{self, Cursor};
     use std::path::Path;
     use std::rc::Rc;
     use std::sync::Arc;
     use url::Url;
-    use VERSION;
 
     #[cfg(target_os = "macos")]
     mod os {
@@ -67,8 +66,8 @@ mod internal {
     const DEFAULT_URL: &str = "https://storage.googleapis.com/reproto-releases/";
 
     pub fn entry(_: Rc<Context>, m: &ArgMatches) -> Result<()> {
-        let config =
-            ConfigEnv::new()?.ok_or_else(|| format!("could not setup the reproto environment"))?;
+        let config = env::ConfigEnv::new()?
+            .ok_or_else(|| format!("could not setup the reproto environment"))?;
 
         check_path(&config)?;
 
@@ -161,12 +160,12 @@ mod internal {
         return Ok(());
 
         /// Checks that bin_home is in PATH, or warns otherwise.
-        fn check_path(config: &ConfigEnv) -> Result<()> {
+        fn check_path(config: &env::ConfigEnv) -> Result<()> {
             let mut bin_in_path = false;
 
             if config.bin_home.is_dir() {
-                if let Some(paths) = env::var_os("PATH") {
-                    for path in env::split_paths(&paths) {
+                if let Some(paths) = ::std::env::var_os("PATH") {
+                    for path in ::std::env::split_paths(&paths) {
                         if !path.is_dir() {
                             continue;
                         }
@@ -446,8 +445,8 @@ mod internal {
 #[cfg(not(feature = "self-updates"))]
 mod internal {
     use clap::ArgMatches;
-    use core::errors::Result;
     use core::Context;
+    use core::errors::Result;
     use std::rc::Rc;
 
     pub fn entry(_: Rc<Context>, _: &ArgMatches) -> Result<()> {

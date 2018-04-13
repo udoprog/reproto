@@ -6,7 +6,7 @@ use lexer::{self, Token};
 use super::utils::strip_code_block;
 use std::borrow::Cow;
 
-grammar<'input, 'object>(input_object: &'object Arc<Source>);
+grammar<'input>;
 
 pub File: File<'input> =
     <comment:"//!"?>
@@ -132,7 +132,7 @@ EndpointArgument: EndpointArgument<'input> =
         channel: channel,
     };
 
-Channel: Channel = {
+Channel: Channel<'input> = {
     <stream:stream?> <ty:TypeSpec> => {
         if stream.is_some() {
             Channel::Streaming {
@@ -211,7 +211,7 @@ Field: Field<'input> = {
     Field {
         required: !optional,
         name: name,
-        ty: Loc::map(ty, |_| ErrorRecovery::Error),
+        ty: Loc::map(ty, |e| ErrorRecovery::Error(e.dropped_tokens)),
         field_as: alias,
     },
 };
@@ -241,7 +241,7 @@ pub Value: Value<'input> = {
     <id:Ident> => Value::Identifier(id),
 };
 
-pub TypeSpec: Type = {
+pub TypeSpec: Type<'input> = {
     any => Type::Any,
     float => Type::Float,
     double => Type::Double,
@@ -265,19 +265,14 @@ pub TypeSpec: Type = {
     },
 };
 
-Name: Name = {
-    <prefix:(ident "::")?> <parts:Loc<OneOrMore<"::", TypeIdent>>> => Name::Absolute {
-        prefix: prefix.map(|p| p.0.to_string()),
-        parts: Loc::map(parts, |p| p.into_iter().map(|s| s.to_string()).collect::<Vec<_>>().into()),
+Name: Name<'input> = {
+    <prefix:(Loc<ident> "::")?> <parts:OneOrMore<"::", Loc<TypeIdent>>> => Name::Absolute {
+        prefix: prefix.map(|p| p.0),
+        parts: parts,
     },
 
-    <prefix:ident> "::" <parts:Loc<!>> => Name::Absolute {
-        prefix: Some(prefix.to_string()),
-        parts: Loc::map(parts, |_| ErrorRecovery::Error),
-    },
-
-    "::" <parts:OneOrMore<"::", TypeIdent>> => Name::Relative {
-        parts: parts.into_iter().map(|s| s.to_string()).collect(),
+    "::" <parts:OneOrMore<"::", Loc<TypeIdent>>> => Name::Relative {
+        parts: parts,
     },
 };
 
@@ -335,7 +330,7 @@ ZeroOrMoreTrailing<Sep, T>: Vec<T> = {
 };
 
 Loc<Inner>: Loc<Inner> = <s:@L> <inner:Inner> <e:@R> =>
-    Loc::new(inner, (input_object.clone(), s, e));
+    Loc::new(inner, (s, e));
 
 Item<T>: Item<'input, T> =
     <comment:"///"?>
@@ -344,7 +339,7 @@ Item<T>: Item<'input, T> =
     Item {
         comment: comment.unwrap_or_else(Vec::new),
         attributes: attributes,
-        item: Loc::new(item, (input_object.clone(), s, e))
+        item: Loc::new(item, (s, e))
     };
 
 extern {
@@ -355,13 +350,13 @@ extern {
         TypeIdent => Token::TypeIdentifier(<Cow<'input, str>>),
         ident => Token::Identifier(<Cow<'input, str>>),
         number => Token::Number(<RpNumber>),
-        "use" => Token::UseKeyword,
-        "as" => Token::AsKeyword,
-        "enum" => Token::EnumKeyword,
-        "type" => Token::TypeKeyword,
-        "interface" => Token::InterfaceKeyword,
-        "tuple" => Token::TupleKeyword,
-        "service" => Token::ServiceKeyword,
+        "use" => Token::Use,
+        "as" => Token::As,
+        "enum" => Token::Enum,
+        "type" => Token::Type,
+        "interface" => Token::Interface,
+        "tuple" => Token::Tuple,
+        "service" => Token::Service,
         "(" => Token::LeftParen,
         ")" => Token::RightParen,
         "{" => Token::LeftCurly,
@@ -369,7 +364,7 @@ extern {
         "{{" => Token::CodeOpen,
         "}}" => Token::CodeClose,
         code => Token::CodeContent(<Cow<'input, str>>),
-        "string" => Token::String(<String>),
+        "string" => Token::QuotedString(<String>),
         "[" => Token::LeftBracket,
         "]" => Token::RightBracket,
         ";" => Token::SemiColon,
@@ -384,17 +379,17 @@ extern {
         "=" => Token::Equal,
         "//!" => Token::PackageDocComment(<Vec<Cow<'input, str>>>),
         "///" => Token::DocComment(<Vec<Cow<'input, str>>>),
-        any => Token::AnyKeyword,
-        float => Token::FloatKeyword,
-        double => Token::DoubleKeyword,
-        u32 => Token::Unsigned32,
-        u64 => Token::Unsigned64,
-        i32 => Token::Signed32,
-        i64 => Token::Signed64,
-        boolean => Token::BooleanKeyword,
-        string => Token::StringKeyword,
-        datetime => Token::DateTimeKeyword,
-        bytes => Token::BytesKeyword,
-        stream => Token::StreamKeyword,
+        any => Token::Any,
+        float => Token::Float,
+        double => Token::Double,
+        u32 => Token::U32,
+        u64 => Token::U64,
+        i32 => Token::I32,
+        i64 => Token::I64,
+        boolean => Token::Boolean,
+        string => Token::String,
+        datetime => Token::Datetime,
+        bytes => Token::Bytes,
+        stream => Token::Stream,
     }
 }
