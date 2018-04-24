@@ -22,12 +22,12 @@ macro_rules! take_until {
                     }
                 }
             } else {
-                __content_end = $slf.source_len;
+                __content_end = $slf.source.len();
                 break;
             }
         }
 
-        (__end, &$slf.source_str[$start..__content_end])
+        (__end, $slf.source.slice($start, __content_end))
     }}
 }
 
@@ -48,11 +48,11 @@ macro_rules! take {
 
                 $slf.step();
             } else {
-                __end = $slf.source_len;
+                __end = $slf.source.len();
                 break;
             }
         }
 
-        (__end, &$slf.source_str[$start..__end])
+        (__end, $slf.source.slice($start, __end))
     }}
 }

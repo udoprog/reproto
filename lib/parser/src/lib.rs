@@ -10,7 +10,7 @@ extern crate reproto_lexer as lexer;
 mod parser;
 mod utils;
 
-use core::Diagnostics;
+use core::{Content, Diagnostics};
 use core::errors::Result;
 use std::io::Read;
 use std::result;
@@ -26,10 +26,10 @@ where
 }
 
 /// Parse the given object.
-pub fn parse<'input>(
+pub fn parse<C>(
     diag: &mut Diagnostics,
-    input: &'input str
-) -> result::Result<ast::File<'input>, ()> {
+    input: C
+) -> result::Result<ast::File<C::Slice>, ()> where C: Content {
     use self::lexer::errors::Error::*;
     use lalrpop_util::ParseError::*;
 

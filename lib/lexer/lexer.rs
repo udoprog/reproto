@@ -1,17 +1,13 @@
 /// Lexer for reproto IDL.
-use core::RpNumber;
+use core::{Content, ContentSlice, RpNumber};
 use errors::{Error, Result};
 use num_bigint::BigInt;
 use num_traits::Zero;
-use std::borrow::Cow;
 use std::result;
-use std::str::CharIndices;
 use token::Token;
 
-pub struct Lexer<'input> {
-    source: CharIndices<'input>,
-    source_len: usize,
-    source_str: &'input str,
+pub struct Lexer<S> {
+    source: S,
     n0: Option<(usize, char)>,
     n1: Option<(usize, char)>,
     n2: Option<(usize, char)>,
@@ -20,10 +16,15 @@ pub struct Lexer<'input> {
     code_close: Option<(usize, usize)>,
 }
 
-pub fn match_keyword(content: &str) -> Option<Token> {
+pub fn match_keyword<S>(content: S) -> Option<Token<S>>
+where
+    S: ContentSlice,
+{
     use self::Token::*;
 
-    let token = match content {
+    let ident = content.to_string();
+
+    let token = match ident.as_str() {
         "any" => Any,
         "interface" => Interface,
         "type" => Type,
@@ -49,7 +50,10 @@ pub fn match_keyword(content: &str) -> Option<Token> {
     Some(token)
 }
 
-impl<'input> Lexer<'input> {
+impl<S> Lexer<S>
+where
+    S: Content,
+{
     /// Advance the source iterator.
     #[inline]
     fn step(&mut self) {
@@ -64,9 +68,7 @@ impl<'input> Lexer<'input> {
             self.step();
         }
 
-        self.n0
-            .map(|n| n.0)
-            .unwrap_or_else(|| self.source_str.len())
+        self.n0.map(|n| n.0).unwrap_or_else(|| self.source.len())
     }
 
     #[inline]
@@ -94,29 +96,29 @@ impl<'input> Lexer<'input> {
 
     #[inline]
     fn pos(&self) -> usize {
-        self.n0.map(|n| n.0).unwrap_or(self.source_len)
+        self.n0.map(|n| n.0).unwrap_or_else(|| self.source.len())
     }
 
-    fn identifier(&mut self, start: usize) -> Result<(usize, Token<'input>, usize)> {
+    fn identifier(&mut self, start: usize) -> Result<(usize, Token<S::Slice>, usize)> {
         // strip leading _, since keywords are lowercase this is how we can escape identifiers.
         let (stripped, _) = take!(self, start, '_');
         let (end, content) = take!(self, stripped, 'a'...'z' | '_' | '0'...'9');
 
         if stripped != start {
-            return Ok((start, Token::Identifier(content.into()), end));
+            return Ok((start, Token::Identifier(content), end));
         }
 
-        let token = match match_keyword(content) {
+        let token = match match_keyword::<S::Slice>(content) {
             Some(token) => token,
             None => {
-                return Ok((start, Token::Identifier(content.into()), end));
+                return Ok((start, Token::Identifier(content), end));
             }
         };
 
         return Ok((start, token, end));
     }
 
-    fn type_identifier(&mut self, start: usize) -> Result<(usize, Token<'input>, usize)> {
+    fn type_identifier(&mut self, start: usize) -> Result<(usize, Token<S::Slice>, usize)> {
         let (end, content) = take!(self, start, 'A'...'Z' | 'a'...'z' | '0'...'9');
         Ok((start, Token::TypeIdentifier(content.into()), end))
     }
@@ -166,7 +168,7 @@ impl<'input> Lexer<'input> {
         }
     }
 
-    fn number(&mut self, start: usize) -> Result<(usize, Token<'input>, usize)> {
+    fn number(&mut self, start: usize) -> Result<(usize, Token<S::Slice>, usize)> {
         let (end, number) = self.parse_number(start).map_err(|(message, offset)| {
             Error::InvalidNumber {
                 message: message,
@@ -192,6 +194,7 @@ impl<'input> Lexer<'input> {
             (
                 end,
                 whole
+                    .to_string()
                     .parse::<BigInt>()
                     .map_err(|_| ("illegal number", end))?,
             )
@@ -205,7 +208,10 @@ impl<'input> Lexer<'input> {
             {
                 let (e, fraction) = take!(self, offset, '0'...'9');
                 end = e;
-                let (dec, fraction) = Self::parse_fraction(fraction).map_err(|e| (e, end))?;
+
+                let (dec, fraction) =
+                    Self::parse_fraction(fraction.to_string().as_str()).map_err(|e| (e, end))?;
+
                 Self::apply_fraction(&mut digits, &mut decimal, dec, fraction);
             }
 
@@ -214,7 +220,12 @@ impl<'input> Lexer<'input> {
 
                 let (e, content) = take!(self, offset, '-' | '0'...'9');
                 end = e;
-                let exponent: i32 = content.parse().map_err(|_| ("illegal exponent", end))?;
+
+                let exponent = content
+                    .to_string()
+                    .parse::<i32>()
+                    .map_err(|_| ("illegal exponent", end))?;
+
                 Self::apply_exponent(&mut digits, &mut decimal, exponent);
             }
         }
@@ -283,7 +294,7 @@ impl<'input> Lexer<'input> {
     }
 
     /// Tokenize string.
-    fn string(&mut self, start: usize) -> Result<(usize, Token<'input>, usize)> {
+    fn string(&mut self, start: usize) -> Result<(usize, Token<S::Slice>, usize)> {
         self.buffer.clear();
 
         self.step();
@@ -313,17 +324,17 @@ impl<'input> Lexer<'input> {
         &mut self,
         code_start: usize,
         start: usize,
-    ) -> Result<(usize, Token<'input>, usize)> {
+    ) -> Result<(usize, Token<S::Slice>, usize)> {
         while let Some((end, a, b)) = self.two() {
             if ('}', '}') == (a, b) {
                 let code_end = self.step_n(2);
-                let out = &self.source_str[start..end];
+                let out = self.source.slice(start, end);
 
                 // emit code end at next iteration.
                 self.code_block = None;
                 self.code_close = Some((end, code_end));
 
-                return Ok((code_start, Token::CodeContent(out.into()), code_end));
+                return Ok((code_start, Token::CodeContent(out), code_end));
             }
 
             self.step();
@@ -333,8 +344,8 @@ impl<'input> Lexer<'input> {
     }
 
     /// Parse package documentation
-    fn package_doc_comments(&mut self, start: usize) -> Result<(usize, Token<'input>, usize)> {
-        let mut comment: Vec<Cow<'input, str>> = Vec::new();
+    fn package_doc_comments(&mut self, start: usize) -> Result<(usize, Token<S::Slice>, usize)> {
+        let mut comment: Vec<S::Slice> = Vec::new();
 
         loop {
             // take leading whitespace
@@ -343,15 +354,15 @@ impl<'input> Lexer<'input> {
             if let Some((_, '/', '/', '!')) = self.three() {
                 let start = self.step_n(3);
                 let (_, content) = take_until!(self, start, '\n' | '\r');
-                comment.push(content.into());
+                comment.push(content);
             } else {
                 return Ok((start, Token::PackageDocComment(comment), end));
             }
         }
     }
 
-    fn doc_comments(&mut self, start: usize) -> Result<(usize, Token<'input>, usize)> {
-        let mut comment: Vec<Cow<'input, str>> = Vec::new();
+    fn doc_comments(&mut self, start: usize) -> Result<(usize, Token<S::Slice>, usize)> {
+        let mut comment: Vec<S::Slice> = Vec::new();
 
         loop {
             // take leading whitespace
@@ -360,7 +371,7 @@ impl<'input> Lexer<'input> {
             if let Some((_, '/', '/', '/')) = self.three() {
                 let start = self.step_n(3);
                 let (_, content) = take_until!(self, start, '\n' | '\r');
-                comment.push(content.into());
+                comment.push(content);
             } else {
                 return Ok((start, Token::DocComment(comment), end));
             }
@@ -387,7 +398,7 @@ impl<'input> Lexer<'input> {
         }
     }
 
-    fn normal_mode_next(&mut self) -> Option<Result<(usize, Token<'input>, usize)>> {
+    fn normal_mode_next(&mut self) -> Option<Result<(usize, Token<S::Slice>, usize)>> {
         // dispatch a CodeClose.
         if let Some((start, end)) = self.code_close {
             self.code_close = None;
@@ -477,25 +488,27 @@ impl<'input> Lexer<'input> {
     }
 }
 
-impl<'input> Iterator for Lexer<'input> {
-    type Item = Result<(usize, Token<'input>, usize)>;
+impl<S> Iterator for Lexer<S>
+where
+    S: Content,
+{
+    type Item = Result<(usize, Token<S::Slice>, usize)>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.normal_mode_next()
     }
 }
 
-pub fn lex(input: &str) -> Lexer {
-    let mut source = input.char_indices();
-
+pub fn lex<S>(mut source: S) -> Lexer<S>
+where
+    S: Content,
+{
     let n0 = source.next();
     let n1 = source.next();
     let n2 = source.next();
 
     Lexer {
         source: source,
-        source_len: input.len(),
-        source_str: input,
         n0: n0,
         n1: n1,
         n2: n2,

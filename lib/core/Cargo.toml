@@ -14,6 +14,7 @@ Rethinking Protocol Generators
 [dependencies]
 reproto-semver = {path = "../semver", version = "0.3", features = ["serde"]}
 
+ropey = "0.6"
 num-bigint = {version = "0.1", default_features = false}
 num-traits = {version = "0.1", default_features = false}
 num-integer = {version = "0.1", default_features = false}

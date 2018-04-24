@@ -1,12 +1,11 @@
-use core::RpNumber;
-use std::borrow::Cow;
+use core::{ContentSlice, RpNumber};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Token<'input> {
-    Identifier(Cow<'input, str>),
-    TypeIdentifier(Cow<'input, str>),
-    PackageDocComment(Vec<Cow<'input, str>>),
-    DocComment(Vec<Cow<'input, str>>),
+pub enum Token<S> {
+    Identifier(S),
+    TypeIdentifier(S),
+    PackageDocComment(Vec<S>),
+    DocComment(Vec<S>),
     Number(RpNumber),
     LeftCurly,
     RightCurly,
@@ -26,7 +25,7 @@ pub enum Token<'input> {
     RightArrow,
     CodeOpen,
     CodeClose,
-    CodeContent(Cow<'input, str>),
+    CodeContent(S),
     QuotedString(String),
     // identifier-style keywords
     Any,
@@ -50,7 +49,10 @@ pub enum Token<'input> {
     Use,
 }
 
-impl<'input> Token<'input> {
+impl<S> Token<S>
+where
+    S: ContentSlice,
+{
     /// Get the keywords-safe variant of the given keyword.
     pub fn keyword_safe(&self) -> Option<&'static str> {
         use self::Token::*;
@@ -81,30 +83,33 @@ impl<'input> Token<'input> {
         Some(out)
     }
 
-    pub fn as_ident(&self) -> Option<&str> {
+    pub fn as_ident<'a>(&'a self) -> Option<&'a S>
+    where
+        &'a S: From<&'static str>,
+    {
         use self::Token::*;
 
         let ident = match *self {
-            Any => "any",
-            Interface => "interface",
-            Type => "type",
-            Enum => "enum",
-            Tuple => "tuple",
-            Service => "service",
-            Use => "use",
-            As => "as",
-            Float => "float",
-            Double => "double",
-            I32 => "i32",
-            I64 => "i64",
-            U32 => "u32",
-            U64 => "u64",
-            Boolean => "boolean",
-            String => "string",
-            Datetime => "datetime",
-            Bytes => "bytes",
-            Stream => "stream",
-            Identifier(ref ident) => ident.as_ref(),
+            Any => "any".into(),
+            Interface => "interface".into(),
+            Type => "type".into(),
+            Enum => "enum".into(),
+            Tuple => "tuple".into(),
+            Service => "service".into(),
+            Use => "use".into(),
+            As => "as".into(),
+            Float => "float".into(),
+            Double => "double".into(),
+            I32 => "i32".into(),
+            I64 => "i64".into(),
+            U32 => "u32".into(),
+            U64 => "u64".into(),
+            Boolean => "boolean".into(),
+            String => "string".into(),
+            Datetime => "datetime".into(),
+            Bytes => "bytes".into(),
+            Stream => "stream".into(),
+            Identifier(ref ident) => ident,
             _ => return None,
         };
 

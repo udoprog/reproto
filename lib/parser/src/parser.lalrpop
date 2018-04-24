@@ -1,14 +1,14 @@
 // vim: ft=rust
-use core::{RpNumber, Loc, RpPackage, Source};
+use core::{RpNumber, Loc, RpPackage, ContentSlice};
 use std::sync::Arc;
 use ast::*;
 use lexer::{self, Token};
 use super::utils::strip_code_block;
 use std::borrow::Cow;
 
-grammar<'input>;
+grammar<S> where S: ContentSlice;
 
-pub File: File<'input> =
+pub File: File<S> =
     <comment:"//!"?>
     <attributes:Loc<FileAttribute>*>
     <uses:Loc<Use>*>
@@ -21,7 +21,7 @@ pub File: File<'input> =
         }
 };
 
-Use: UseDecl<'input> =
+Use: UseDecl<S> =
     "use" <package:Loc<Package>>
         <range:Loc<"string">?>
         <alias:Loc<UseAlias>?>
@@ -33,13 +33,13 @@ Use: UseDecl<'input> =
     }
 };
 
-UseAlias: Cow<'input, str> = "as" <value:ident> => value;
+UseAlias: S = "as" <value:ident> => value;
 
 Package: RpPackage = <parts:OneOrMore<".", Ident>> => {
     RpPackage::new(parts.into_iter().map(|s| s.to_string()).collect())
 };
 
-Decl: Decl<'input> = {
+Decl: Decl<S> = {
     <en:Item<Enum>> => Decl::Enum(en),
     <interface:Item<Interface>> => Decl::Interface(interface),
     <ty:Item<Type>> => Decl::Type(ty),
@@ -47,7 +47,7 @@ Decl: Decl<'input> = {
     <service:Item<Service>> => Decl::Service(service),
 };
 
-Enum: EnumBody<'input> =
+Enum: EnumBody<S> =
     "enum" <name:TypeIdent> "as" <ty:Loc<TypeSpec>> "{"
         <variants:Item<EnumVariant>*>
         <members:EnumMember*>
@@ -59,11 +59,11 @@ Enum: EnumBody<'input> =
         members: members,
     };
 
-EnumMember: EnumMember<'input> = {
+EnumMember: EnumMember<S> = {
     <code:Loc<Code>> => EnumMember::Code(code),
 };
 
-Interface: InterfaceBody<'input> =
+Interface: InterfaceBody<S> =
     "interface" <name:TypeIdent> "{"
       <members:TypeMember*>
       <sub_types:Item<SubType>*>
@@ -74,7 +74,7 @@ Interface: InterfaceBody<'input> =
         sub_types: sub_types,
     };
 
-Type: TypeBody<'input> =
+Type: TypeBody<S> =
     "type" <name:TypeIdent> "{"
         <members:TypeMember*>
     "}" =>
@@ -83,7 +83,7 @@ Type: TypeBody<'input> =
         members: members,
     };
 
-Tuple: TupleBody<'input> =
+Tuple: TupleBody<S> =
     "tuple" <name:TypeIdent> "{"
         <members:TypeMember*>
     "}" =>
@@ -92,7 +92,7 @@ Tuple: TupleBody<'input> =
         members: members,
     };
 
-Service: ServiceBody<'input> =
+Service: ServiceBody<S> =
     "service" <name:TypeIdent> "{"
         <members:ServiceMember*>
     "}" =>
@@ -101,7 +101,7 @@ Service: ServiceBody<'input> =
         members: members,
     };
 
-pub ServiceMember: ServiceMember<'input> = {
+pub ServiceMember: ServiceMember<S> = {
     <endpoint:Item<Endpoint>> => {
         ServiceMember::Endpoint(endpoint)
     },
@@ -111,7 +111,7 @@ pub ServiceMember: ServiceMember<'input> = {
     },
 };
 
-Endpoint: Endpoint<'input> = {
+Endpoint: Endpoint<S> = {
     <id:Loc<Ident>> "("
         <arguments:ZeroOrMore<",", EndpointArgument>>
     ")" <response:("->" Loc<Channel>)?>
@@ -126,13 +126,13 @@ Endpoint: Endpoint<'input> = {
     },
 };
 
-EndpointArgument: EndpointArgument<'input> =
+EndpointArgument: EndpointArgument<S> =
     <ident:Loc<Ident>> ":" <channel:Loc<Channel>> => EndpointArgument {
         ident: ident,
         channel: channel,
     };
 
-Channel: Channel<'input> = {
+Channel: Channel<S> = {
     <stream:stream?> <ty:TypeSpec> => {
         if stream.is_some() {
             Channel::Streaming {
@@ -146,7 +146,7 @@ Channel: Channel<'input> = {
     },
 };
 
-Ident: Cow<'input, str> = {
+Ident: S = {
     any => "any".into(),
     float => "float".into(),
     double => "double".into(),
@@ -174,7 +174,7 @@ FieldAlias: String = {
     "as" <value:"string"> => value,
 };
 
-EnumVariant: EnumVariant<'input> =
+EnumVariant: EnumVariant<S> =
     <name:Loc<TypeIdent>> <argument:("as" Loc<Value>)?> ";" =>
     EnumVariant {
         name: name,
@@ -183,13 +183,13 @@ EnumVariant: EnumVariant<'input> =
 
 Optional: bool = <modifier:"?"?> => modifier.map(|_| true).unwrap_or(false);
 
-pub TypeMember: TypeMember<'input> = {
+pub TypeMember: TypeMember<S> = {
     <field:Item<Field>> => TypeMember::Field(field),
     <code:Loc<Code>> => TypeMember::Code(code),
     <decl:Decl> => TypeMember::InnerDecl(decl),
 };
 
-Code: Code<'input> =
+Code: Code<S> =
     <attributes:Loc<Attribute>*>
     <context:Loc<Ident>> "{{" <content:code> "}}" =>
     Code {
@@ -198,7 +198,7 @@ Code: Code<'input> =
         content: strip_code_block(content),
     };
 
-Field: Field<'input> = {
+Field: Field<S> = {
     <name:Ident> <optional:Optional> ":" <ty:Loc<TypeSpec>> <alias:FieldAlias?> ";" =>
     Field {
         required: !optional,
@@ -216,7 +216,7 @@ Field: Field<'input> = {
     },
 };
 
-SubType: SubType<'input> = {
+SubType: SubType<S> = {
     <name:Loc<TypeIdent>> <alias:("as" Loc<Value>)?> "{"
         <members:TypeMember*>
     "}" =>
@@ -234,14 +234,14 @@ SubType: SubType<'input> = {
     },
 };
 
-pub Value: Value<'input> = {
+pub Value: Value<S> = {
     "(" <values:ZeroOrMore<",", Loc<Value>>> ")" => Value::Array(values),
     <string:"string"> => Value::String(string),
     <number:number> => Value::Number(number),
     <id:Ident> => Value::Identifier(id),
 };
 
-pub TypeSpec: Type<'input> = {
+pub TypeSpec: Type<S> = {
     any => Type::Any,
     float => Type::Float,
     double => Type::Double,
@@ -265,7 +265,7 @@ pub TypeSpec: Type<'input> = {
     },
 };
 
-Name: Name<'input> = {
+Name: Name<S> = {
     <prefix:(Loc<ident> "::")?> <parts:OneOrMore<"::", Loc<TypeIdent>>> => Name::Absolute {
         prefix: prefix.map(|p| p.0),
         parts: parts,
@@ -276,7 +276,7 @@ Name: Name<'input> = {
     },
 };
 
-FileAttribute: Attribute<'input> = {
+FileAttribute: Attribute<S> = {
     "#" "!" "[" <id:Loc<Ident>>  "]" => {
         Attribute::Word(id)
     },
@@ -286,7 +286,7 @@ FileAttribute: Attribute<'input> = {
     },
 };
 
-Attribute: Attribute<'input> = {
+Attribute: Attribute<S> = {
     "#" "[" <id:Loc<Ident>>  "]" => {
         Attribute::Word(id)
     },
@@ -296,7 +296,7 @@ Attribute: Attribute<'input> = {
     },
 };
 
-AttributeItem: AttributeItem<'input> = {
+AttributeItem: AttributeItem<S> = {
     <id:Loc<Ident>> "=" <value:Loc<Value>> => AttributeItem::NameValue {
         name: id,
         value: value,
@@ -332,7 +332,7 @@ ZeroOrMoreTrailing<Sep, T>: Vec<T> = {
 Loc<Inner>: Loc<Inner> = <s:@L> <inner:Inner> <e:@R> =>
     Loc::new(inner, (s, e));
 
-Item<T>: Item<'input, T> =
+Item<T>: Item<S, T> =
     <comment:"///"?>
     <attributes:Loc<Attribute>*>
     <s:@L> <item:T> <e:@R> =>
@@ -346,9 +346,9 @@ extern {
     type Location = usize;
     type Error = lexer::Error;
 
-    enum Token<'input> {
-        TypeIdent => Token::TypeIdentifier(<Cow<'input, str>>),
-        ident => Token::Identifier(<Cow<'input, str>>),
+    enum Token<S> {
+        TypeIdent => Token::TypeIdentifier(<S>),
+        ident => Token::Identifier(<S>),
         number => Token::Number(<RpNumber>),
         "use" => Token::Use,
         "as" => Token::As,
@@ -363,7 +363,7 @@ extern {
         "}" => Token::RightCurly,
         "{{" => Token::CodeOpen,
         "}}" => Token::CodeClose,
-        code => Token::CodeContent(<Cow<'input, str>>),
+        code => Token::CodeContent(<S>),
         "string" => Token::QuotedString(<String>),
         "[" => Token::LeftBracket,
         "]" => Token::RightBracket,
@@ -377,8 +377,8 @@ extern {
         "." => Token::Dot,
         "::" => Token::Scope,
         "=" => Token::Equal,
-        "//!" => Token::PackageDocComment(<Vec<Cow<'input, str>>>),
-        "///" => Token::DocComment(<Vec<Cow<'input, str>>>),
+        "//!" => Token::PackageDocComment(<Vec<S>>),
+        "///" => Token::DocComment(<Vec<S>>),
         any => Token::Any,
         float => Token::Float,
         double => Token::Double,

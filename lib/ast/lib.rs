@@ -4,18 +4,17 @@ extern crate reproto_lexer as lexer;
 use core::errors::Result;
 use core::{Loc, RpNumber, RpPackage};
 use lexer::Token;
-use std::borrow::Cow;
 use std::ops;
 use std::vec;
 
 /// A value that can be error-recovered.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ErrorRecovery<'input, T> {
-    Error(Vec<(usize, Token<'input>, usize)>),
+pub enum ErrorRecovery<S, T> {
+    Error(Vec<(usize, Token<S>, usize)>),
     Value(T),
 }
 
-impl<'input, T> ErrorRecovery<'input, T> {
+impl<S, T> ErrorRecovery<S, T> {
     /// Return the value or an error.
     pub fn recover(self) -> Result<T> {
         use self::ErrorRecovery::*;
@@ -27,8 +26,8 @@ impl<'input, T> ErrorRecovery<'input, T> {
     }
 }
 
-impl<'input, T> From<T> for ErrorRecovery<'input, T> {
-    fn from(value: T) -> ErrorRecovery<'input, T> {
+impl<S, T> From<T> for ErrorRecovery<S, T> {
+    fn from(value: T) -> ErrorRecovery<S, T> {
         ErrorRecovery::Value(value)
     }
 }
@@ -44,14 +43,14 @@ impl<'input, T> From<T> for ErrorRecovery<'input, T> {
 /// <item>
 /// ```
 #[derive(Debug, PartialEq, Eq)]
-pub struct Item<'input, T> {
-    pub comment: Vec<Cow<'input, str>>,
-    pub attributes: Vec<Loc<Attribute<'input>>>,
+pub struct Item<S, T> {
+    pub comment: Vec<S>,
+    pub attributes: Vec<Loc<Attribute<S>>>,
     pub item: Loc<T>,
 }
 
 /// Item derefs into target.
-impl<'input, T> ops::Deref for Item<'input, T> {
+impl<S, T> ops::Deref for Item<S, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -67,12 +66,9 @@ impl<'input, T> ops::Deref for Item<'input, T> {
 /// #[attribute(name = <value>)]
 /// ```
 #[derive(Debug, PartialEq, Eq)]
-pub enum AttributeItem<'input> {
-    Word(Loc<Value<'input>>),
-    NameValue {
-        name: Loc<Cow<'input, str>>,
-        value: Loc<Value<'input>>,
-    },
+pub enum AttributeItem<S> {
+    Word(Loc<Value<S>>),
+    NameValue { name: Loc<S>, value: Loc<Value<S>> },
 }
 
 /// An attribute.
@@ -89,16 +85,16 @@ pub enum AttributeItem<'input> {
 /// #[name_value(foo = <value>, bar = <value>)]
 /// ```
 #[derive(Debug, PartialEq, Eq)]
-pub enum Attribute<'input> {
-    Word(Loc<Cow<'input, str>>),
-    List(Loc<Cow<'input, str>>, Vec<AttributeItem<'input>>),
+pub enum Attribute<S> {
+    Word(Loc<S>),
+    List(Loc<S>, Vec<AttributeItem<S>>),
 }
 
 /// A type.
 ///
 /// For example: `u32`, `::Relative::Name`, or `bytes`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Type<'input> {
+pub enum Type<S> {
     Double,
     Float,
     Signed {
@@ -114,30 +110,30 @@ pub enum Type<'input> {
     /// ISO-8601 for date and time.
     DateTime,
     Name {
-        name: Name<'input>,
+        name: Name<S>,
     },
     Array {
-        inner: Box<Type<'input>>,
+        inner: Box<Type<S>>,
     },
     Map {
-        key: Box<Type<'input>>,
-        value: Box<Type<'input>>,
+        key: Box<Type<S>>,
+        value: Box<Type<S>>,
     },
 }
 
 /// Any kind of declaration.
 #[derive(Debug, PartialEq, Eq)]
-pub enum Decl<'input> {
-    Type(Item<'input, TypeBody<'input>>),
-    Tuple(Item<'input, TupleBody<'input>>),
-    Interface(Item<'input, InterfaceBody<'input>>),
-    Enum(Item<'input, EnumBody<'input>>),
-    Service(Item<'input, ServiceBody<'input>>),
+pub enum Decl<S> {
+    Type(Item<S, TypeBody<S>>),
+    Tuple(Item<S, TupleBody<S>>),
+    Interface(Item<S, InterfaceBody<S>>),
+    Enum(Item<S, EnumBody<S>>),
+    Service(Item<S, ServiceBody<S>>),
 }
 
-impl<'input> Decl<'input> {
+impl<S> Decl<S> {
     /// Get the local name for the declaration.
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> &S {
         use self::Decl::*;
 
         match *self {
@@ -150,7 +146,7 @@ impl<'input> Decl<'input> {
     }
 
     /// Get all the sub-declarations of this declaraiton.
-    pub fn decls(&self) -> Decls {
+    pub fn decls(&self) -> Decls<S> {
         use self::Decl::*;
 
         let decls = match *self {
@@ -167,12 +163,12 @@ impl<'input> Decl<'input> {
     }
 }
 
-pub struct Decls<'a, 'input: 'a> {
-    iter: vec::IntoIter<&'a Decl<'input>>,
+pub struct Decls<'a, S: 'a> {
+    iter: vec::IntoIter<&'a Decl<S>>,
 }
 
-impl<'a, 'input: 'a> Iterator for Decls<'a, 'input> {
-    type Item = &'a Decl<'input>;
+impl<'a, S: 'a> Iterator for Decls<'a, S> {
+    type Item = &'a Decl<S>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.iter.next()
@@ -191,30 +187,30 @@ impl<'a, 'input: 'a> Iterator for Decls<'a, 'input> {
 ///
 /// Note: members must only be options.
 #[derive(Debug, PartialEq, Eq)]
-pub struct EnumBody<'input> {
-    pub name: Cow<'input, str>,
-    pub ty: Loc<Type<'input>>,
-    pub variants: Vec<Item<'input, EnumVariant<'input>>>,
-    pub members: Vec<EnumMember<'input>>,
+pub struct EnumBody<S> {
+    pub name: S,
+    pub ty: Loc<Type<S>>,
+    pub variants: Vec<Item<S, EnumVariant<S>>>,
+    pub members: Vec<EnumMember<S>>,
 }
 
-impl<'input> EnumBody<'input> {
+impl<S> EnumBody<S> {
     /// Access all inner declarations.
-    fn decls(&self) -> Vec<&Decl<'input>> {
+    fn decls(&self) -> Vec<&Decl<S>> {
         Vec::new()
     }
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct EnumVariant<'input> {
-    pub name: Loc<Cow<'input, str>>,
-    pub argument: Option<Loc<Value<'input>>>,
+pub struct EnumVariant<S> {
+    pub name: Loc<S>,
+    pub argument: Option<Loc<Value<S>>>,
 }
 
 /// A member in a tuple, type, or interface.
 #[derive(Debug, PartialEq, Eq)]
-pub enum EnumMember<'input> {
-    Code(Loc<Code<'input>>),
+pub enum EnumMember<S> {
+    Code(Loc<Code<S>>),
 }
 
 /// A field.
@@ -223,10 +219,10 @@ pub enum EnumMember<'input> {
 /// <name><modifier>: <ty> as <field_as>
 /// ```
 #[derive(Debug, PartialEq, Eq)]
-pub struct Field<'input> {
+pub struct Field<S> {
     pub required: bool,
-    pub name: Cow<'input, str>,
-    pub ty: Loc<ErrorRecovery<'input, Type<'input>>>,
+    pub name: S,
+    pub ty: Loc<ErrorRecovery<S, Type<S>>>,
     pub field_as: Option<String>,
 }
 
@@ -240,14 +236,14 @@ pub struct Field<'input> {
 /// <decls>
 /// ```
 #[derive(Debug, PartialEq, Eq)]
-pub struct File<'input> {
-    pub comment: Vec<Cow<'input, str>>,
-    pub attributes: Vec<Loc<Attribute<'input>>>,
-    pub uses: Vec<Loc<UseDecl<'input>>>,
-    pub decls: Vec<Decl<'input>>,
+pub struct File<S> {
+    pub comment: Vec<S>,
+    pub attributes: Vec<Loc<Attribute<S>>>,
+    pub uses: Vec<Loc<UseDecl<S>>>,
+    pub decls: Vec<Decl<S>>,
 }
 
-impl<'input> Field<'input> {
+impl<S> Field<S> {
     pub fn is_optional(&self) -> bool {
         !self.required
     }
@@ -269,13 +265,13 @@ impl<'input> Field<'input> {
 ///
 /// Note: prefixes names are _always_ imported with `UseDecl`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Name<'input> {
+pub enum Name<S> {
     Relative {
-        parts: Vec<Loc<Cow<'input, str>>>,
+        parts: Vec<Loc<S>>,
     },
     Absolute {
-        prefix: Option<Loc<Cow<'input, str>>>,
-        parts: Vec<Loc<Cow<'input, str>>>,
+        prefix: Option<Loc<S>>,
+        parts: Vec<Loc<S>>,
     },
 }
 
@@ -288,15 +284,15 @@ pub enum Name<'input> {
 /// }
 /// ```
 #[derive(Debug, PartialEq, Eq)]
-pub struct InterfaceBody<'input> {
-    pub name: Cow<'input, str>,
-    pub members: Vec<TypeMember<'input>>,
-    pub sub_types: Vec<Item<'input, SubType<'input>>>,
+pub struct InterfaceBody<S> {
+    pub name: S,
+    pub members: Vec<TypeMember<S>>,
+    pub sub_types: Vec<Item<S, SubType<S>>>,
 }
 
-impl<'input> InterfaceBody<'input> {
+impl<S> InterfaceBody<S> {
     /// Access all inner declarations.
-    fn decls(&self) -> Vec<&Decl<'input>> {
+    fn decls(&self) -> Vec<&Decl<S>> {
         let mut out = Vec::new();
 
         for m in &self.members {
@@ -309,7 +305,7 @@ impl<'input> InterfaceBody<'input> {
     }
 
     /// Access all fields.
-    pub fn fields(&self) -> Vec<&Field<'input>> {
+    pub fn fields(&self) -> Vec<&Field<S>> {
         let mut out = Vec::new();
 
         for m in &self.members {
@@ -324,18 +320,18 @@ impl<'input> InterfaceBody<'input> {
 
 /// A contextual code-block.
 #[derive(Debug, PartialEq, Eq)]
-pub struct Code<'input> {
-    pub attributes: Vec<Loc<Attribute<'input>>>,
-    pub context: Loc<Cow<'input, str>>,
-    pub content: Vec<Cow<'input, str>>,
+pub struct Code<S> {
+    pub attributes: Vec<Loc<Attribute<S>>>,
+    pub context: Loc<S>,
+    pub content: Vec<S>,
 }
 
 /// A member in a tuple, type, or interface.
 #[derive(Debug, PartialEq, Eq)]
-pub enum TypeMember<'input> {
-    Field(Item<'input, Field<'input>>),
-    Code(Loc<Code<'input>>),
-    InnerDecl(Decl<'input>),
+pub enum TypeMember<S> {
+    Field(Item<S, Field<S>>),
+    Code(Loc<Code<S>>),
+    InnerDecl(Decl<S>),
 }
 
 /// The body of a service declaration.
@@ -346,14 +342,14 @@ pub enum TypeMember<'input> {
 /// }
 /// ```
 #[derive(Debug, PartialEq, Eq)]
-pub struct ServiceBody<'input> {
-    pub name: Cow<'input, str>,
-    pub members: Vec<ServiceMember<'input>>,
+pub struct ServiceBody<S> {
+    pub name: S,
+    pub members: Vec<ServiceMember<S>>,
 }
 
-impl<'input> ServiceBody<'input> {
+impl<S> ServiceBody<S> {
     /// Access all inner declarations.
-    fn decls(&self) -> Vec<&Decl<'input>> {
+    fn decls(&self) -> Vec<&Decl<S>> {
         let mut out = Vec::new();
 
         for m in &self.members {
@@ -368,16 +364,16 @@ impl<'input> ServiceBody<'input> {
 
 /// A member of a service declaration.
 #[derive(Debug, PartialEq, Eq)]
-pub enum ServiceMember<'input> {
-    Endpoint(Item<'input, Endpoint<'input>>),
-    InnerDecl(Decl<'input>),
+pub enum ServiceMember<S> {
+    Endpoint(Item<S, Endpoint<S>>),
+    InnerDecl(Decl<S>),
 }
 
 /// The argument in and endpoint.
 #[derive(Debug, PartialEq, Eq)]
-pub struct EndpointArgument<'input> {
-    pub ident: Loc<Cow<'input, str>>,
-    pub channel: Loc<Channel<'input>>,
+pub struct EndpointArgument<S> {
+    pub ident: Loc<S>,
+    pub channel: Loc<Channel<S>>,
 }
 
 /// An endpoint
@@ -388,11 +384,11 @@ pub struct EndpointArgument<'input> {
 /// }
 /// ```
 #[derive(Debug, PartialEq, Eq)]
-pub struct Endpoint<'input> {
-    pub id: Loc<Cow<'input, str>>,
+pub struct Endpoint<S> {
+    pub id: Loc<S>,
     pub alias: Option<String>,
-    pub arguments: Vec<EndpointArgument<'input>>,
-    pub response: Option<Loc<Channel<'input>>>,
+    pub arguments: Vec<EndpointArgument<S>>,
+    pub response: Option<Loc<Channel<S>>>,
 }
 
 /// Describes how data is transferred over a channel.
@@ -402,11 +398,11 @@ pub struct Endpoint<'input> {
 /// Streaming(<ty>)
 /// ```
 #[derive(Debug, PartialEq, Eq)]
-pub enum Channel<'input> {
+pub enum Channel<S> {
     /// Single send.
-    Unary { ty: Type<'input> },
+    Unary { ty: Type<S> },
     /// Multiple sends.
-    Streaming { ty: Type<'input> },
+    Streaming { ty: Type<S> },
 }
 
 /// The body of a sub-type
@@ -418,10 +414,10 @@ pub enum Channel<'input> {
 /// ```
 /// Sub-types in interface declarations.
 #[derive(Debug, PartialEq, Eq)]
-pub struct SubType<'input> {
-    pub name: Loc<Cow<'input, str>>,
-    pub members: Vec<TypeMember<'input>>,
-    pub alias: Option<Loc<Value<'input>>>,
+pub struct SubType<S> {
+    pub name: Loc<S>,
+    pub members: Vec<TypeMember<S>>,
+    pub alias: Option<Loc<Value<S>>>,
 }
 
 /// The body of a tuple
@@ -432,14 +428,14 @@ pub struct SubType<'input> {
 /// }
 /// ```
 #[derive(Debug, PartialEq, Eq)]
-pub struct TupleBody<'input> {
-    pub name: Cow<'input, str>,
-    pub members: Vec<TypeMember<'input>>,
+pub struct TupleBody<S> {
+    pub name: S,
+    pub members: Vec<TypeMember<S>>,
 }
 
-impl<'input> TupleBody<'input> {
+impl<S> TupleBody<S> {
     /// Access all inner declarations.
-    fn decls(&self) -> Vec<&Decl<'input>> {
+    fn decls(&self) -> Vec<&Decl<S>> {
         let mut out = Vec::new();
 
         for m in &self.members {
@@ -452,7 +448,7 @@ impl<'input> TupleBody<'input> {
     }
 
     /// Access all fields.
-    pub fn fields(&self) -> Vec<&Field<'input>> {
+    pub fn fields(&self) -> Vec<&Field<S>> {
         let mut out = Vec::new();
 
         for m in &self.members {
@@ -473,14 +469,14 @@ impl<'input> TupleBody<'input> {
 /// }
 /// ```
 #[derive(Debug, PartialEq, Eq)]
-pub struct TypeBody<'input> {
-    pub name: Cow<'input, str>,
-    pub members: Vec<TypeMember<'input>>,
+pub struct TypeBody<S> {
+    pub name: S,
+    pub members: Vec<TypeMember<S>>,
 }
 
-impl<'input> TypeBody<'input> {
+impl<S> TypeBody<S> {
     /// Access all inner declarations.
-    fn decls(&self) -> Vec<&Decl<'input>> {
+    fn decls(&self) -> Vec<&Decl<S>> {
         let mut out = Vec::new();
 
         for m in &self.members {
@@ -493,7 +489,7 @@ impl<'input> TypeBody<'input> {
     }
 
     /// Access all fields.
-    pub fn fields(&self) -> Vec<&Field<'input>> {
+    pub fn fields(&self) -> Vec<&Field<S>> {
         let mut out = Vec::new();
 
         for m in &self.members {
@@ -512,38 +508,38 @@ impl<'input> TypeBody<'input> {
 /// use <package> "<version req> as <alias>
 /// ```
 #[derive(Debug, PartialEq, Eq)]
-pub struct UseDecl<'input> {
+pub struct UseDecl<S> {
     pub package: Loc<RpPackage>,
     pub range: Option<Loc<String>>,
-    pub alias: Option<Loc<Cow<'input, str>>>,
+    pub alias: Option<Loc<S>>,
 }
 
 /// A literal value
 ///
 /// For example, `"string"`, `42.0`, and `foo`.
 #[derive(Debug, PartialEq, Eq)]
-pub enum Value<'input> {
+pub enum Value<S> {
     String(String),
     Number(RpNumber),
-    Identifier(Cow<'input, str>),
-    Array(Vec<Loc<Value<'input>>>),
+    Identifier(S),
+    Array(Vec<Loc<Value<S>>>),
 }
 
 /// A part of a step.
 #[derive(Debug, PartialEq, Eq)]
-pub enum PathPart<'input> {
-    Variable(Cow<'input, str>),
+pub enum PathPart<S> {
+    Variable(S),
     Segment(String),
 }
 
 /// A step in a path specification.
 #[derive(Debug, PartialEq, Eq)]
-pub struct PathStep<'input> {
-    pub parts: Vec<PathPart<'input>>,
+pub struct PathStep<S> {
+    pub parts: Vec<PathPart<S>>,
 }
 
 /// A path specification.
 #[derive(Debug, PartialEq, Eq)]
-pub struct PathSpec<'input> {
-    pub steps: Vec<PathStep<'input>>,
+pub struct PathSpec<S> {
+    pub steps: Vec<PathStep<S>>,
 }
