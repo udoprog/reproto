@@ -3,7 +3,7 @@ use true as t;
 type Entry {
     abstract?: string;
     assert?: string;
-    boolean?: string;
+    _boolean?: string;
     break?: string;
     byte?: string;
     case?: string;
@@ -14,14 +14,14 @@ type Entry {
     continue?: string;
     default?: string;
     do?: string;
-    double?: string;
+    _double?: string;
     else?: string;
-    enum?: string;
+    _enum?: string;
     extends?: string;
-    false?: string;
+    _false?: string;
     final?: string;
     finally?: string;
-    float?: string;
+    _float?: string;
     for?: string;
     goto?: string;
     if?: string;
@@ -30,7 +30,7 @@ type Entry {
     imported?: t::Empty;
     instanceof?: string;
     int?: string;
-    interface?: string;
+    _interface?: string;
     long?: string;
     native?: string;
     new?: string;
@@ -50,7 +50,7 @@ type Entry {
     throw?: string;
     throws?: string;
     transient?: string;
-    true?: string;
+    _true?: string;
     try?: string;
     void?: string;
     volatile?: string;
@@ -60,7 +60,7 @@ type Entry {
 service Keywords {
     abstract() -> string;
     assert() -> string;
-    boolean() -> string;
+    _boolean() -> string;
     break() -> string;
     byte() -> string;
     case() -> string;
@@ -71,14 +71,14 @@ service Keywords {
     continue() -> string;
     default() -> string;
     do() -> string;
-    double() -> string;
+    _double() -> string;
     else() -> string;
-    enum() -> string;
+    _enum() -> string;
     extends() -> string;
-    false() -> string;
+    _false() -> string;
     final() -> string;
     finally() -> string;
-    float() -> string;
+    _float() -> string;
     for() -> string;
     goto() -> string;
     if() -> string;
@@ -86,7 +86,7 @@ service Keywords {
     import() -> string;
     instanceof() -> string;
     int() -> string;
-    interface() -> string;
+    _interface() -> string;
     long() -> string;
     native() -> string;
     new() -> string;
@@ -106,7 +106,7 @@ service Keywords {
     throw() -> string;
     throws() -> string;
     transient() -> string;
-    true() -> string;
+    _true() -> string;
     try() -> string;
     void() -> string;
     volatile() -> string;

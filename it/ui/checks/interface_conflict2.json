@@ -1,9 +1,9 @@
 {
   "status": false,
   "stdout": [
-    "it/ui/proto/interface_conflict2.reproto:5:5-29:",
-    "  5:     type: string as \"@type\";",
-    "         ^^^^^^^^^^^^^^^^^^^^^^^^ - field with name `@type` is the same as tag used in type_info"
+    "it/ui/proto/interface_conflict2.reproto:5:5-30:",
+    "  5:     _type: string as \"@type\";",
+    "         ^^^^^^^^^^^^^^^^^^^^^^^^^ - field with name `@type` is the same as tag used in type_info"
   ],
   "stderr": []
 }

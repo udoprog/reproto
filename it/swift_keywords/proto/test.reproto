@@ -1,7 +1,7 @@
 use true as t;
 
 type Entry {
-  as?: string;
+  _as?: string;
   associatedtype?: string;
   associativity?: string;
   break?: string;
@@ -16,10 +16,10 @@ type Entry {
   do?: string;
   dynamic?: string;
   else?: string;
-  enum?: string;
+  _enum?: string;
   extension?: string;
   fallthrough?: string;
-  false?: string;
+  _false?: string;
   fileprivate?: string;
   final?: string;
   for?: string;
@@ -66,7 +66,7 @@ type Entry {
   switch?: string;
   throw?: string;
   throws?: string;
-  true?: string;
+  _true?: string;
   try?: string;
   typealias?: string;
   unowned?: string;

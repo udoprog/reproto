@@ -3,7 +3,7 @@ use true as t;
 type Entry {
   abstract?: string;
   await?: string;
-  boolean?: string;
+  _boolean?: string;
   break?: string;
   byte?: string;
   case?: string;
@@ -16,15 +16,15 @@ type Entry {
   default?: string;
   delete?: string;
   do?: string;
-  double?: string;
+  _double?: string;
   else?: string;
-  enum?: string;
+  _enum?: string;
   export?: string;
   extends?: string;
-  false?: string;
+  _false?: string;
   final?: string;
   finally?: string;
-  float?: string;
+  _float?: string;
   for?: string;
   function?: string;
   goto?: string;
@@ -35,7 +35,7 @@ type Entry {
   in?: string;
   instanceof?: string;
   int?: string;
-  interface?: string;
+  _interface?: string;
   let?: string;
   long?: string;
   native?: string;
@@ -54,7 +54,7 @@ type Entry {
   throw?: string;
   throws?: string;
   transient?: string;
-  true?: string;
+  _true?: string;
   try?: string;
   typeof?: string;
   var?: string;

@@ -3,7 +3,7 @@ use trait as t;
 type Entry {
   abstract?: string;
   alignof?: string;
-  as?: string;
+  _as?: string;
   become?: string;
   box?: string;
   break?: string;
@@ -12,9 +12,9 @@ type Entry {
   crate?: string;
   do?: string;
   else?: string;
-  enum?: string;
+  _enum?: string;
   extern?: string;
-  false?: string;
+  _false?: string;
   final?: string;
   fn?: string;
   for?: string;
@@ -43,12 +43,12 @@ type Entry {
   struct?: string;
   super?: string;
   trait?: string;
-  true?: string;
-  type?: string;
+  _true?: string;
+  _type?: string;
   typeof?: string;
   unsafe?: string;
   unsized?: string;
-  use?: string;
+  _use?: string;
   virtual?: string;
   where?: string;
   while?: string;

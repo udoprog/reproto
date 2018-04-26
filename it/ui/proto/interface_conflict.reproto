@@ -1,6 +1,6 @@
 interface Example {
   Foo {
     /// Conflicts with default strategy.
-    type: string;
+    _type: string;
   }
 }

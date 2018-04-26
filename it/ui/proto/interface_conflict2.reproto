@@ -2,6 +2,6 @@
 interface Example {
   Foo {
     /// Conflicts with explicit strategy.
-    type: string as "@type";
+    _type: string as "@type";
   }
 }

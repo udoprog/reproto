@@ -2,7 +2,7 @@ use yield as t;
 
 type Entry {
   and?: string;
-  as?: string;
+  _as?: string;
   assert?: string;
   break?: string;
   class?: string;

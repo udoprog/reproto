@@ -2,7 +2,7 @@ use true as t;
 
 type Entry {
   abstract: string;
-  as: string;
+  _as: string;
   base: string;
   bool: string;
   break: string;
@@ -18,16 +18,16 @@ type Entry {
   default: string;
   delegate: string;
   do: string;
-  double: string;
+  _double: string;
   else: string;
-  enum: string;
+  _enum: string;
   event: string;
   explicit: string;
   extern: string;
-  false: string;
+  _false: string;
   finally: string;
   fixed: string;
-  float: string;
+  _float: string;
   for: string;
   foreach: string;
   goto: string;
@@ -35,7 +35,7 @@ type Entry {
   implicit: string;
   in: string;
   int: string;
-  interface: string;
+  _interface: string;
   internal: string;
   is: string;
   lock: string;
@@ -60,12 +60,12 @@ type Entry {
   sizeof: string;
   stackalloc: string;
   static: string;
-  string: string;
+  _string: string;
   struct: string;
   switch: string;
   this: string;
   throw: string;
-  true: string;
+  _true: string;
   try: string;
   typeof: string;
   uint: string;
@@ -82,7 +82,7 @@ type Entry {
 
 service Keywords {
   abstract() -> string;
-  as() -> string;
+  _as() -> string;
   base() -> string;
   bool() -> string;
   break() -> string;
@@ -98,16 +98,16 @@ service Keywords {
   default() -> string;
   delegate() -> string;
   do() -> string;
-  double() -> string;
+  _double() -> string;
   else() -> string;
-  enum() -> string;
+  _enum() -> string;
   event() -> string;
   explicit() -> string;
   extern() -> string;
-  false() -> string;
+  _false() -> string;
   finally() -> string;
   fixed() -> string;
-  float() -> string;
+  _float() -> string;
   for() -> string;
   foreach() -> string;
   goto() -> string;
@@ -115,7 +115,7 @@ service Keywords {
   implicit() -> string;
   in() -> string;
   int() -> string;
-  interface() -> string;
+  _interface() -> string;
   internal() -> string;
   is() -> string;
   lock() -> string;
@@ -140,12 +140,12 @@ service Keywords {
   sizeof() -> string;
   stackalloc() -> string;
   static() -> string;
-  string() -> string;
+  _string() -> string;
   struct() -> string;
   switch() -> string;
   this() -> string;
   throw() -> string;
-  true() -> string;
+  _true() -> string;
   try() -> string;
   typeof() -> string;
   uint() -> string;
