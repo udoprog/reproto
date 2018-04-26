@@ -2,7 +2,7 @@
 
 use core::flavored::{RpAccept, RpChannel, RpEndpointArgument, RpEndpointHttp, RpHttpMethod,
                      RpPathSpec, RpValue};
-use core::{self, Attributes, Diagnostics, Loc, Span, WithSpan};
+use core::{self, Attributes, Diagnostics, Import, Loc, Span, WithSpan};
 use into_model::IntoModel;
 use path_parser;
 use scope::Scope;
@@ -37,14 +37,17 @@ pub fn reserved(
 }
 
 /// `#[http(..)]` attribute for endpoints.
-pub fn endpoint_http(
+pub fn endpoint_http<I>(
     diag: &mut Diagnostics,
-    scope: &Scope,
+    scope: &mut Scope<I>,
     attributes: &mut Attributes,
     request: &mut Option<RpEndpointArgument>,
     response: Option<&Loc<RpChannel>>,
     arguments: &Vec<RpEndpointArgument>,
-) -> Result<RpEndpointHttp, ()> {
+) -> Result<RpEndpointHttp, ()>
+where
+    I: Import,
+{
     let mut http = RpEndpointHttp::default();
 
     let selection = match attributes.take_selection("http") {
@@ -116,12 +119,15 @@ pub fn endpoint_http(
     return Ok(http);
 
     /// Parse a path specification.
-    fn parse_path<'a, 'b: 'a>(
+    fn parse_path<'a, 'b: 'a, I>(
         diag: &mut Diagnostics,
-        scope: &Scope,
+        scope: &mut Scope<I>,
         path: Loc<RpValue>,
         args: &'a mut HashMap<&'b str, &'b RpEndpointArgument>,
-    ) -> Result<RpPathSpec, ()> {
+    ) -> Result<RpPathSpec, ()>
+    where
+        I: Import,
+    {
         let (path, span) = Loc::take_pair(path);
 
         let path = path.as_string().with_span(diag, span)?;

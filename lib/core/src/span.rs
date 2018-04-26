@@ -5,8 +5,17 @@ pub struct Span {
 }
 
 impl Span {
+    /// Build an empty span.
     pub fn empty() -> Span {
         Span { start: 0, end: 0 }
+    }
+
+    /// Convert the span to include only the end of itself.
+    pub fn end(self) -> Span {
+        Self {
+            start: self.end,
+            end: self.end,
+        }
     }
 }
 

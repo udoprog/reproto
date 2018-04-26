@@ -218,6 +218,9 @@ pub struct Field<'input> {
     pub name: Cow<'input, str>,
     pub ty: Loc<Type<'input>>,
     pub field_as: Option<String>,
+    /// If the end-of-line indicator present.
+    /// A `false` value should indicate an error.
+    pub endl: bool,
 }
 
 /// A file.
@@ -533,13 +536,16 @@ pub enum Package {
 /// A use declaration
 ///
 /// ```ignore
-/// use <package> "<version req> as <alias>
+/// use <package> "<version req> as <alias>;
 /// ```
 #[derive(Debug, PartialEq, Eq)]
 pub struct UseDecl<'input> {
     pub package: Loc<Package>,
     pub range: Option<Loc<String>>,
     pub alias: Option<Loc<Cow<'input, str>>>,
+    /// If the end-of-line indicator present.
+    /// A `false` value should indicate an error.
+    pub endl: bool,
 }
 
 /// A literal value

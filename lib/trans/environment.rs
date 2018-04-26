@@ -1,11 +1,11 @@
-use ast::{self, UseDecl};
+use ast;
 use core::errors::{Error, Result};
-use core::{translator, Context, CoreFlavor, Diagnostics, Flavor, FlavorTranslator, Loc,
+use core::{translator, Context, CoreFlavor, Diagnostics, Flavor, FlavorTranslator, Import, Loc,
            PackageTranslator, Range, Resolved, Resolver, RpFile, RpName, RpPackage, RpReg,
-           RpRequiredPackage, RpVersionedPackage, Source, Translate, Translator, Version, WithSpan};
+           RpRequiredPackage, RpVersionedPackage, Source, Translate, Translator, Version};
 use into_model::IntoModel;
 use linked_hash_map::LinkedHashMap;
-use naming::{self, Naming};
+use naming::Naming;
 use parser;
 use scope::Scope;
 use std::cell::RefCell;
@@ -386,59 +386,9 @@ impl<'a> Environment<'a, CoreFlavor> {
         Ok(package)
     }
 
-    /// Import a package based on a package and version criteria.
-    pub fn import(&mut self, required: &RpRequiredPackage) -> Result<Option<RpVersionedPackage>> {
-        debug!("import: {}", required);
-
-        if let Some(existing) = self.visited.get(required) {
-            debug!("already loaded: {:?} ({})", existing, required);
-            return Ok(existing.clone());
-        }
-
-        // find all matching objects from the resolver.
-        let files = self.resolver.resolve(required)?;
-
-        let result = if let Some(Resolved { version, source }) = files.into_iter().last() {
-            debug!("loading: {}", source);
-
-            let package = RpVersionedPackage::new(required.package.clone(), version);
-
-            debug!("found: {} ({})", package, required);
-
-            let mut diag = Diagnostics::new(source.clone());
-
-            try_with_diag!(self.ctx, diag, {
-                self.load_source_diag(&mut diag, &package)
-                    .and_then(|file| self.process_file(&mut diag, package.clone(), file))
-            });
-
-            Some(package)
-        } else {
-            None
-        };
-
-        self.visited.insert(required.clone(), result.clone());
-        Ok(result)
-    }
-
     /// Verify all declarations.
     pub fn verify(&mut self) -> Result<()> {
         Ok(())
-    }
-
-    /// Parse a naming option.
-    ///
-    /// Since lower_camel is default, do nothing on that case.
-    fn parse_naming(&self, naming: &str) -> Result<Option<Box<Naming>>> {
-        let result: Option<Box<Naming>> = match naming {
-            "upper_camel" => Some(Box::new(naming::to_upper_camel())),
-            "lower_camel" => Some(Box::new(naming::to_lower_camel())),
-            "upper_snake" => Some(Box::new(naming::to_upper_snake())),
-            "lower_snake" => None,
-            _ => return Err("illegal value".into()),
-        };
-
-        Ok(result)
     }
 
     /// Load the provided Source into an `RpFile` without registering it to the set of visited
@@ -512,137 +462,18 @@ impl<'a> Environment<'a, CoreFlavor> {
     fn load_file<'input>(
         &mut self,
         diag: &mut Diagnostics,
-        mut file: ast::File,
+        file: ast::File,
         package: &RpVersionedPackage,
     ) -> result::Result<RpFile<CoreFlavor>, ()> {
-        let prefixes = self.process_uses(diag, file.uses.drain(..))?;
-
-        let package = package.clone();
-
         let mut scope = Scope::new(
-            package,
-            prefixes,
+            package.clone(),
             self.keywords.clone(),
             self.field_ident_naming.as_ref().map(|n| n.copy()),
             self.endpoint_ident_naming.as_ref().map(|n| n.copy()),
+            self,
         );
 
-        let attributes = file.attributes.drain(..).collect::<Vec<_>>();
-        let mut attributes = attributes.into_model(diag, &scope)?;
-
-        {
-            let root = scope.mut_root().expect("mutable access to scope");
-
-            if let Some(endpoint_naming) = attributes.take_selection("endpoint_naming") {
-                let (mut endpoint_naming, span) = Loc::take_pair(endpoint_naming);
-
-                root.endpoint_naming = endpoint_naming
-                    .take_word()
-                    .ok_or_else(|| Error::from("expected argument"))
-                    .and_then(|n| n.as_identifier().and_then(|n| self.parse_naming(n)))
-                    .with_span(diag, &span)?;
-
-                check_selection!(diag, endpoint_naming);
-            }
-
-            if let Some(field_naming) = attributes.take_selection("field_naming") {
-                let (mut field_naming, span) = Loc::take_pair(field_naming);
-
-                root.field_naming = field_naming
-                    .take_word()
-                    .ok_or_else(|| Error::from("expected argument"))
-                    .and_then(|n| n.as_identifier().and_then(|n| self.parse_naming(n)))
-                    .with_span(diag, &span)?;
-
-                check_selection!(diag, field_naming);
-            }
-
-            check_attributes!(diag, attributes);
-        }
-
-        file.into_model(diag, &scope)
-    }
-
-    /// Process use declarations found at the top of each object.
-    fn process_uses<'input, I>(
-        &mut self,
-        diag: &mut Diagnostics,
-        uses: I,
-    ) -> result::Result<HashMap<String, RpVersionedPackage>, ()>
-    where
-        I: IntoIterator<Item = Loc<UseDecl<'input>>>,
-    {
-        use std::collections::hash_map::Entry;
-
-        let mut prefixes = HashMap::new();
-
-        for use_decl in uses.into_iter() {
-            let (use_decl, _) = Loc::take_pair(use_decl);
-
-            let range = {
-                match use_decl.range {
-                    Some(range) => {
-                        let (range, span) = Loc::take_pair(range);
-
-                        match Range::parse(&range) {
-                            Ok(range) => range,
-                            Err(e) => {
-                                diag.err(span, format!("bad version range: {}", e));
-                                continue;
-                            }
-                        }
-                    }
-                    None => Range::any(),
-                }
-            };
-
-            let (package, span) = Loc::take_pair(use_decl.package);
-
-            // Handle Error.
-            let package = match package {
-                ast::Package::Package { ref package } => package,
-                ast::Package::Error => {
-                    diag.err(span, format!("not a valid package"));
-                    continue;
-                }
-            };
-
-            let required = RpRequiredPackage::new(package.clone(), range);
-            let use_package = self.import(&required).with_span(diag, span)?;
-
-            if let Some(use_package) = use_package {
-                if let Some(used) = package.parts().last() {
-                    let (alias, span) = match use_decl.alias.as_ref() {
-                        Some(alias) => {
-                            let (alias, span) = Loc::borrow_pair(alias);
-                            (alias.as_ref(), span)
-                        }
-                        None => (used.as_str(), span),
-                    };
-
-                    match prefixes.entry(alias.to_string()) {
-                        Entry::Vacant(entry) => entry.insert(use_package.clone()),
-                        Entry::Occupied(_) => {
-                            diag.err(span, format!("alias {} already in use", alias));
-                            continue;
-                        }
-                    };
-                }
-
-                continue;
-            }
-
-            diag.err(
-                span,
-                format!("imported package `{}` does not exist", required),
-            );
-        }
-
-        if diag.has_errors() {
-            return Err(());
-        }
-
-        Ok(prefixes)
+        file.into_model(diag, &mut scope)
     }
 
     /// Process a single file, populating the environment.
@@ -696,6 +527,50 @@ impl<'a> Environment<'a, CoreFlavor> {
         }
 
         Ok(())
+    }
+}
+
+impl<'e> Import for Environment<'e, CoreFlavor> {
+    /// Import a package based on a package and version criteria.
+    fn import(&mut self, required: &RpRequiredPackage) -> Result<Option<RpVersionedPackage>> {
+        debug!("import: {}", required);
+
+        if let Some(existing) = self.visited.get(required) {
+            debug!("already loaded: {:?} ({})", existing, required);
+            return Ok(existing.clone());
+        }
+
+        // find all matching objects from the resolver.
+        let files = self.resolver.resolve(required)?;
+
+        let result = if let Some(Resolved { version, source }) = files.into_iter().last() {
+            debug!("loading: {}", source);
+
+            let package = RpVersionedPackage::new(required.package.clone(), version);
+
+            debug!("found: {} ({})", package, required);
+
+            let mut diag = Diagnostics::new(source.clone());
+
+            try_with_diag!(self.ctx, diag, {
+                self.load_source_diag(&mut diag, &package)
+                    .and_then(|file| self.process_file(&mut diag, package.clone(), file))
+            });
+
+            Some(package)
+        } else {
+            None
+        };
+
+        self.visited.insert(required.clone(), result.clone());
+        Ok(result)
+    }
+}
+
+/// Forward implementation for a mutable reference to the environment.
+impl<'a, 'e: 'a> Import for &'a mut Environment<'e, CoreFlavor> {
+    fn import(&mut self, required: &RpRequiredPackage) -> Result<Option<RpVersionedPackage>> {
+        (*self).import(required)
     }
 }
 

@@ -25,10 +25,11 @@ Use: UseDecl<'input> = {
     "use" <package:Loc<Package>>
         <range:Loc<"string">?>
         <alias:Loc<UseAlias>?>
-    ";" => UseDecl {
+    <endl:";"?> => UseDecl {
         package: package,
         range: range,
         alias: alias,
+        endl: endl.is_some(),
     },
 };
 
@@ -149,25 +150,6 @@ Channel: Channel<'input> = {
 };
 
 Ident: Cow<'input, str> = {
-    any => "any".into(),
-    float => "float".into(),
-    double => "double".into(),
-    u32 => "u32".into(),
-    u64 => "u64".into(),
-    i32 => "i32".into(),
-    i64 => "i64".into(),
-    boolean => "boolean".into(),
-    string => "string".into(),
-    datetime => "datetime".into(),
-    bytes => "bytes".into(),
-    stream => "stream".into(),
-    "use" => "use".into(),
-    "as" => "as".into(),
-    "enum" => "enum".into(),
-    "type" => "type".into(),
-    "interface" => "interface".into(),
-    "tuple" => "tuple".into(),
-    "service" => "service".into(),
     <value:ident> => value,
 };
 
@@ -201,12 +183,13 @@ Code: Code<'input> =
     };
 
 Field: Field<'input> = {
-    <name:Ident> <optional:Optional> ":" <ty:Loc<Type>> <alias:FieldAlias?> ";" =>
+    <name:Ident> <optional:Optional> ":" <ty:Loc<Type>> <alias:FieldAlias?> <endl:";"?> =>
     Field {
         required: !optional,
         name: name,
         ty: ty,
         field_as: alias,
+        endl: endl.is_some(),
     },
 };
 

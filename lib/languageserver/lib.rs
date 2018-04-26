@@ -19,8 +19,8 @@ extern crate url_serde;
 mod envelope;
 mod workspace;
 
-use self::ContentType::*;
 use self::workspace::{Completion, Jump, LoadedFile, Workspace};
+use self::ContentType::*;
 use core::errors::Result;
 use core::{Context, ContextItem, Diagnostics, Encoding, Loc, RealFilesystem, Source};
 use ropey::Rope;

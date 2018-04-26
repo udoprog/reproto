@@ -57,7 +57,9 @@ mod span;
 pub mod translator;
 pub mod utils;
 mod with_span;
+mod import;
 
+pub use self::import::Import;
 pub use self::attributes::{Attributes, Selection};
 pub use self::context::{Context, ContextItem};
 pub use self::diagnostics::{Diagnostic, Diagnostics, SymbolKind};

@@ -232,6 +232,7 @@ impl<'a, 'input: 'a> FieldInit<'a, 'input> {
             name: name.clone().into(),
             ty: Loc::new(ty.into(), self.span.clone()),
             field_as: field_as,
+            endl: true,
         };
 
         // field referencing inner declaration

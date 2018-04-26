@@ -2,7 +2,7 @@ use clap::ArgMatches;
 use core::errors::{Error, Result, ResultExt};
 use core::{Context, CoreFlavor, Diagnostics, Flavor, Resolved, ResolvedByPrefix, Resolver,
            RpChannel, RpPackage, RpPackageFormat, RpRequiredPackage, RpVersionedPackage, Source,
-           Version};
+           Version, Import};
 use env;
 use manifest::{self, Lang, Language, Manifest, ManifestFile, Publish};
 use repository::Repository;

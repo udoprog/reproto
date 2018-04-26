@@ -2,8 +2,8 @@
 
 use ast;
 use core::errors::Result;
-use core::{self, Context, Diagnostics, Encoding, Loc, Position, Resolved, ResolvedByPrefix,
-           Resolver, RpPackage, RpRequiredPackage, RpVersionedPackage, Span};
+use core::{self, Context, Diagnostics, Encoding, Import, Loc, Position, Resolved,
+           ResolvedByPrefix, Resolver, RpPackage, RpRequiredPackage, RpVersionedPackage, Span};
 use env;
 use manifest;
 use parser;
